@@ -556,7 +556,6 @@ async function initGrid (gridDiv) {
       // treeDataDisplayType: 'custom',
     }
 
-    const  = document.querySelector('#myGrid');
     const gridApi = createGrid(gridDiv, gridOptions)
 
     console.log(globalThis.gridApi = gridApi)
