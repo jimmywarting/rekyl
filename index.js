@@ -1,7 +1,10 @@
+import { initGrid } from './table.js'
 const date = new Date()
 
-function init() {
-  console.log('Hello world!', date)
+function init (rootElement) {
+  const myGridDiv = document.createElement('div')
+  rootElement.replaceWith(myGridDiv)
+  initGrid(myGridDiv)
 }
 
 export {
