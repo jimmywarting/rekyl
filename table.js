@@ -1,5 +1,4 @@
-// https://cdn.jsdelivr.net/npm/ag-grid-community@35.3.0/+esm
-import { createGrid, themeQuartz, iconSetMaterial, ModuleRegistry } from 'https://cdn.jsdelivr.net/npm/ag-grid-community@35.2.0/+esm';
+import { createGrid, themeQuartz, iconSetMaterial, ModuleRegistry } from 'https://cdn.jsdelivr.net/npm/ag-grid-community@35.2.0/dist/package/main.esm.mjs';
 import { AllEnterpriseModule } from 'https://cdn.jsdelivr.net/npm/ag-grid-enterprise@35.2.0/dist/package/main.esm.min.mjs';
 import { AG_GRID_LOCALE_SE } from 'https://esm.sh/@ag-grid-community/locale@35.2.0/es2022/locale.mjs?exports=AG_GRID_LOCALE_SE'
 import tables from './schema.js'
@@ -335,7 +334,6 @@ async function initGrid (gridDiv) {
     const { schema, view } = tableInfo
     const t = table.getOrInsertComputed(tableName, () => ({ columnDefs: [], data: new Map() }))
     for (const [columnName, column] of Object.entries(schema)) {
-      /** @type {import('ag-grid-community').ColDef} */
       const colDef = {
         field: `${tableName}.${columnName}`,
         headerName: column.label || columnName,
