@@ -1,0 +1,1586 @@
+{
+  "buildservice_actual": {
+    "propertyId": 12823,
+    "displayName": "Reverse construction VAT",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 0,
+        "label": "Nej"
+      },
+      {
+        "value": 1,
+        "label": "Ja"
+      }
+    ]
+  },
+  "custom1": {
+    "propertyId": 240,
+    "displayName": "Akut",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 4,
+        "label": "Ja"
+      },
+      {
+        "value": 2,
+        "label": "Nej"
+      }
+    ]
+  },
+  "custom2": {
+    "propertyId": 23,
+    "displayName": "Klar att fakturera/Ej deb",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 1,
+        "label": "Klar, faktureras"
+      },
+      {
+        "value": 2,
+        "label": "Klar, ej deb"
+      }
+    ]
+  },
+  "custom4": {
+    "propertyId": 22,
+    "displayName": "Job type",
+    "fieldType": "propertytree",
+    "values": [
+      {
+        "value": 102,
+        "label": "5100 - Teknisk förvaltning"
+      },
+      {
+        "value": 112,
+        "label": "5200 - Fastighetsskötsel"
+      },
+      {
+        "value": 106,
+        "label": "5300 - Hantverkshjälp"
+      },
+      {
+        "value": 114,
+        "label": "5400 - Ekonomisk förvaltning"
+      },
+      {
+        "value": 113,
+        "label": "6200 - Snöröjning"
+      },
+      {
+        "value": 116,
+        "label": "Utemiljö"
+      },
+      {
+        "value": 115,
+        "label": "Anläggning",
+        "parent": 116
+      },
+      {
+        "value": 117,
+        "label": "Avtalsarbeten",
+        "parent": 116
+      },
+      {
+        "value": 118,
+        "label": "Sandsopning - fast pris",
+        "parent": 116
+      },
+      {
+        "value": 119,
+        "label": "Sandsopning - rörligt pris",
+        "parent": 116
+      },
+      {
+        "value": 120,
+        "label": "Utemiljö tilläggsarbete - egen personal",
+        "parent": 116
+      },
+      {
+        "value": 121,
+        "label": "Utemiljö tilläggsarbete - UE",
+        "parent": 116
+      },
+      {
+        "value": 122,
+        "label": "Vinterskötsel - fast pris",
+        "parent": 116
+      },
+      {
+        "value": 123,
+        "label": "Vinterskötsel - rörligt pris",
+        "parent": 116
+      },
+      {
+        "value": 33,
+        "label": "Beredskap"
+      },
+      {
+        "value": 31,
+        "label": "Internt"
+      }
+    ]
+  },
+  "custom6": {
+    "propertyId": 416,
+    "displayName": "Huvudnyckel",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 1,
+        "label": "Ja"
+      },
+      {
+        "value": 2,
+        "label": "Nej"
+      }
+    ]
+  },
+  "custom7": {
+    "propertyId": 417,
+    "displayName": "Separata kunduppgifter",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 1,
+        "label": "Ja"
+      },
+      {
+        "value": 2,
+        "label": "Nej"
+      },
+      {
+        "value": 3,
+        "label": "Ej bedömt"
+      }
+    ]
+  },
+  "custom8": {
+    "propertyId": 418,
+    "displayName": "AFF-kod",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 1,
+        "label": "SB - FASTIGHETSFÖRVALTNING"
+      },
+      {
+        "value": 2,
+        "label": "SC1 - STYR- OCH ÖVERVAKNINGSSYSTEM"
+      },
+      {
+        "value": 3,
+        "label": "SC2 - BYGGNAD UTVÄNDIGT"
+      },
+      {
+        "value": 4,
+        "label": "SC3 - BYGGNAD INVÄNDIGT"
+      },
+      {
+        "value": 5,
+        "label": "SC4 - VA-, VVS-, KYL- OCH PROCESSMEDIESYSTEM"
+      },
+      {
+        "value": 6,
+        "label": "SC5 - ELSYSTEM"
+      },
+      {
+        "value": 7,
+        "label": "SC6 - TELE-  OCH  DATASYSTEM"
+      },
+      {
+        "value": 8,
+        "label": "SC7 - TRANSPORTSYSTEM"
+      },
+      {
+        "value": 9,
+        "label": "SC8 - ÖVRIGA TEKNISKA INSTALLATIONER"
+      },
+      {
+        "value": 10,
+        "label": "SD1 - UTEMILJÖ ALLMÄNT"
+      },
+      {
+        "value": 11,
+        "label": "SD2 - VEGETATIONSYTOR"
+      },
+      {
+        "value": 12,
+        "label": "SD3 - MARKBELÄGGNINGAR"
+      },
+      {
+        "value": 13,
+        "label": "SD4 - UTRUSTNING UTEMILJÖ"
+      },
+      {
+        "value": 14,
+        "label": "SD5 - LEK- OCH IDROTT"
+      },
+      {
+        "value": 15,
+        "label": "SD6 - VATTENANLÄGGNINGAR"
+      },
+      {
+        "value": 16,
+        "label": "SG1 - BRANDSKYDDSARBETE"
+      },
+      {
+        "value": 17,
+        "label": "SG2 - TEKNISK BEVAKNING"
+      },
+      {
+        "value": 18,
+        "label": "SJ - EKONOMI"
+      }
+    ]
+  },
+  "custom9": {
+    "propertyId": 419,
+    "displayName": "Platskategori",
+    "fieldType": "property"
+  },
+  "custom10": {
+    "propertyId": 5086,
+    "displayName": "Jobbkategori",
+    "fieldType": "property"
+  },
+  "custom11": {
+    "propertyId": 5087,
+    "displayName": "UE status",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 2,
+        "label": "Skicka till UE"
+      },
+      {
+        "value": 1,
+        "label": "Skickat till UE"
+      }
+    ]
+  },
+  "custom17": {
+    "propertyId": 5093,
+    "displayName": "Kundtyp",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 4,
+        "label": "Bostadsrättsförening"
+      },
+      {
+        "value": 1,
+        "label": "Bostadsrättsinnehavare"
+      },
+      {
+        "value": 2,
+        "label": "Fastighet"
+      },
+      {
+        "value": 3,
+        "label": "Hyresgäst"
+      }
+    ]
+  },
+  "custom18": {
+    "propertyId": 5094,
+    "displayName": "Vilande",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 1,
+        "label": "Garanti"
+      },
+      {
+        "value": 2,
+        "label": "Reklamation"
+      },
+      {
+        "value": 3,
+        "label": "Annat"
+      }
+    ]
+  },
+  "custom19": {
+    "propertyId": 5095,
+    "displayName": "Klagomål/synpunkt",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 1,
+        "label": "Ja"
+      }
+    ]
+  },
+  "custom21": {
+    "propertyId": 5097,
+    "displayName": "ROT/RUT?",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 1,
+        "label": "Ja"
+      },
+      {
+        "value": 2,
+        "label": "Nej"
+      }
+    ]
+  },
+  "custom25": {
+    "propertyId": 5101,
+    "displayName": "Fordonsstatus",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 1,
+        "label": "Går att använda"
+      },
+      {
+        "value": 2,
+        "label": "Får/kan inte användas"
+      },
+      {
+        "value": 3,
+        "label": "Reparation pågår"
+      },
+      {
+        "value": 4,
+        "label": "Reservdelar beställda"
+      },
+      {
+        "value": 5,
+        "label": "Klar!"
+      }
+    ]
+  },
+  "custom26": {
+    "propertyId": 5102,
+    "displayName": "Visas som driftstörning",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 1,
+        "label": "Nej"
+      },
+      {
+        "value": 2,
+        "label": "Ja"
+      }
+    ]
+  },
+  "custom27": {
+    "propertyId": 5103,
+    "displayName": "Visa arbetsorder (realnode)",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 1,
+        "label": "Visas"
+      },
+      {
+        "value": 3,
+        "label": "Visas endast för kund"
+      },
+      {
+        "value": 2,
+        "label": "Visas inte"
+      }
+    ]
+  },
+  "custom28": {
+    "propertyId": 5104,
+    "displayName": "Notifiera användare",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 2,
+        "label": "Nej"
+      },
+      {
+        "value": 1,
+        "label": "Ja"
+      }
+    ]
+  },
+  "custom29": {
+    "propertyId": 5105,
+    "displayName": "Styrelse/fastighetsägare ska lösa uppgift",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 1,
+        "label": "Nej"
+      },
+      {
+        "value": 2,
+        "label": "Ja"
+      }
+    ]
+  },
+  "custom30": {
+    "propertyId": 5106,
+    "displayName": "Kund informerad om det blir en kostnad?",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 1,
+        "label": "Nej"
+      },
+      {
+        "value": 2,
+        "label": "Ja"
+      }
+    ]
+  },
+  "debitmethod": {
+    "propertyId": 21,
+    "displayName": "Work order debit method ",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 1,
+        "label": "Separat (Löpande)"
+      },
+      {
+        "value": 2,
+        "label": "Separat (Fast pris)"
+      },
+      {
+        "value": 0,
+        "label": "Automatisk"
+      }
+    ]
+  },
+  "flags": {
+    "propertyId": 9386,
+    "displayName": "Flags",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 1,
+        "label": "Låst"
+      },
+      {
+        "value": 0,
+        "label": "Olåst"
+      }
+    ]
+  },
+  "guideoption": {
+    "propertyId": 294,
+    "displayName": "Arbetsorderalternativ",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 1,
+        "label": "Skapa projekt och arbetsorder (Allgranth)"
+      },
+      {
+        "value": 5,
+        "label": "Skapa projekt och arbetsorder (Fastighetsskötsel)"
+      },
+      {
+        "value": 6,
+        "label": "Skapa projekt och arbetsorder (Svensk Utemiljö)"
+      },
+      {
+        "value": 7,
+        "label": "Skapa projekt och arbetsorder (We Go Fastighet)"
+      },
+      {
+        "value": 2,
+        "label": "Skapa arbetsorder mot befintligt projekt (Allgranth)"
+      },
+      {
+        "value": 8,
+        "label": "Skapa arbetsorder mot befintligt projekt (Fastighetsskötsel)"
+      },
+      {
+        "value": 9,
+        "label": "Skapa arbetsorder mot befintligt projekt (Svensk Utemiljö)"
+      },
+      {
+        "value": 10,
+        "label": "Skapa arbetsorder mot befintligt projekt (We Go Fastighet)"
+      },
+      {
+        "value": 3,
+        "label": "Skapa Verkstadsorder (Allgranth)"
+      },
+      {
+        "value": 11,
+        "label": "Skapa Verkstadsorder (Fastighetsskötsel)"
+      },
+      {
+        "value": 12,
+        "label": "Skapa Verkstadsorder (Svensk Utemiljö)"
+      },
+      {
+        "value": 13,
+        "label": "Skapa Verkstadsorder (We Go Fastighet)"
+      }
+    ]
+  },
+  "hassplitreference": {
+    "propertyId": 1530,
+    "displayName": "Order is splitted upon invoicing",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 0,
+        "label": "Nej"
+      },
+      {
+        "value": 1,
+        "label": "Ja"
+      }
+    ]
+  },
+  "ordertype": {
+    "propertyId": 6,
+    "displayName": "Order type work order",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 0,
+        "label": "Arbetsorder"
+      },
+      {
+        "value": 1,
+        "label": "Avtalsorder"
+      },
+      {
+        "value": 3,
+        "label": "Internorder"
+      },
+      {
+        "value": 4,
+        "label": "Frånvaroorder"
+      },
+      {
+        "value": 5,
+        "label": "Verkstadsorder"
+      }
+    ]
+  },
+  "project1": {
+    "propertyId": 63,
+    "displayName": "Project group work order",
+    "fieldType": "project1"
+  },
+  "scheme_exists": {
+    "propertyId": 412,
+    "displayName": "Resource planning exists",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 1,
+        "label": "Ja"
+      }
+    ]
+  },
+  "status": {
+    "propertyId": 2,
+    "displayName": "Status work order",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 6,
+        "label": "Ny"
+      },
+      {
+        "value": 0,
+        "label": "Pågående"
+      },
+      {
+        "value": 1,
+        "label": "Vilande"
+      },
+      {
+        "value": 2,
+        "label": "Avslutad"
+      },
+      {
+        "value": 3,
+        "label": "Fakturering"
+      },
+      {
+        "value": 4,
+        "label": "Fakturerad"
+      },
+      {
+        "value": 5,
+        "label": "Makulerad"
+      }
+    ]
+  },
+  "taxreductiontype": {
+    "propertyId": 14055,
+    "displayName": "Tax reduction",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 0,
+        "label": "Ingen"
+      },
+      {
+        "value": 1,
+        "label": "ROT"
+      },
+      {
+        "value": 2,
+        "label": "RUT"
+      },
+      {
+        "value": 3,
+        "label": "Grön teknik"
+      }
+    ]
+  },
+  "taxreductiontype_actual": {
+    "propertyId": 14056,
+    "displayName": "Tax reduction",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 0,
+        "label": "Ingen"
+      },
+      {
+        "value": 1,
+        "label": "ROT"
+      },
+      {
+        "value": 2,
+        "label": "RUT"
+      },
+      {
+        "value": 3,
+        "label": "Grön teknik"
+      }
+    ]
+  },
+  "accrued_article_cost": {
+    "propertyId": 11456,
+    "displayName": "Accrued cost articles",
+    "fieldType": "number"
+  },
+  "accrued_article_income": {
+    "propertyId": 11453,
+    "displayName": "Accrued income articles",
+    "fieldType": "number"
+  },
+  "accrued_article_overhead": {
+    "propertyId": 11458,
+    "displayName": "Accrued overhead cost articles",
+    "fieldType": "number"
+  },
+  "accrued_fixedprice_income": {
+    "propertyId": 11454,
+    "displayName": "Accrued income fixed price",
+    "fieldType": "number"
+  },
+  "accrued_hours": {
+    "propertyId": 11452,
+    "displayName": "Accrued working time hours",
+    "fieldType": "number"
+  },
+  "accrued_income": {
+    "propertyId": 11461,
+    "displayName": "Accrued income",
+    "fieldType": "number"
+  },
+  "accrued_supplierinvoice_cost": {
+    "propertyId": 11457,
+    "displayName": "Accrued cost supplier invoices",
+    "fieldType": "number"
+  },
+  "accrued_supplierinvoice_income": {
+    "propertyId": 11455,
+    "displayName": "Accrued income supplier invoices",
+    "fieldType": "number"
+  },
+  "accrued_supplierinvoice_overhead": {
+    "propertyId": 11459,
+    "displayName": "Accrued overhead cost supplier invoices",
+    "fieldType": "number"
+  },
+  "accrued_supplierinvoices": {
+    "propertyId": 11460,
+    "displayName": "Accrued number of supplier invoices",
+    "fieldType": "number"
+  },
+  "article_cost": {
+    "propertyId": 9415,
+    "displayName": "Cost articles",
+    "fieldType": "number"
+  },
+  "article_income": {
+    "propertyId": 9411,
+    "displayName": "Income articles",
+    "fieldType": "number"
+  },
+  "article_overhead": {
+    "propertyId": 9417,
+    "displayName": "Overhead cost articles",
+    "fieldType": "number"
+  },
+  "assigner_actual": {
+    "propertyId": 47,
+    "displayName": "Assigner work order",
+    "fieldType": "freetext"
+  },
+  "assigner_separate": {
+    "propertyId": 12585,
+    "displayName": "Assigner",
+    "fieldType": "freetext"
+  },
+  "buyeremail_actual": {
+    "propertyId": 515,
+    "displayName": "Buyer e-mail",
+    "fieldType": "freetext"
+  },
+  "buyeremail_separate": {
+    "propertyId": 12643,
+    "displayName": "Buyer email separate",
+    "fieldType": "freetext"
+  },
+  "buyername_actual": {
+    "propertyId": 9400,
+    "displayName": "Buyer name",
+    "fieldType": "freetext"
+  },
+  "buyername_separate": {
+    "propertyId": 12586,
+    "displayName": "Buyer name",
+    "fieldType": "freetext"
+  },
+  "buyerphone_actual": {
+    "propertyId": 9401,
+    "displayName": "Buyer phone",
+    "fieldType": "freetext"
+  },
+  "buyerphone_separate": {
+    "propertyId": 12584,
+    "displayName": "Buyer phone",
+    "fieldType": "freetext"
+  },
+  "calculus_income": {
+    "propertyId": 9414,
+    "displayName": "Income calculation",
+    "fieldType": "number"
+  },
+  "chargeable_supplierinvoices": {
+    "propertyId": 13810,
+    "displayName": "Chargeable number of supplier invoices",
+    "fieldType": "number"
+  },
+  "city": {
+    "propertyId": 223,
+    "displayName": "City",
+    "fieldType": "freetext"
+  },
+  "comment": {
+    "propertyId": 133,
+    "displayName": "Notes",
+    "fieldType": "freetext"
+  },
+  "company": {
+    "propertyId": 52,
+    "displayName": "Work order company",
+    "fieldType": "propertytable"
+  },
+  "contactemail": {
+    "propertyId": 303,
+    "displayName": "Contact e-mail",
+    "fieldType": "freetext"
+  },
+  "contactperson": {
+    "propertyId": 301,
+    "displayName": "Contact person",
+    "fieldType": "freetext"
+  },
+  "contactphone": {
+    "propertyId": 302,
+    "displayName": "Contact phone",
+    "fieldType": "freetext"
+  },
+  "contractbillings": {
+    "propertyId": 9423,
+    "displayName": "Number of contract billings",
+    "fieldType": "number"
+  },
+  "contractregistered": {
+    "propertyId": 12488,
+    "displayName": "Contract",
+    "fieldType": "icon"
+  },
+  "corporateno_actual": {
+    "propertyId": 9392,
+    "displayName": "Person/Organization no",
+    "fieldType": "freetext"
+  },
+  "cost": {
+    "propertyId": 9473,
+    "displayName": "Costs",
+    "fieldType": "number"
+  },
+  "created": {
+    "propertyId": 292,
+    "displayName": "Created time",
+    "fieldType": "date"
+  },
+  "created_year": {
+    "propertyId": 346,
+    "displayName": "Created year",
+    "fieldType": "freetext"
+  },
+  "created_yearmonth": {
+    "propertyId": 345,
+    "displayName": "Created month",
+    "fieldType": "freetext"
+  },
+  "custom3": {
+    "propertyId": 24,
+    "displayName": "Custom field",
+    "fieldType": "property"
+  },
+  "custom5": {
+    "propertyId": 275,
+    "displayName": "Custom field",
+    "fieldType": "propertytree"
+  },
+  "custom12": {
+    "propertyId": 5088,
+    "displayName": "Custom field",
+    "fieldType": "property"
+  },
+  "custom13": {
+    "propertyId": 5089,
+    "displayName": "Custom field",
+    "fieldType": "property"
+  },
+  "custom14": {
+    "propertyId": 5090,
+    "displayName": "Custom field",
+    "fieldType": "property"
+  },
+  "custom15": {
+    "propertyId": 5091,
+    "displayName": "Custom field",
+    "fieldType": "property"
+  },
+  "custom16": {
+    "propertyId": 5092,
+    "displayName": "Custom field",
+    "fieldType": "property"
+  },
+  "custom20": {
+    "propertyId": 5096,
+    "displayName": "Custom field",
+    "fieldType": "property"
+  },
+  "custom22": {
+    "propertyId": 5098,
+    "displayName": "Custom field",
+    "fieldType": "property"
+  },
+  "custom23": {
+    "propertyId": 5099,
+    "displayName": "Custom field",
+    "fieldType": "property"
+  },
+  "custom24": {
+    "propertyId": 5100,
+    "displayName": "Custom field",
+    "fieldType": "property"
+  },
+  "customtext1": {
+    "propertyId": 428,
+    "displayName": "Lägenhet/lokal",
+    "fieldType": "freetext"
+  },
+  "customtext2": {
+    "propertyId": 429,
+    "displayName": "Key info",
+    "fieldType": "freetext"
+  },
+  "customtext3": {
+    "propertyId": 391,
+    "displayName": "Door code",
+    "fieldType": "freetext"
+  },
+  "customtext4": {
+    "propertyId": 430,
+    "displayName": "Custom field",
+    "fieldType": "freetext"
+  },
+  "customtext5": {
+    "propertyId": 431,
+    "displayName": "Placering",
+    "fieldType": "freetext"
+  },
+  "customtext6": {
+    "propertyId": 432,
+    "displayName": "Custom field",
+    "fieldType": "freetext"
+  },
+  "customtext7": {
+    "propertyId": 433,
+    "displayName": "Custom field",
+    "fieldType": "freetext"
+  },
+  "customtext8": {
+    "propertyId": 434,
+    "displayName": "Samfaktureras med order:",
+    "fieldType": "number"
+  },
+  "customtext9": {
+    "propertyId": 435,
+    "displayName": "Custom field",
+    "fieldType": "freetext"
+  },
+  "customtext10": {
+    "propertyId": 5065,
+    "displayName": "Addon order number",
+    "fieldType": "number"
+  },
+  "customtext11": {
+    "propertyId": 5066,
+    "displayName": "Custom field",
+    "fieldType": "freetext"
+  },
+  "customtext12": {
+    "propertyId": 5067,
+    "displayName": "Custom field",
+    "fieldType": "freetext"
+  },
+  "customtext13": {
+    "propertyId": 5068,
+    "displayName": "Custom field",
+    "fieldType": "freetext"
+  },
+  "customtext14": {
+    "propertyId": 5069,
+    "displayName": "Ordertitel",
+    "fieldType": "freetext"
+  },
+  "customtext15": {
+    "propertyId": 5070,
+    "displayName": "Custom field",
+    "fieldType": "freetext"
+  },
+  "customtext16": {
+    "propertyId": 5071,
+    "displayName": "Custom field",
+    "fieldType": "freetext"
+  },
+  "customtext17": {
+    "propertyId": 5072,
+    "displayName": "Orderstatus skickas till (e-post)",
+    "fieldType": "freetext"
+  },
+  "customtext18": {
+    "propertyId": 5073,
+    "displayName": "Custom field",
+    "fieldType": "freetext"
+  },
+  "customtext19": {
+    "propertyId": 5074,
+    "displayName": "Custom field",
+    "fieldType": "freetext"
+  },
+  "customtext20": {
+    "propertyId": 5075,
+    "displayName": "Custom field",
+    "fieldType": "freetext"
+  },
+  "customtext21": {
+    "propertyId": 5076,
+    "displayName": "Custom field",
+    "fieldType": "freetext"
+  },
+  "customtext22": {
+    "propertyId": 5077,
+    "displayName": "Custom field",
+    "fieldType": "freetext"
+  },
+  "customtext23": {
+    "propertyId": 5078,
+    "displayName": null,
+    "fieldType": "freetext"
+  },
+  "customtext24": {
+    "propertyId": 5079,
+    "displayName": "Custom field",
+    "fieldType": "freetext"
+  },
+  "customtext25": {
+    "propertyId": 5080,
+    "displayName": "Custom field",
+    "fieldType": "freetext"
+  },
+  "customtext26": {
+    "propertyId": 5081,
+    "displayName": "Custom field",
+    "fieldType": "freetext"
+  },
+  "customtext27": {
+    "propertyId": 5082,
+    "displayName": "Kontraktsumma salesforce",
+    "fieldType": "freetext"
+  },
+  "customtext28": {
+    "propertyId": 5083,
+    "displayName": "Custom field",
+    "fieldType": "freetext"
+  },
+  "customtext29": {
+    "propertyId": 5084,
+    "displayName": "Personnummer",
+    "fieldType": "freetext"
+  },
+  "customtext30": {
+    "propertyId": 5085,
+    "displayName": "Länk till arbetsorder (Realnode)",
+    "fieldType": "freetext"
+  },
+  "days_avslutad_fakturerad": {
+    "propertyId": 455,
+    "displayName": "Days finished to invoiced",
+    "fieldType": "number"
+  },
+  "days_created_now": {
+    "propertyId": 12458,
+    "displayName": "Days created to today",
+    "fieldType": "number"
+  },
+  "days_lasttimereport_fakturerad": {
+    "propertyId": 457,
+    "displayName": "Days last time report to invoiced",
+    "fieldType": "number"
+  },
+  "days_nyinkommen_avslutad": {
+    "propertyId": 454,
+    "displayName": "Days newly arrived to finished",
+    "fieldType": "number"
+  },
+  "days_nyinkommen_fakturerad": {
+    "propertyId": 456,
+    "displayName": "Days newly arrived to invoiced",
+    "fieldType": "number"
+  },
+  "days_nyinkommen_pagaende": {
+    "propertyId": 453,
+    "displayName": "Days newly arrived to ongoing",
+    "fieldType": "number"
+  },
+  "description": {
+    "propertyId": 291,
+    "displayName": "Work order description",
+    "fieldType": "freetext"
+  },
+  "ediregistered": {
+    "propertyId": 14288,
+    "displayName": "EDI Note",
+    "fieldType": "icon"
+  },
+  "einvoice_id_actual": {
+    "propertyId": 12822,
+    "displayName": "E-Invoice ID (GLN)",
+    "fieldType": "freetext"
+  },
+  "end": {
+    "propertyId": 13936,
+    "displayName": "End date",
+    "fieldType": "date"
+  },
+  "external_reference": {
+    "propertyId": 9387,
+    "displayName": "External order number",
+    "fieldType": "freetext"
+  },
+  "external_system": {
+    "propertyId": 9388,
+    "displayName": "External system",
+    "fieldType": "freetext"
+  },
+  "financetrigger_modified": {
+    "propertyId": 12700,
+    "displayName": "Financial fields last updated",
+    "fieldType": "date"
+  },
+  "first_scheme": {
+    "propertyId": 530,
+    "displayName": "First resource planning",
+    "fieldType": "date"
+  },
+  "first_scheme_date": {
+    "propertyId": 1523,
+    "displayName": "First resource planning date",
+    "fieldType": "date"
+  },
+  "fixedprice_income": {
+    "propertyId": 9412,
+    "displayName": "Income fixed price",
+    "fieldType": "number"
+  },
+  "from_address": {
+    "propertyId": 14144,
+    "displayName": "From address",
+    "fieldType": "freetext"
+  },
+  "from_city": {
+    "propertyId": 14146,
+    "displayName": "From city",
+    "fieldType": "freetext"
+  },
+  "from_postcode": {
+    "propertyId": 14145,
+    "displayName": "From postcode",
+    "fieldType": "freetext"
+  },
+  "hours": {
+    "propertyId": 9419,
+    "displayName": "Working time hours",
+    "fieldType": "number"
+  },
+  "id": {
+    "propertyId": 116,
+    "displayName": "Work order number",
+    "fieldType": "number"
+  },
+  "income": {
+    "propertyId": 9472,
+    "displayName": "Income",
+    "fieldType": "number"
+  },
+  "invoice_address1_actual": {
+    "propertyId": 9394,
+    "displayName": "Address line 1 (invoice)",
+    "fieldType": "freetext"
+  },
+  "invoice_address2_actual": {
+    "propertyId": 9395,
+    "displayName": "Address line 2 (invoice)",
+    "fieldType": "freetext"
+  },
+  "invoice_city_actual": {
+    "propertyId": 9397,
+    "displayName": "City (invoice)",
+    "fieldType": "freetext"
+  },
+  "invoice_email_actual": {
+    "propertyId": 14166,
+    "displayName": "E-mail (invoice)",
+    "fieldType": "freetext"
+  },
+  "invoice_income": {
+    "propertyId": 9410,
+    "displayName": "Income customer invoices",
+    "fieldType": "number"
+  },
+  "invoice_name_actual": {
+    "propertyId": 9398,
+    "displayName": "Name/Reference (invoice)",
+    "fieldType": "freetext"
+  },
+  "invoice_postcode_actual": {
+    "propertyId": 9396,
+    "displayName": "Postcode",
+    "fieldType": "freetext"
+  },
+  "invoiced": {
+    "propertyId": 176,
+    "displayName": "Invoicing date",
+    "fieldType": "date"
+  },
+  "invoicemarking_actual": {
+    "propertyId": 9399,
+    "displayName": "Invoice marking",
+    "fieldType": "freetext"
+  },
+  "invoicemarkingseparate": {
+    "propertyId": 13898,
+    "displayName": "Separate invoice marking",
+    "fieldType": "freetext"
+  },
+  "invoicename_separate": {
+    "propertyId": 12644,
+    "displayName": "Invoice name separate",
+    "fieldType": "freetext"
+  },
+  "last_scheme": {
+    "propertyId": 11448,
+    "displayName": "Last resource planning",
+    "fieldType": "date"
+  },
+  "last_scheme_date": {
+    "propertyId": 11449,
+    "displayName": "Last resource planning date",
+    "fieldType": "date"
+  },
+  "lastcomment": {
+    "propertyId": 13917,
+    "displayName": "Last comment",
+    "fieldType": "freetext"
+  },
+  "lasttimereport": {
+    "propertyId": 4585,
+    "displayName": "Date last time report",
+    "fieldType": "date"
+  },
+  "latitude": {
+    "propertyId": 3536,
+    "displayName": "Latitude",
+    "fieldType": "number"
+  },
+  "longitude": {
+    "propertyId": 3537,
+    "displayName": "Longitude",
+    "fieldType": "number"
+  },
+  "manager": {
+    "propertyId": 184,
+    "displayName": "Work order manager",
+    "fieldType": "manager"
+  },
+  "modified": {
+    "propertyId": 66,
+    "displayName": "Last modified work order",
+    "fieldType": "date"
+  },
+  "no": {
+    "propertyId": 14054,
+    "displayName": "Customer number",
+    "fieldType": "freetext"
+  },
+  "no_actual": {
+    "propertyId": 9393,
+    "displayName": "Customer number",
+    "fieldType": "freetext"
+  },
+  "no_separate": {
+    "propertyId": 12583,
+    "displayName": "Customer number",
+    "fieldType": "freetext"
+  },
+  "noninvoiced_chargeable_definitive_supplierinvoices": {
+    "propertyId": 13813,
+    "displayName": "Non-inv. chargeable def.booked number of suppl. invoices",
+    "fieldType": "number"
+  },
+  "noninvoiced_chargeable_supplierinvoice_income": {
+    "propertyId": 13812,
+    "displayName": "Non-invoiced chargeable income supplier invoices",
+    "fieldType": "number"
+  },
+  "noninvoiced_chargeable_supplierinvoices": {
+    "propertyId": 13811,
+    "displayName": "Non-invoiced chargeable number of supplier invoices",
+    "fieldType": "number"
+  },
+  "noninvoiced_definitive_supplierinvoices": {
+    "propertyId": 13814,
+    "displayName": "Non-invoiced def.booked number of suppl. invoices",
+    "fieldType": "number"
+  },
+  "noninvoiced_supplierinvoice_income": {
+    "propertyId": 13815,
+    "displayName": "Non-invoiced income supplier invoices",
+    "fieldType": "number"
+  },
+  "noninvoiced_supplierinvoices": {
+    "propertyId": 13816,
+    "displayName": "Non-invoiced number of supplier invoices",
+    "fieldType": "number"
+  },
+  "office": {
+    "propertyId": 49,
+    "displayName": "Work order office",
+    "fieldType": "propertytable"
+  },
+  "openkeycardorders": {
+    "propertyId": 9422,
+    "displayName": "Number of open key loans",
+    "fieldType": "number"
+  },
+  "ordermarking": {
+    "propertyId": 101,
+    "displayName": "Work order ordermarking",
+    "fieldType": "freetext"
+  },
+  "originworkorder": {
+    "propertyId": 11447,
+    "displayName": "Original order",
+    "fieldType": "number"
+  },
+  "overhead": {
+    "propertyId": 9474,
+    "displayName": "Overhead cost",
+    "fieldType": "number"
+  },
+  "paymentplan_accrued_sum": {
+    "propertyId": 12658,
+    "displayName": "Payment plan accrued",
+    "fieldType": "number"
+  },
+  "paymentplan_invoiced_sum": {
+    "propertyId": 12659,
+    "displayName": "Payment plan invoiced",
+    "fieldType": "number"
+  },
+  "paymentplan_noninvoiced_sum": {
+    "propertyId": 12660,
+    "displayName": "Payment plan remaining to invoice",
+    "fieldType": "number"
+  },
+  "paymentplan_total_sum": {
+    "propertyId": 12657,
+    "displayName": "Payment plan total sum",
+    "fieldType": "number"
+  },
+  "postcode": {
+    "propertyId": 8307,
+    "displayName": "Postcode",
+    "fieldType": "freetext"
+  },
+  "preinvoice": {
+    "propertyId": 6234,
+    "displayName": "Preinvoice number",
+    "fieldType": "number"
+  },
+  "price": {
+    "propertyId": 100,
+    "displayName": "Work order price",
+    "fieldType": "number"
+  },
+  "price_no_reduction": {
+    "propertyId": 14058,
+    "displayName": "Amount (not tax reduction)",
+    "fieldType": "number"
+  },
+  "price_reduction": {
+    "propertyId": 14059,
+    "displayName": "Amount (tax reduction)",
+    "fieldType": "number"
+  },
+  "pricelist_actual": {
+    "propertyId": 9391,
+    "displayName": "Price list",
+    "fieldType": "freetext"
+  },
+  "pricelistseparate": {
+    "propertyId": 13899,
+    "displayName": "Separate price list",
+    "fieldType": "freetext"
+  },
+  "priority": {
+    "propertyId": 12582,
+    "displayName": "Priority",
+    "fieldType": "number"
+  },
+  "private_customer_actual": {
+    "propertyId": 12824,
+    "displayName": "Private customer",
+    "fieldType": "property",
+    "values": [
+      {
+        "value": 0,
+        "label": "Nej"
+      },
+      {
+        "value": 1,
+        "label": "Ja"
+      }
+    ]
+  },
+  "profit": {
+    "propertyId": 9475,
+    "displayName": "Result",
+    "fieldType": "number"
+  },
+  "profit_after_overhead": {
+    "propertyId": 9477,
+    "displayName": "Result after overhead",
+    "fieldType": "number"
+  },
+  "profitcentre": {
+    "propertyId": 14128,
+    "displayName": "Profit centre",
+    "fieldType": "freetext"
+  },
+  "profitpercent": {
+    "propertyId": 9476,
+    "displayName": "Result %",
+    "fieldType": "number"
+  },
+  "profitpercent_after_overhead": {
+    "propertyId": 9478,
+    "displayName": "Result % after overhead",
+    "fieldType": "number"
+  },
+  "project": {
+    "propertyId": 14163,
+    "displayName": "Order type work order",
+    "fieldType": "freetext"
+  },
+  "project0": {
+    "propertyId": 62,
+    "displayName": "Project year work order",
+    "fieldType": "project0"
+  },
+  "project2": {
+    "propertyId": 64,
+    "displayName": "Project sequence number work order",
+    "fieldType": "number"
+  },
+  "resources": {
+    "propertyId": 12567,
+    "displayName": "Resources",
+    "fieldType": "freetext"
+  },
+  "salesman": {
+    "propertyId": 406,
+    "displayName": "Created by",
+    "fieldType": "propertytable"
+  },
+  "schedule": {
+    "propertyId": 13822,
+    "displayName": "Scheduling number",
+    "fieldType": "number"
+  },
+  "splitreference": {
+    "propertyId": 1528,
+    "displayName": "Origin order upon split",
+    "fieldType": "number"
+  },
+  "start": {
+    "propertyId": 447,
+    "displayName": "Start date",
+    "fieldType": "date"
+  },
+  "status0": {
+    "propertyId": 379,
+    "displayName": "Date status ongoing",
+    "fieldType": "date"
+  },
+  "status1": {
+    "propertyId": 380,
+    "displayName": "Date status dormant",
+    "fieldType": "date"
+  },
+  "status2": {
+    "propertyId": 381,
+    "displayName": "Date status finished",
+    "fieldType": "date"
+  },
+  "status3": {
+    "propertyId": 382,
+    "displayName": "Date status invoicing",
+    "fieldType": "date"
+  },
+  "status4": {
+    "propertyId": 383,
+    "displayName": "Date status invoiced",
+    "fieldType": "date"
+  },
+  "status5": {
+    "propertyId": 384,
+    "displayName": "Date status discarded",
+    "fieldType": "date"
+  },
+  "status6": {
+    "propertyId": 385,
+    "displayName": "Date status newly arrived",
+    "fieldType": "date"
+  },
+  "str_project": {
+    "propertyId": 232,
+    "displayName": "Project number",
+    "fieldType": "freetext"
+  },
+  "structure": {
+    "propertyId": 12671,
+    "displayName": "Structure",
+    "fieldType": "propertytable"
+  },
+  "sumconsumption": {
+    "propertyId": 9420,
+    "displayName": "Power consumption",
+    "fieldType": "number"
+  },
+  "supplierinvoice_cost": {
+    "propertyId": 9416,
+    "displayName": "Cost supplier invoices",
+    "fieldType": "number"
+  },
+  "supplierinvoice_income": {
+    "propertyId": 9413,
+    "displayName": "Income supplier invoices",
+    "fieldType": "number"
+  },
+  "supplierinvoice_overhead": {
+    "propertyId": 9418,
+    "displayName": "Overhead cost supplier invoices",
+    "fieldType": "number"
+  },
+  "supplierinvoices": {
+    "propertyId": 9421,
+    "displayName": "Number of supplier invoices",
+    "fieldType": "number"
+  },
+  "tax_reduction_description_actual": {
+    "propertyId": 12825,
+    "displayName": "Property designation",
+    "fieldType": "freetext"
+  },
+  "tax_reduction_number_actual": {
+    "propertyId": 12826,
+    "displayName": "Housing cooperative org. no",
+    "fieldType": "freetext"
+  },
+  "time": {
+    "propertyId": 448,
+    "displayName": "Time start",
+    "fieldType": "freetext"
+  },
+  "time_end": {
+    "propertyId": 99,
+    "displayName": "Work order end date",
+    "fieldType": "date"
+  },
+  "time_start": {
+    "propertyId": 98,
+    "displayName": "Work order start date",
+    "fieldType": "date"
+  },
+  "timelasttimereport": {
+    "propertyId": 13918,
+    "displayName": "Time last timereport",
+    "fieldType": "date"
+  },
+  "to_address": {
+    "propertyId": 14147,
+    "displayName": "To address",
+    "fieldType": "freetext"
+  },
+  "to_city": {
+    "propertyId": 14149,
+    "displayName": "To city",
+    "fieldType": "freetext"
+  },
+  "to_postcode": {
+    "propertyId": 14148,
+    "displayName": "To postcode",
+    "fieldType": "freetext"
+  },
+  "workingsite": {
+    "propertyId": 46,
+    "displayName": "Work order workingsite",
+    "fieldType": "freetext"
+  }
+}
