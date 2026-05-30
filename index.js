@@ -12,12 +12,23 @@ script.remove()
 
 async function init (rootElement) {
   const myGridDiv = document.createElement('div')
-  myGridDiv.append(Object.assign(document.createElement('progress'), {
-    id: 'progress',
-    max: "0.0001"
-  }))
+  myGridDiv.append(
+    Object.assign(document.createElement('progress'), {
+      id: 'progress',
+      max: "0.0001"
+    }),
+    Object.assign(document.createElement('style'), {
+      textContent: `
+        .shadow-actionbarless {
+          display: none !important;
+        }
+      `
+    })
+  )
   rootElement.replaceWith(myGridDiv)
   myGridDiv.style.flex = '1'
+
+
 
   const { initGrid } = await import('./table.js')
   initGrid(myGridDiv)
