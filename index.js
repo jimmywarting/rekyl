@@ -13,6 +13,10 @@ script.remove()
 async function init (rootElement) {
   const { initGrid } = await import('./table.js')
   const myGridDiv = document.createElement('div')
+  myGridDiv.append(Object.assign(document.createElement('progress'), {
+    id: 'progress',
+    max: "0.0001"
+  }))
   rootElement.replaceWith(myGridDiv)
   initGrid(myGridDiv)
 }
