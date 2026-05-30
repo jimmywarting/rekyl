@@ -129,19 +129,6 @@ const tables = {
         type: 'enum',
         values: ['Pågående', 'Vilande', 'Avslutad', 'Fakturering', 'Fakturerad', 'Makulerad', 'Ny'],
         label: 'Status',
-        ag: {
-          editable: true,
-          async update(params) {
-            console.log(params)
-            // const { data, newValue, oldValue } = params
-            // console.log({ data, newValue, oldValue })
-            // console.log({ params })
-            // if (newValue === oldValue) return; // No change
-
-            await new Promise(resolve => setTimeout(resolve, 3000)) // Wait for AG Grid to update the cell value
-            return false
-          }
-        }
       },
       dateTimeWhenStatusChangedToOngoing: { type: 'date', label: 'Datum och tid när status ändrades till Pågående' },
       dateTimeWhenStatusChangedToOnHold: { type: 'date', label: 'Datum och tid när status ändrades till Pausad' },
