@@ -213,6 +213,7 @@ async function sync () {
         }
         console.log(`Synced page ${i}/${data.pageCount} for table ${table}`)
       }
+      query.delete('page')
     }
 
     console.log(`Synced ${allRows.length} rows for table ${table}`)
