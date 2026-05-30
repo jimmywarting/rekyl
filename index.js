@@ -17,6 +17,7 @@ async function init (rootElement) {
     max: "0.0001"
   }))
   rootElement.replaceWith(myGridDiv)
+  myGridDiv.style.flex = '1'
 
   const { initGrid } = await import('./table.js')
   initGrid(myGridDiv)
