@@ -508,11 +508,11 @@ async function initGrid (gridDiv) {
       })),
       statusBar: {
         statusPanels: [
-          {
-            key: 'ClickableStatusBarComponent',
-            statusPanel: ClickableStatusBarComponent,
-            align: 'left'
-          },
+          // {
+          //   key: 'ClickableStatusBarComponent',
+          //   statusPanel: ClickableStatusBarComponent,
+          //   align: 'left'
+          // },
           // { statusPanel: "agTotalRowCountComponent" },
           { statusPanel: "agTotalAndFilteredRowCountComponent" },
           // { statusPanel: "agFilteredRowCountComponent" },
