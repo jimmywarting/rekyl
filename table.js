@@ -2,6 +2,7 @@ import { createGrid, themeQuartz, iconSetMaterial, ModuleRegistry } from 'ag-gri
 import { AllEnterpriseModule } from 'ag-grid-enterprise';
 import { AG_GRID_LOCALE_SE } from 'https://esm.sh/@ag-grid-community/locale@35.2.0/es2022/locale.mjs?exports=AG_GRID_LOCALE_SE'
 
+import state from './state.json' with { type: 'json' }
 import tables from './schema.js'
 import { queryBuilder } from './query-builder.js';
 
@@ -566,7 +567,7 @@ async function initGrid (gridDiv) {
     //   gridApi.setGridOption('quickFilterText', e.target.value);
     // })
 
-    // gridApi.setState(JSON.parse(localStorage.state))
+    gridApi.setState(state)
 }
 
 

@@ -1,0 +1,4326 @@
+{
+  "version": "35.2.0",
+  "sideBar": {
+    "visible": true,
+    "position": "right",
+    "openToolPanel": null,
+    "toolPanels": {
+      "columns": {
+        "expandedGroupIds": [
+          "5",
+          "6",
+          "9",
+          "10"
+        ]
+      },
+      "filters": {
+        "expandedGroupIds": [
+          "0",
+          "2",
+          "3",
+          "1",
+          "5",
+          "6",
+          "4",
+          "9",
+          "10",
+          "8",
+          "11",
+          "7"
+        ],
+        "expandedColIds": []
+      }
+    }
+  },
+  "rowGroup": {
+    "groupColIds": [
+      "company.name",
+      "manager.name",
+      "workorder.city",
+      "workorder.project1"
+    ]
+  },
+  "columnPinning": {
+    "leftColIds": [
+      "workorder.id",
+      "workorder.customText14",
+      "projectNumber.id",
+      "projectNumber.workingsite"
+    ],
+    "rightColIds": []
+  },
+  "columnVisibility": {
+    "hiddenColIds": [
+      "workorder.buyerEmail",
+      "workorder.city",
+      "workorder.comment",
+      "company.id",
+      "company.name",
+      "company.created",
+      "company.modified",
+      "company.companyName",
+      "company.address1",
+      "company.address2",
+      "company.phone",
+      "company.fax",
+      "company.web",
+      "company.email",
+      "company.plusgiro",
+      "company.bankgiro",
+      "company.corporateidno",
+      "company.vatno",
+      "company.logo",
+      "company.exportArticlenoAconto",
+      "company.exportArticlenoFastpris",
+      "company.exportArticlenoContractor",
+      "company.exportArticlenoSupplierinvoice",
+      "company.parent",
+      "company.exportArticlenoConsumption",
+      "company.exportArticlenoWithoutarticleno",
+      "company.workorderFooter",
+      "company.exportArticlenoServicecar",
+      "company.accrualaccounts",
+      "company.accrualVerificationSeries",
+      "workorder.contactEmail",
+      "workorder.created",
+      "workorder.custom1",
+      "workorder.custom3",
+      "workorder.custom2",
+      "workorder.custom4",
+      "workorder.custom5",
+      "workorder.custom6",
+      "workorder.custom7",
+      "workorder.custom8",
+      "workorder.custom9",
+      "workorder.custom10",
+      "workorder.custom11",
+      "workorder.custom12",
+      "workorder.custom13",
+      "workorder.custom14",
+      "workorder.custom15",
+      "workorder.custom16",
+      "workorder.custom17",
+      "workorder.custom18",
+      "workorder.custom19",
+      "workorder.custom20",
+      "workorder.custom21",
+      "workorder.custom22",
+      "workorder.custom23",
+      "workorder.custom24",
+      "workorder.custom25",
+      "workorder.custom26",
+      "workorder.custom27",
+      "workorder.custom28",
+      "workorder.custom29",
+      "workorder.custom30",
+      "workorder.customText1",
+      "workorder.customText2",
+      "workorder.customText3",
+      "workorder.customText4",
+      "workorder.customText5",
+      "workorder.customText6",
+      "workorder.customText7",
+      "workorder.customText8",
+      "workorder.customText9",
+      "workorder.customText10",
+      "workorder.customText11",
+      "workorder.customText12",
+      "workorder.customText13",
+      "workorder.customText15",
+      "workorder.customText16",
+      "workorder.customText17",
+      "workorder.customText18",
+      "workorder.customText19",
+      "workorder.customText20",
+      "workorder.customText21",
+      "workorder.customText22",
+      "workorder.customText23",
+      "workorder.customText24",
+      "workorder.customText25",
+      "workorder.customText26",
+      "workorder.customText27",
+      "workorder.customText28",
+      "workorder.customText29",
+      "workorder.customText30",
+      "workorder.debitMethod",
+      "workorder.firstScheme",
+      "workorder.flags",
+      "workorder.invoiced",
+      "workorder.latitude",
+      "workorder.longitude",
+      "manager.id",
+      "manager.group",
+      "manager.status",
+      "office.id",
+      "office.name",
+      "company.id_1",
+      "company.name_1",
+      "company.created_1",
+      "company.modified_1",
+      "company.companyName_1",
+      "company.address1_1",
+      "company.address2_1",
+      "company.phone_1",
+      "company.fax_1",
+      "company.web_1",
+      "company.email_1",
+      "company.plusgiro_1",
+      "company.bankgiro_1",
+      "company.corporateidno_1",
+      "company.vatno_1",
+      "company.logo_1",
+      "company.exportArticlenoAconto_1",
+      "company.exportArticlenoFastpris_1",
+      "company.exportArticlenoContractor_1",
+      "company.exportArticlenoSupplierinvoice_1",
+      "company.parent_1",
+      "company.exportArticlenoConsumption_1",
+      "company.exportArticlenoWithoutarticleno_1",
+      "company.workorderFooter_1",
+      "company.exportArticlenoServicecar_1",
+      "company.accrualaccounts_1",
+      "company.accrualVerificationSeries_1",
+      "manager.name",
+      "manager.corporateNo",
+      "manager.mobile",
+      "manager.category",
+      "manager.salaryType",
+      "manager.employeeNumber",
+      "manager.email",
+      "manager.deleted",
+      "manager.custom1",
+      "manager.custom2",
+      "manager.custom3",
+      "manager.custom4",
+      "manager.custom5",
+      "manager.custom6",
+      "manager.custom7",
+      "manager.custom8",
+      "manager.custom9",
+      "manager.custom10",
+      "manager.custom11",
+      "manager.custom12",
+      "manager.custom13",
+      "manager.custom14",
+      "manager.custom15",
+      "manager.custom16",
+      "manager.custom17",
+      "manager.custom18",
+      "manager.custom19",
+      "manager.custom20",
+      "manager.custom21",
+      "manager.custom22",
+      "manager.custom23",
+      "manager.custom24",
+      "manager.custom25",
+      "manager.custom26",
+      "manager.custom27",
+      "manager.custom28",
+      "manager.custom29",
+      "manager.custom30",
+      "manager.customText1",
+      "manager.customText2",
+      "manager.customText3",
+      "manager.customText4",
+      "manager.customText5",
+      "manager.customText6",
+      "manager.customText7",
+      "manager.customText8",
+      "manager.customText9",
+      "manager.customText10",
+      "manager.customText11",
+      "manager.customText12",
+      "manager.customText13",
+      "manager.customText14",
+      "manager.customText15",
+      "manager.customText16",
+      "manager.customText17",
+      "manager.customText18",
+      "manager.customText19",
+      "manager.customText20",
+      "manager.customText21",
+      "manager.customText22",
+      "manager.customText23",
+      "manager.customText24",
+      "manager.customText25",
+      "manager.customText26",
+      "manager.customText27",
+      "manager.customText28",
+      "manager.customText29",
+      "manager.customText30",
+      "manager.phone",
+      "workorder.modified",
+      "workorder.orderMarking",
+      "workorder.orderType",
+      "workorder.price",
+      "workorder.project0",
+      "workorder.project1",
+      "workorder.project2",
+      "salesman.id",
+      "salesman.group",
+      "salesman.status",
+      "office.id_1",
+      "office.name_1",
+      "company.id_2",
+      "company.name_2",
+      "company.created_2",
+      "company.modified_2",
+      "company.companyName_2",
+      "company.address1_2",
+      "company.address2_2",
+      "company.phone_2",
+      "company.fax_2",
+      "company.web_2",
+      "company.email_2",
+      "company.plusgiro_2",
+      "company.bankgiro_2",
+      "company.corporateidno_2",
+      "company.vatno_2",
+      "company.logo_2",
+      "company.exportArticlenoAconto_2",
+      "company.exportArticlenoFastpris_2",
+      "company.exportArticlenoContractor_2",
+      "company.exportArticlenoSupplierinvoice_2",
+      "company.parent_2",
+      "company.exportArticlenoConsumption_2",
+      "company.exportArticlenoWithoutarticleno_2",
+      "company.workorderFooter_2",
+      "company.exportArticlenoServicecar_2",
+      "company.accrualaccounts_2",
+      "company.accrualVerificationSeries_2",
+      "salesman.name",
+      "salesman.corporateNo",
+      "salesman.mobile",
+      "salesman.category",
+      "salesman.salaryType",
+      "salesman.employeeNumber",
+      "salesman.email",
+      "salesman.deleted",
+      "salesman.custom1",
+      "salesman.custom2",
+      "salesman.custom3",
+      "salesman.custom4",
+      "salesman.custom5",
+      "salesman.custom6",
+      "salesman.custom7",
+      "salesman.custom8",
+      "salesman.custom9",
+      "salesman.custom10",
+      "salesman.custom11",
+      "salesman.custom12",
+      "salesman.custom13",
+      "salesman.custom14",
+      "salesman.custom15",
+      "salesman.custom16",
+      "salesman.custom17",
+      "salesman.custom18",
+      "salesman.custom19",
+      "salesman.custom20",
+      "salesman.custom21",
+      "salesman.custom22",
+      "salesman.custom23",
+      "salesman.custom24",
+      "salesman.custom25",
+      "salesman.custom26",
+      "salesman.custom27",
+      "salesman.custom28",
+      "salesman.custom29",
+      "salesman.custom30",
+      "salesman.customText1",
+      "salesman.customText2",
+      "salesman.customText3",
+      "salesman.customText4",
+      "salesman.customText5",
+      "salesman.customText6",
+      "salesman.customText7",
+      "salesman.customText8",
+      "salesman.customText9",
+      "salesman.customText10",
+      "salesman.customText11",
+      "salesman.customText12",
+      "salesman.customText13",
+      "salesman.customText14",
+      "salesman.customText15",
+      "salesman.customText16",
+      "salesman.customText17",
+      "salesman.customText18",
+      "salesman.customText19",
+      "salesman.customText20",
+      "salesman.customText21",
+      "salesman.customText22",
+      "salesman.customText23",
+      "salesman.customText24",
+      "salesman.customText25",
+      "salesman.customText26",
+      "salesman.customText27",
+      "salesman.customText28",
+      "salesman.customText29",
+      "salesman.customText30",
+      "salesman.phone",
+      "workorder.schemeExists",
+      "workorder.splitReference",
+      "workorder.start",
+      "workorder.dateTimeWhenStatusChangedToOngoing",
+      "workorder.dateTimeWhenStatusChangedToOnHold",
+      "workorder.dateTimeWhenStatusChangedToCompleted",
+      "workorder.dateTimeWhenStatusChangedToBilling",
+      "workorder.dateTimeWhenStatusChangedToInvoiced",
+      "workorder.dateTimeWhenStatusChangedToCanceled",
+      "workorder.dateTimeWhenStatusChangedToNew",
+      "projectNumber.custom1",
+      "projectNumber.custom2",
+      "projectNumber.custom3",
+      "projectNumber.custom4",
+      "projectNumber.custom5",
+      "projectNumber.custom6",
+      "projectNumber.custom7",
+      "projectNumber.custom8",
+      "projectNumber.custom9",
+      "projectNumber.custom10",
+      "projectNumber.custom11",
+      "projectNumber.custom12",
+      "projectNumber.custom13",
+      "projectNumber.custom14",
+      "projectNumber.custom15",
+      "projectNumber.custom16",
+      "projectNumber.custom17",
+      "projectNumber.custom18",
+      "projectNumber.custom19",
+      "projectNumber.custom20",
+      "projectNumber.custom21",
+      "projectNumber.custom22",
+      "projectNumber.custom23",
+      "projectNumber.custom24",
+      "projectNumber.custom25",
+      "projectNumber.custom26",
+      "projectNumber.custom27",
+      "projectNumber.custom28",
+      "projectNumber.custom29",
+      "projectNumber.custom30",
+      "projectNumber.customText1",
+      "projectNumber.customText2",
+      "projectNumber.customText3",
+      "projectNumber.customText4",
+      "projectNumber.customText5",
+      "projectNumber.customText6",
+      "projectNumber.customText7",
+      "projectNumber.customText8",
+      "projectNumber.customText9",
+      "projectNumber.customText10",
+      "projectNumber.customText11",
+      "projectNumber.customText12",
+      "projectNumber.customText13",
+      "projectNumber.customText14",
+      "projectNumber.customText15",
+      "projectNumber.customText16",
+      "projectNumber.customText17",
+      "projectNumber.customText18",
+      "projectNumber.customText19",
+      "projectNumber.customText20",
+      "projectNumber.customText21",
+      "projectNumber.customText22",
+      "projectNumber.customText23",
+      "projectNumber.customText24",
+      "projectNumber.customText25",
+      "projectNumber.customText26",
+      "projectNumber.customText27",
+      "projectNumber.customText28",
+      "projectNumber.customText29",
+      "projectNumber.customText30",
+      "projectNumber.projectNumber",
+      "projectNumber.accruedAcontoIncome",
+      "projectNumber.accruedArticleCost",
+      "projectNumber.accruedArticleIncome",
+      "projectNumber.accruedArticleOverhead",
+      "projectNumber.accruedCalculusIncome",
+      "projectNumber.accruedCost",
+      "projectNumber.accruedFixedpriceIncome",
+      "projectNumber.accruedHours",
+      "projectNumber.accruedIncome",
+      "projectNumber.accruedOverhead",
+      "projectNumber.accruedProfit",
+      "projectNumber.accruedProfitAfterOverhead",
+      "projectNumber.accruedProfitpercent",
+      "projectNumber.accruedProfitpercentAfterOverhead",
+      "projectNumber.accruedSupplierinvoiceCost",
+      "projectNumber.accruedSupplierinvoiceIncome",
+      "projectNumber.accruedSupplierinvoiceOverhead",
+      "projectNumber.accruedSupplierinvoices",
+      "projectNumber.articleCost",
+      "projectNumber.articleOverhead",
+      "projectNumber.assigner",
+      "projectNumber.buyeremail",
+      "projectNumber.buyername",
+      "projectNumber.buyerphone",
+      "projectNumber.city",
+      "projectNumber.comment",
+      "projectNumber.company",
+      "projectNumber.contractbillings",
+      "projectNumber.corporateno",
+      "projectNumber.cost",
+      "projectNumber.created",
+      "projectNumber.debitmethod",
+      "projectNumber.edinoteExclude",
+      "projectNumber.end",
+      "projectNumber.freetextsearch",
+      "projectNumber.hours",
+      "projectNumber.income",
+      "projectNumber.invoiceAddress1",
+      "projectNumber.invoiceAddress2",
+      "projectNumber.invoiceCity",
+      "projectNumber.invoiceEmail",
+      "projectNumber.invoiceIncome",
+      "projectNumber.invoiceName",
+      "projectNumber.invoicePostcode",
+      "projectNumber.invoicemarking",
+      "projectNumber.invoicenumber",
+      "projectNumber.invoicesum",
+      "projectNumber.lastinvoice",
+      "projectNumber.latestinvoice",
+      "projectNumber.latitude",
+      "projectNumber.longitude",
+      "manager.id_1",
+      "manager.group_1",
+      "manager.status_1",
+      "office.id_2",
+      "office.name_2",
+      "company.id_3",
+      "company.name_3",
+      "company.created_3",
+      "company.modified_3",
+      "company.companyName_3",
+      "company.address1_3",
+      "company.address2_3",
+      "company.phone_3",
+      "company.fax_3",
+      "company.web_3",
+      "company.email_3",
+      "company.plusgiro_3",
+      "company.bankgiro_3",
+      "company.corporateidno_3",
+      "company.vatno_3",
+      "company.logo_3",
+      "company.exportArticlenoAconto_3",
+      "company.exportArticlenoFastpris_3",
+      "company.exportArticlenoContractor_3",
+      "company.exportArticlenoSupplierinvoice_3",
+      "company.parent_3",
+      "company.exportArticlenoConsumption_3",
+      "company.exportArticlenoWithoutarticleno_3",
+      "company.workorderFooter_3",
+      "company.exportArticlenoServicecar_3",
+      "company.accrualaccounts_3",
+      "company.accrualVerificationSeries_3",
+      "manager.name_1",
+      "manager.corporateNo_1",
+      "manager.mobile_1",
+      "manager.category_1",
+      "manager.salaryType_1",
+      "manager.employeeNumber_1",
+      "manager.email_1",
+      "manager.deleted_1",
+      "manager.custom1_1",
+      "manager.custom2_1",
+      "manager.custom3_1",
+      "manager.custom4_1",
+      "manager.custom5_1",
+      "manager.custom6_1",
+      "manager.custom7_1",
+      "manager.custom8_1",
+      "manager.custom9_1",
+      "manager.custom10_1",
+      "manager.custom11_1",
+      "manager.custom12_1",
+      "manager.custom13_1",
+      "manager.custom14_1",
+      "manager.custom15_1",
+      "manager.custom16_1",
+      "manager.custom17_1",
+      "manager.custom18_1",
+      "manager.custom19_1",
+      "manager.custom20_1",
+      "manager.custom21_1",
+      "manager.custom22_1",
+      "manager.custom23_1",
+      "manager.custom24_1",
+      "manager.custom25_1",
+      "manager.custom26_1",
+      "manager.custom27_1",
+      "manager.custom28_1",
+      "manager.custom29_1",
+      "manager.custom30_1",
+      "manager.customText1_1",
+      "manager.customText2_1",
+      "manager.customText3_1",
+      "manager.customText4_1",
+      "manager.customText5_1",
+      "manager.customText6_1",
+      "manager.customText7_1",
+      "manager.customText8_1",
+      "manager.customText9_1",
+      "manager.customText10_1",
+      "manager.customText11_1",
+      "manager.customText12_1",
+      "manager.customText13_1",
+      "manager.customText14_1",
+      "manager.customText15_1",
+      "manager.customText16_1",
+      "manager.customText17_1",
+      "manager.customText18_1",
+      "manager.customText19_1",
+      "manager.customText20_1",
+      "manager.customText21_1",
+      "manager.customText22_1",
+      "manager.customText23_1",
+      "manager.customText24_1",
+      "manager.customText25_1",
+      "manager.customText26_1",
+      "manager.customText27_1",
+      "manager.customText28_1",
+      "manager.customText29_1",
+      "manager.customText30_1",
+      "manager.phone_1",
+      "projectNumber.modified",
+      "projectNumber.customerNo",
+      "projectNumber.noninvoicedAcontoIncome",
+      "projectNumber.noninvoicedArticleCost",
+      "projectNumber.noninvoicedArticleIncome",
+      "projectNumber.noninvoicedArticleOverhead",
+      "projectNumber.noninvoicedCalculusIncome",
+      "projectNumber.noninvoicedFixedpriceIncome",
+      "projectNumber.noninvoicedHours",
+      "projectNumber.noninvoicedSupplierinvoiceCost",
+      "projectNumber.noninvoicedSupplierinvoiceIncome",
+      "projectNumber.noninvoicedSupplierinvoices",
+      "projectNumber.notes",
+      "office.id_3",
+      "office.name_3",
+      "projectNumber.openkeycardorders",
+      "projectNumber.overhead",
+      "projectNumber.price",
+      "projectNumber.priceList",
+      "projectNumber.profit",
+      "projectNumber.profitAfterOverhead",
+      "projectNumber.profitpercent",
+      "projectNumber.profitpercentAfterOverhead",
+      "projectNumber.project0",
+      "projectNumber.project1",
+      "projectNumber.project2",
+      "projectNumber.reopenedbysupplierinvoice",
+      "projectNumber.start",
+      "projectNumber.status",
+      "projectNumber.statuS1",
+      "projectNumber.statuS2",
+      "projectNumber.statuS4",
+      "projectNumber.statuS5",
+      "projectNumber.statuS6",
+      "projectNumber.sumconsumption",
+      "projectNumber.supplierinvoiceCost",
+      "projectNumber.supplierinvoiceOverhead",
+      "projectNumber.supplierinvoices",
+      "projectNumber.voucherCost",
+      "projectNumber.voucherIncome",
+      "projectNumber.xmlcode",
+      "projectNumber.projectWorkingSite",
+      "projectNumber.postCode",
+      "projectNumber.externalReference",
+      "projectNumber.externalSystem",
+      "workorder.time",
+      "workorder.timeEnd",
+      "workorder.timeStart",
+      "workorder.postcode",
+      "workorder.buyerNameSeparate",
+      "workorder.buyerPhoneSeparate",
+      "workorder.buyerEmailSeparate",
+      "workorder.customerNoSeparate",
+      "workorder.customerNo",
+      "workorder.invoiceNameSeparate",
+      "workorder.structure",
+      "workorder.supplierInvoices",
+      "workorder.priceListActual",
+      "workorder.timeLastTimeReport",
+      "workorder.assignerSeparate",
+      "workorder.nonInvoicedSupplierinvoice",
+      "workorder.hours",
+      "workorder.preInvoice",
+      "workorder.externalSystem",
+      "workorder.externalReference",
+      "workorder.addTimeReport",
+      "workorder.direction"
+    ]
+  },
+  "columnSizing": {
+    "columnSizingModel": [
+      {
+        "colId": "ag-Grid-SelectionColumn",
+        "width": 50
+      },
+      {
+        "colId": "ag-Grid-AutoColumn",
+        "width": 295.431396484375
+      },
+      {
+        "colId": "workorder.buyerEmail",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.city",
+        "flex": 1,
+        "width": 45
+      },
+      {
+        "colId": "workorder.comment",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.id",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.name",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.created",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.modified",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.companyName",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.address1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.address2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.phone",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.fax",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.web",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.email",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.plusgiro",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.bankgiro",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.corporateidno",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.vatno",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.logo",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoAconto",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoFastpris",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoContractor",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoSupplierinvoice",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.parent",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoConsumption",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoWithoutarticleno",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.workorderFooter",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoServicecar",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.accrualaccounts",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.accrualVerificationSeries",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.contactEmail",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.contactPerson",
+        "flex": 1,
+        "width": 117
+      },
+      {
+        "colId": "workorder.contactPhone",
+        "flex": 1,
+        "width": 118
+      },
+      {
+        "colId": "workorder.created",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom4",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom5",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom6",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom7",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom8",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom9",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom10",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom11",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom12",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom13",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom14",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom15",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom16",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom17",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom18",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom19",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom20",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom21",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom22",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom23",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom24",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom25",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom26",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom27",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom28",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom29",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.custom30",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText4",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText5",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText6",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText7",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText8",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText9",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText10",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText11",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText12",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText13",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText15",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText16",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText17",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText18",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText19",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText20",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText21",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText22",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText23",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText24",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText25",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText26",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText27",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText28",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText29",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customText30",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.debitMethod",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.description",
+        "width": 168.6414794921875
+      },
+      {
+        "colId": "workorder.firstScheme",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.flags",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.id",
+        "width": 106
+      },
+      {
+        "colId": "workorder.customText14",
+        "width": 102.36459350585938
+      },
+      {
+        "colId": "workorder.invoiced",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.latitude",
+        "flex": 1,
+        "width": 36
+      },
+      {
+        "colId": "workorder.longitude",
+        "flex": 1,
+        "width": 46
+      },
+      {
+        "colId": "manager.id",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.group",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.status",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "office.id",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "office.name",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.id_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.name_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.created_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.modified_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.companyName_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.address1_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.address2_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.phone_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.fax_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.web_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.email_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.plusgiro_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.bankgiro_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.corporateidno_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.vatno_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.logo_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoAconto_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoFastpris_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoContractor_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoSupplierinvoice_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.parent_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoConsumption_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoWithoutarticleno_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.workorderFooter_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoServicecar_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.accrualaccounts_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.accrualVerificationSeries_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.name",
+        "flex": 1,
+        "width": 96
+      },
+      {
+        "colId": "manager.corporateNo",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.mobile",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.category",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.salaryType",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.employeeNumber",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.email",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.deleted",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom4",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom5",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom6",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom7",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom8",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom9",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom10",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom11",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom12",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom13",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom14",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom15",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom16",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom17",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom18",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom19",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom20",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom21",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom22",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom23",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom24",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom25",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom26",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom27",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom28",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom29",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom30",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText4",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText5",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText6",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText7",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText8",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText9",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText10",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText11",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText12",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText13",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText14",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText15",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText16",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText17",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText18",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText19",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText20",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText21",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText22",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText23",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText24",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText25",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText26",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText27",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText28",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText29",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText30",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.phone",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.modified",
+        "flex": 1,
+        "width": 69
+      },
+      {
+        "colId": "workorder.orderMarking",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.orderType",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.price",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.project0",
+        "flex": 1,
+        "width": 58
+      },
+      {
+        "colId": "workorder.project1",
+        "flex": 1,
+        "width": 58
+      },
+      {
+        "colId": "workorder.project2",
+        "flex": 1,
+        "width": 58
+      },
+      {
+        "colId": "salesman.id",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.group",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.status",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "office.id_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "office.name_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.id_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.name_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.created_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.modified_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.companyName_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.address1_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.address2_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.phone_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.fax_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.web_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.email_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.plusgiro_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.bankgiro_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.corporateidno_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.vatno_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.logo_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoAconto_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoFastpris_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoContractor_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoSupplierinvoice_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.parent_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoConsumption_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoWithoutarticleno_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.workorderFooter_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoServicecar_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.accrualaccounts_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.accrualVerificationSeries_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.name",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.corporateNo",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.mobile",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.category",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.salaryType",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.employeeNumber",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.email",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.deleted",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom4",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom5",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom6",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom7",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom8",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom9",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom10",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom11",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom12",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom13",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom14",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom15",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom16",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom17",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom18",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom19",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom20",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom21",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom22",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom23",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom24",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom25",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom26",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom27",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom28",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom29",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.custom30",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText4",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText5",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText6",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText7",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText8",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText9",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText10",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText11",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText12",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText13",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText14",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText15",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText16",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText17",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText18",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText19",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText20",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText21",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText22",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText23",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText24",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText25",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText26",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText27",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText28",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText29",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.customText30",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "salesman.phone",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.schemeExists",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.splitReference",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.start",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.dateTimeWhenStatusChangedToOngoing",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.dateTimeWhenStatusChangedToOnHold",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.dateTimeWhenStatusChangedToCompleted",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.dateTimeWhenStatusChangedToBilling",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.dateTimeWhenStatusChangedToInvoiced",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.dateTimeWhenStatusChangedToCanceled",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.dateTimeWhenStatusChangedToNew",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom4",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom5",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom6",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom7",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom8",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom9",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom10",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom11",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom12",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom13",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom14",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom15",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom16",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom17",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom18",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom19",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom20",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom21",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom22",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom23",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom24",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom25",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom26",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom27",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom28",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom29",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.custom30",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText4",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText5",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText6",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText7",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText8",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText9",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText10",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText11",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText12",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText13",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText14",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText15",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText16",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText17",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText18",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText19",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText20",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText21",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText22",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText23",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText24",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText25",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText26",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText27",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText28",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText29",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customText30",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.projectNumber",
+        "flex": 1,
+        "width": 128
+      },
+      {
+        "colId": "projectNumber.accruedAcontoIncome",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.accruedArticleCost",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.accruedArticleIncome",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.accruedArticleOverhead",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.accruedCalculusIncome",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.accruedCost",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.accruedFixedpriceIncome",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.accruedHours",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.accruedIncome",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.accruedOverhead",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.accruedProfit",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.accruedProfitAfterOverhead",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.accruedProfitpercent",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.accruedProfitpercentAfterOverhead",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.accruedSupplierinvoiceCost",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.accruedSupplierinvoiceIncome",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.accruedSupplierinvoiceOverhead",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.accruedSupplierinvoices",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.articleCost",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.articleOverhead",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.assigner",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.buyeremail",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.buyername",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.buyerphone",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.city",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.comment",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.company",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.contractbillings",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.corporateno",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.cost",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.created",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.debitmethod",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.edinoteExclude",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.end",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.freetextsearch",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.hours",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.id",
+        "width": 106
+      },
+      {
+        "colId": "projectNumber.workingsite",
+        "width": 171.98001098632812
+      },
+      {
+        "colId": "projectNumber.income",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.invoiceAddress1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.invoiceAddress2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.invoiceCity",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.invoiceEmail",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.invoiceIncome",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.invoiceName",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.invoicePostcode",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.invoicemarking",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.invoicenumber",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.invoicesum",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.lastinvoice",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.latestinvoice",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.latitude",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.longitude",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.id_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.group_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.status_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "office.id_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "office.name_2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.id_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.name_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.created_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.modified_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.companyName_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.address1_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.address2_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.phone_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.fax_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.web_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.email_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.plusgiro_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.bankgiro_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.corporateidno_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.vatno_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.logo_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoAconto_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoFastpris_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoContractor_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoSupplierinvoice_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.parent_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoConsumption_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoWithoutarticleno_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.workorderFooter_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.exportArticlenoServicecar_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.accrualaccounts_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "company.accrualVerificationSeries_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.name_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.corporateNo_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.mobile_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.category_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.salaryType_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.employeeNumber_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.email_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.deleted_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom1_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom2_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom3_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom4_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom5_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom6_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom7_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom8_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom9_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom10_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom11_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom12_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom13_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom14_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom15_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom16_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom17_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom18_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom19_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom20_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom21_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom22_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom23_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom24_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom25_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom26_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom27_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom28_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom29_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.custom30_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText1_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText2_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText3_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText4_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText5_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText6_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText7_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText8_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText9_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText10_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText11_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText12_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText13_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText14_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText15_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText16_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText17_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText18_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText19_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText20_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText21_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText22_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText23_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText24_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText25_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText26_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText27_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText28_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText29_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.customText30_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "manager.phone_1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.modified",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.customerNo",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.noninvoicedAcontoIncome",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.noninvoicedArticleCost",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.noninvoicedArticleIncome",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.noninvoicedArticleOverhead",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.noninvoicedCalculusIncome",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.noninvoicedFixedpriceIncome",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.noninvoicedHours",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.noninvoicedSupplierinvoiceCost",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.noninvoicedSupplierinvoiceIncome",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.noninvoicedSupplierinvoices",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.notes",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "office.id_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "office.name_3",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.openkeycardorders",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.overhead",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.price",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.priceList",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.profit",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.profitAfterOverhead",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.profitpercent",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.profitpercentAfterOverhead",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.project0",
+        "flex": 1,
+        "width": 97
+      },
+      {
+        "colId": "projectNumber.project1",
+        "flex": 1,
+        "width": 111
+      },
+      {
+        "colId": "projectNumber.project2",
+        "flex": 1,
+        "width": 86
+      },
+      {
+        "colId": "projectNumber.reopenedbysupplierinvoice",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.start",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.status",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.statuS1",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.statuS2",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.statuS4",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.statuS5",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.statuS6",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.sumconsumption",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.supplierinvoiceCost",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.supplierinvoiceOverhead",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.supplierinvoices",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.voucherCost",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.voucherIncome",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.xmlcode",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.projectWorkingSite",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.postCode",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.externalReference",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "projectNumber.externalSystem",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.time",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.timeEnd",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.timeStart",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.workingsite",
+        "flex": 1,
+        "width": 117
+      },
+      {
+        "colId": "workorder.status",
+        "width": 150.0130615234375
+      },
+      {
+        "colId": "workorder.postcode",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.buyerNameSeparate",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.buyerPhoneSeparate",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.buyerEmailSeparate",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customerNoSeparate",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.customerNo",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.invoiceNameSeparate",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.structure",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.supplierInvoices",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.priceListActual",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.timeLastTimeReport",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.assignerSeparate",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.nonInvoicedSupplierinvoice",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.hours",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.preInvoice",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.externalSystem",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.externalReference",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.addTimeReport",
+        "flex": 1,
+        "width": 200
+      },
+      {
+        "colId": "workorder.direction",
+        "flex": 1,
+        "width": 200
+      }
+    ]
+  },
+  "columnOrder": {
+    "orderedColIds": [
+      "ag-Grid-SelectionColumn",
+      "ag-Grid-AutoColumn",
+      "workorder.buyerEmail",
+      "workorder.city",
+      "workorder.comment",
+      "company.id",
+      "company.name",
+      "company.created",
+      "company.modified",
+      "company.companyName",
+      "company.address1",
+      "company.address2",
+      "company.phone",
+      "company.fax",
+      "company.web",
+      "company.email",
+      "company.plusgiro",
+      "company.bankgiro",
+      "company.corporateidno",
+      "company.vatno",
+      "company.logo",
+      "company.exportArticlenoAconto",
+      "company.exportArticlenoFastpris",
+      "company.exportArticlenoContractor",
+      "company.exportArticlenoSupplierinvoice",
+      "company.parent",
+      "company.exportArticlenoConsumption",
+      "company.exportArticlenoWithoutarticleno",
+      "company.workorderFooter",
+      "company.exportArticlenoServicecar",
+      "company.accrualaccounts",
+      "company.accrualVerificationSeries",
+      "workorder.contactEmail",
+      "workorder.contactPerson",
+      "workorder.contactPhone",
+      "workorder.created",
+      "workorder.custom1",
+      "workorder.custom3",
+      "workorder.custom2",
+      "workorder.custom4",
+      "workorder.custom5",
+      "workorder.custom6",
+      "workorder.custom7",
+      "workorder.custom8",
+      "workorder.custom9",
+      "workorder.custom10",
+      "workorder.custom11",
+      "workorder.custom12",
+      "workorder.custom13",
+      "workorder.custom14",
+      "workorder.custom15",
+      "workorder.custom16",
+      "workorder.custom17",
+      "workorder.custom18",
+      "workorder.custom19",
+      "workorder.custom20",
+      "workorder.custom21",
+      "workorder.custom22",
+      "workorder.custom23",
+      "workorder.custom24",
+      "workorder.custom25",
+      "workorder.custom26",
+      "workorder.custom27",
+      "workorder.custom28",
+      "workorder.custom29",
+      "workorder.custom30",
+      "workorder.customText1",
+      "workorder.customText2",
+      "workorder.customText3",
+      "workorder.customText4",
+      "workorder.customText5",
+      "workorder.customText6",
+      "workorder.customText7",
+      "workorder.customText8",
+      "workorder.customText9",
+      "workorder.customText10",
+      "workorder.customText11",
+      "workorder.customText12",
+      "workorder.customText13",
+      "workorder.customText15",
+      "workorder.customText16",
+      "workorder.customText17",
+      "workorder.customText18",
+      "workorder.customText19",
+      "workorder.customText20",
+      "workorder.customText21",
+      "workorder.customText22",
+      "workorder.customText23",
+      "workorder.customText24",
+      "workorder.customText25",
+      "workorder.customText26",
+      "workorder.customText27",
+      "workorder.customText28",
+      "workorder.customText29",
+      "workorder.customText30",
+      "workorder.debitMethod",
+      "workorder.description",
+      "workorder.firstScheme",
+      "workorder.flags",
+      "workorder.id",
+      "workorder.customText14",
+      "workorder.invoiced",
+      "workorder.latitude",
+      "workorder.longitude",
+      "manager.id",
+      "manager.group",
+      "manager.status",
+      "office.id",
+      "office.name",
+      "company.id_1",
+      "company.name_1",
+      "company.created_1",
+      "company.modified_1",
+      "company.companyName_1",
+      "company.address1_1",
+      "company.address2_1",
+      "company.phone_1",
+      "company.fax_1",
+      "company.web_1",
+      "company.email_1",
+      "company.plusgiro_1",
+      "company.bankgiro_1",
+      "company.corporateidno_1",
+      "company.vatno_1",
+      "company.logo_1",
+      "company.exportArticlenoAconto_1",
+      "company.exportArticlenoFastpris_1",
+      "company.exportArticlenoContractor_1",
+      "company.exportArticlenoSupplierinvoice_1",
+      "company.parent_1",
+      "company.exportArticlenoConsumption_1",
+      "company.exportArticlenoWithoutarticleno_1",
+      "company.workorderFooter_1",
+      "company.exportArticlenoServicecar_1",
+      "company.accrualaccounts_1",
+      "company.accrualVerificationSeries_1",
+      "manager.name",
+      "manager.corporateNo",
+      "manager.mobile",
+      "manager.category",
+      "manager.salaryType",
+      "manager.employeeNumber",
+      "manager.email",
+      "manager.deleted",
+      "manager.custom1",
+      "manager.custom2",
+      "manager.custom3",
+      "manager.custom4",
+      "manager.custom5",
+      "manager.custom6",
+      "manager.custom7",
+      "manager.custom8",
+      "manager.custom9",
+      "manager.custom10",
+      "manager.custom11",
+      "manager.custom12",
+      "manager.custom13",
+      "manager.custom14",
+      "manager.custom15",
+      "manager.custom16",
+      "manager.custom17",
+      "manager.custom18",
+      "manager.custom19",
+      "manager.custom20",
+      "manager.custom21",
+      "manager.custom22",
+      "manager.custom23",
+      "manager.custom24",
+      "manager.custom25",
+      "manager.custom26",
+      "manager.custom27",
+      "manager.custom28",
+      "manager.custom29",
+      "manager.custom30",
+      "manager.customText1",
+      "manager.customText2",
+      "manager.customText3",
+      "manager.customText4",
+      "manager.customText5",
+      "manager.customText6",
+      "manager.customText7",
+      "manager.customText8",
+      "manager.customText9",
+      "manager.customText10",
+      "manager.customText11",
+      "manager.customText12",
+      "manager.customText13",
+      "manager.customText14",
+      "manager.customText15",
+      "manager.customText16",
+      "manager.customText17",
+      "manager.customText18",
+      "manager.customText19",
+      "manager.customText20",
+      "manager.customText21",
+      "manager.customText22",
+      "manager.customText23",
+      "manager.customText24",
+      "manager.customText25",
+      "manager.customText26",
+      "manager.customText27",
+      "manager.customText28",
+      "manager.customText29",
+      "manager.customText30",
+      "manager.phone",
+      "workorder.modified",
+      "workorder.orderMarking",
+      "workorder.orderType",
+      "workorder.price",
+      "workorder.project0",
+      "workorder.project1",
+      "workorder.project2",
+      "salesman.id",
+      "salesman.group",
+      "salesman.status",
+      "office.id_1",
+      "office.name_1",
+      "company.id_2",
+      "company.name_2",
+      "company.created_2",
+      "company.modified_2",
+      "company.companyName_2",
+      "company.address1_2",
+      "company.address2_2",
+      "company.phone_2",
+      "company.fax_2",
+      "company.web_2",
+      "company.email_2",
+      "company.plusgiro_2",
+      "company.bankgiro_2",
+      "company.corporateidno_2",
+      "company.vatno_2",
+      "company.logo_2",
+      "company.exportArticlenoAconto_2",
+      "company.exportArticlenoFastpris_2",
+      "company.exportArticlenoContractor_2",
+      "company.exportArticlenoSupplierinvoice_2",
+      "company.parent_2",
+      "company.exportArticlenoConsumption_2",
+      "company.exportArticlenoWithoutarticleno_2",
+      "company.workorderFooter_2",
+      "company.exportArticlenoServicecar_2",
+      "company.accrualaccounts_2",
+      "company.accrualVerificationSeries_2",
+      "salesman.name",
+      "salesman.corporateNo",
+      "salesman.mobile",
+      "salesman.category",
+      "salesman.salaryType",
+      "salesman.employeeNumber",
+      "salesman.email",
+      "salesman.deleted",
+      "salesman.custom1",
+      "salesman.custom2",
+      "salesman.custom3",
+      "salesman.custom4",
+      "salesman.custom5",
+      "salesman.custom6",
+      "salesman.custom7",
+      "salesman.custom8",
+      "salesman.custom9",
+      "salesman.custom10",
+      "salesman.custom11",
+      "salesman.custom12",
+      "salesman.custom13",
+      "salesman.custom14",
+      "salesman.custom15",
+      "salesman.custom16",
+      "salesman.custom17",
+      "salesman.custom18",
+      "salesman.custom19",
+      "salesman.custom20",
+      "salesman.custom21",
+      "salesman.custom22",
+      "salesman.custom23",
+      "salesman.custom24",
+      "salesman.custom25",
+      "salesman.custom26",
+      "salesman.custom27",
+      "salesman.custom28",
+      "salesman.custom29",
+      "salesman.custom30",
+      "salesman.customText1",
+      "salesman.customText2",
+      "salesman.customText3",
+      "salesman.customText4",
+      "salesman.customText5",
+      "salesman.customText6",
+      "salesman.customText7",
+      "salesman.customText8",
+      "salesman.customText9",
+      "salesman.customText10",
+      "salesman.customText11",
+      "salesman.customText12",
+      "salesman.customText13",
+      "salesman.customText14",
+      "salesman.customText15",
+      "salesman.customText16",
+      "salesman.customText17",
+      "salesman.customText18",
+      "salesman.customText19",
+      "salesman.customText20",
+      "salesman.customText21",
+      "salesman.customText22",
+      "salesman.customText23",
+      "salesman.customText24",
+      "salesman.customText25",
+      "salesman.customText26",
+      "salesman.customText27",
+      "salesman.customText28",
+      "salesman.customText29",
+      "salesman.customText30",
+      "salesman.phone",
+      "workorder.schemeExists",
+      "workorder.splitReference",
+      "workorder.start",
+      "workorder.dateTimeWhenStatusChangedToOngoing",
+      "workorder.dateTimeWhenStatusChangedToOnHold",
+      "workorder.dateTimeWhenStatusChangedToCompleted",
+      "workorder.dateTimeWhenStatusChangedToBilling",
+      "workorder.dateTimeWhenStatusChangedToInvoiced",
+      "workorder.dateTimeWhenStatusChangedToCanceled",
+      "workorder.dateTimeWhenStatusChangedToNew",
+      "projectNumber.custom1",
+      "projectNumber.custom2",
+      "projectNumber.custom3",
+      "projectNumber.custom4",
+      "projectNumber.custom5",
+      "projectNumber.custom6",
+      "projectNumber.custom7",
+      "projectNumber.custom8",
+      "projectNumber.custom9",
+      "projectNumber.custom10",
+      "projectNumber.custom11",
+      "projectNumber.custom12",
+      "projectNumber.custom13",
+      "projectNumber.custom14",
+      "projectNumber.custom15",
+      "projectNumber.custom16",
+      "projectNumber.custom17",
+      "projectNumber.custom18",
+      "projectNumber.custom19",
+      "projectNumber.custom20",
+      "projectNumber.custom21",
+      "projectNumber.custom22",
+      "projectNumber.custom23",
+      "projectNumber.custom24",
+      "projectNumber.custom25",
+      "projectNumber.custom26",
+      "projectNumber.custom27",
+      "projectNumber.custom28",
+      "projectNumber.custom29",
+      "projectNumber.custom30",
+      "projectNumber.customText1",
+      "projectNumber.customText2",
+      "projectNumber.customText3",
+      "projectNumber.customText4",
+      "projectNumber.customText5",
+      "projectNumber.customText6",
+      "projectNumber.customText7",
+      "projectNumber.customText8",
+      "projectNumber.customText9",
+      "projectNumber.customText10",
+      "projectNumber.customText11",
+      "projectNumber.customText12",
+      "projectNumber.customText13",
+      "projectNumber.customText14",
+      "projectNumber.customText15",
+      "projectNumber.customText16",
+      "projectNumber.customText17",
+      "projectNumber.customText18",
+      "projectNumber.customText19",
+      "projectNumber.customText20",
+      "projectNumber.customText21",
+      "projectNumber.customText22",
+      "projectNumber.customText23",
+      "projectNumber.customText24",
+      "projectNumber.customText25",
+      "projectNumber.customText26",
+      "projectNumber.customText27",
+      "projectNumber.customText28",
+      "projectNumber.customText29",
+      "projectNumber.customText30",
+      "projectNumber.projectNumber",
+      "projectNumber.accruedAcontoIncome",
+      "projectNumber.accruedArticleCost",
+      "projectNumber.accruedArticleIncome",
+      "projectNumber.accruedArticleOverhead",
+      "projectNumber.accruedCalculusIncome",
+      "projectNumber.accruedCost",
+      "projectNumber.accruedFixedpriceIncome",
+      "projectNumber.accruedHours",
+      "projectNumber.accruedIncome",
+      "projectNumber.accruedOverhead",
+      "projectNumber.accruedProfit",
+      "projectNumber.accruedProfitAfterOverhead",
+      "projectNumber.accruedProfitpercent",
+      "projectNumber.accruedProfitpercentAfterOverhead",
+      "projectNumber.accruedSupplierinvoiceCost",
+      "projectNumber.accruedSupplierinvoiceIncome",
+      "projectNumber.accruedSupplierinvoiceOverhead",
+      "projectNumber.accruedSupplierinvoices",
+      "projectNumber.articleCost",
+      "projectNumber.articleOverhead",
+      "projectNumber.assigner",
+      "projectNumber.buyeremail",
+      "projectNumber.buyername",
+      "projectNumber.buyerphone",
+      "projectNumber.city",
+      "projectNumber.comment",
+      "projectNumber.company",
+      "projectNumber.contractbillings",
+      "projectNumber.corporateno",
+      "projectNumber.cost",
+      "projectNumber.created",
+      "projectNumber.debitmethod",
+      "projectNumber.edinoteExclude",
+      "projectNumber.end",
+      "projectNumber.freetextsearch",
+      "projectNumber.hours",
+      "projectNumber.id",
+      "projectNumber.workingsite",
+      "projectNumber.income",
+      "projectNumber.invoiceAddress1",
+      "projectNumber.invoiceAddress2",
+      "projectNumber.invoiceCity",
+      "projectNumber.invoiceEmail",
+      "projectNumber.invoiceIncome",
+      "projectNumber.invoiceName",
+      "projectNumber.invoicePostcode",
+      "projectNumber.invoicemarking",
+      "projectNumber.invoicenumber",
+      "projectNumber.invoicesum",
+      "projectNumber.lastinvoice",
+      "projectNumber.latestinvoice",
+      "projectNumber.latitude",
+      "projectNumber.longitude",
+      "manager.id_1",
+      "manager.group_1",
+      "manager.status_1",
+      "office.id_2",
+      "office.name_2",
+      "company.id_3",
+      "company.name_3",
+      "company.created_3",
+      "company.modified_3",
+      "company.companyName_3",
+      "company.address1_3",
+      "company.address2_3",
+      "company.phone_3",
+      "company.fax_3",
+      "company.web_3",
+      "company.email_3",
+      "company.plusgiro_3",
+      "company.bankgiro_3",
+      "company.corporateidno_3",
+      "company.vatno_3",
+      "company.logo_3",
+      "company.exportArticlenoAconto_3",
+      "company.exportArticlenoFastpris_3",
+      "company.exportArticlenoContractor_3",
+      "company.exportArticlenoSupplierinvoice_3",
+      "company.parent_3",
+      "company.exportArticlenoConsumption_3",
+      "company.exportArticlenoWithoutarticleno_3",
+      "company.workorderFooter_3",
+      "company.exportArticlenoServicecar_3",
+      "company.accrualaccounts_3",
+      "company.accrualVerificationSeries_3",
+      "manager.name_1",
+      "manager.corporateNo_1",
+      "manager.mobile_1",
+      "manager.category_1",
+      "manager.salaryType_1",
+      "manager.employeeNumber_1",
+      "manager.email_1",
+      "manager.deleted_1",
+      "manager.custom1_1",
+      "manager.custom2_1",
+      "manager.custom3_1",
+      "manager.custom4_1",
+      "manager.custom5_1",
+      "manager.custom6_1",
+      "manager.custom7_1",
+      "manager.custom8_1",
+      "manager.custom9_1",
+      "manager.custom10_1",
+      "manager.custom11_1",
+      "manager.custom12_1",
+      "manager.custom13_1",
+      "manager.custom14_1",
+      "manager.custom15_1",
+      "manager.custom16_1",
+      "manager.custom17_1",
+      "manager.custom18_1",
+      "manager.custom19_1",
+      "manager.custom20_1",
+      "manager.custom21_1",
+      "manager.custom22_1",
+      "manager.custom23_1",
+      "manager.custom24_1",
+      "manager.custom25_1",
+      "manager.custom26_1",
+      "manager.custom27_1",
+      "manager.custom28_1",
+      "manager.custom29_1",
+      "manager.custom30_1",
+      "manager.customText1_1",
+      "manager.customText2_1",
+      "manager.customText3_1",
+      "manager.customText4_1",
+      "manager.customText5_1",
+      "manager.customText6_1",
+      "manager.customText7_1",
+      "manager.customText8_1",
+      "manager.customText9_1",
+      "manager.customText10_1",
+      "manager.customText11_1",
+      "manager.customText12_1",
+      "manager.customText13_1",
+      "manager.customText14_1",
+      "manager.customText15_1",
+      "manager.customText16_1",
+      "manager.customText17_1",
+      "manager.customText18_1",
+      "manager.customText19_1",
+      "manager.customText20_1",
+      "manager.customText21_1",
+      "manager.customText22_1",
+      "manager.customText23_1",
+      "manager.customText24_1",
+      "manager.customText25_1",
+      "manager.customText26_1",
+      "manager.customText27_1",
+      "manager.customText28_1",
+      "manager.customText29_1",
+      "manager.customText30_1",
+      "manager.phone_1",
+      "projectNumber.modified",
+      "projectNumber.customerNo",
+      "projectNumber.noninvoicedAcontoIncome",
+      "projectNumber.noninvoicedArticleCost",
+      "projectNumber.noninvoicedArticleIncome",
+      "projectNumber.noninvoicedArticleOverhead",
+      "projectNumber.noninvoicedCalculusIncome",
+      "projectNumber.noninvoicedFixedpriceIncome",
+      "projectNumber.noninvoicedHours",
+      "projectNumber.noninvoicedSupplierinvoiceCost",
+      "projectNumber.noninvoicedSupplierinvoiceIncome",
+      "projectNumber.noninvoicedSupplierinvoices",
+      "projectNumber.notes",
+      "office.id_3",
+      "office.name_3",
+      "projectNumber.openkeycardorders",
+      "projectNumber.overhead",
+      "projectNumber.price",
+      "projectNumber.priceList",
+      "projectNumber.profit",
+      "projectNumber.profitAfterOverhead",
+      "projectNumber.profitpercent",
+      "projectNumber.profitpercentAfterOverhead",
+      "projectNumber.project0",
+      "projectNumber.project1",
+      "projectNumber.project2",
+      "projectNumber.reopenedbysupplierinvoice",
+      "projectNumber.start",
+      "projectNumber.status",
+      "projectNumber.statuS1",
+      "projectNumber.statuS2",
+      "projectNumber.statuS4",
+      "projectNumber.statuS5",
+      "projectNumber.statuS6",
+      "projectNumber.sumconsumption",
+      "projectNumber.supplierinvoiceCost",
+      "projectNumber.supplierinvoiceOverhead",
+      "projectNumber.supplierinvoices",
+      "projectNumber.voucherCost",
+      "projectNumber.voucherIncome",
+      "projectNumber.xmlcode",
+      "projectNumber.projectWorkingSite",
+      "projectNumber.postCode",
+      "projectNumber.externalReference",
+      "projectNumber.externalSystem",
+      "workorder.time",
+      "workorder.timeEnd",
+      "workorder.timeStart",
+      "workorder.workingsite",
+      "workorder.status",
+      "workorder.postcode",
+      "workorder.buyerNameSeparate",
+      "workorder.buyerPhoneSeparate",
+      "workorder.buyerEmailSeparate",
+      "workorder.customerNoSeparate",
+      "workorder.customerNo",
+      "workorder.invoiceNameSeparate",
+      "workorder.structure",
+      "workorder.supplierInvoices",
+      "workorder.priceListActual",
+      "workorder.timeLastTimeReport",
+      "workorder.assignerSeparate",
+      "workorder.nonInvoicedSupplierinvoice",
+      "workorder.hours",
+      "workorder.preInvoice",
+      "workorder.externalSystem",
+      "workorder.externalReference",
+      "workorder.addTimeReport",
+      "workorder.direction"
+    ]
+  },
+  "filter": {
+    "filterModel": {
+      "workorder.status": {
+        "values": [
+          "0",
+          "6"
+        ],
+        "filterType": "set"
+      }
+    },
+    "selectableFilters": {}
+  },
+  "rowGroupExpansion": {
+    "expandedRowGroupIds": [
+      "row-group-company.name-Svensk Utemiljö AB",
+      "row-group-company.name-Svensk Utemiljö AB-manager.name-Edgar Meyer-workorder.city-Stockholm",
+      "row-group-company.name-Svensk Utemiljö AB-manager.name-Edgar Meyer-workorder.city-Stockholm-workorder.project1-800",
+      "row-group-company.name-Fastighetsskötsel Aktiebolag-manager.name-Marcus Reineck",
+      "row-group-company.name-Fastighetsskötsel Aktiebolag-manager.name-Marcus Reineck-workorder.city-Stockholm",
+      "row-group-company.name-Fastighetsskötsel Aktiebolag-manager.name-Marcus Reineck-workorder.city-Stockholm-workorder.project1-300"
+    ],
+    "collapsedRowGroupIds": []
+  },
+  "pagination": {
+    "page": 0,
+    "pageSize": 1000
+  },
+  "focusedCell": {
+    "colId": "ag-Grid-AutoColumn",
+    "rowIndex": 2,
+    "rowPinned": null
+  }
+}
