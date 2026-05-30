@@ -160,7 +160,7 @@ async function kv(db, key, val) {
   }
 }
 
-async function sync() {
+async function sync () {
   const db = await initDB()
 
   const lastSync = new Date(await kv(db, 'lastSync') || new Date(0))
@@ -175,11 +175,11 @@ async function sync() {
   const query = queryBuilder({
     rows: 1000,
     // @ts-ignore
-    filters: [{
+    filters: lastSync.getTime() ? [{
       field: 'modified',
       op: 'gt',
       value: lastSync.toISOString()
-    }]
+    }] : []
   })
 
   for (const table of tables) {
