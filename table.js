@@ -1,6 +1,7 @@
-import { createGrid, themeQuartz, iconSetMaterial, ModuleRegistry } from 'https://cdn.jsdelivr.net/npm/ag-grid-community@35.2.0/dist/package/main.esm.mjs';
-import { AllEnterpriseModule } from 'https://cdn.jsdelivr.net/npm/ag-grid-enterprise@35.2.0/dist/package/main.esm.min.mjs';
+import { createGrid, themeQuartz, iconSetMaterial, ModuleRegistry } from 'ag-grid-community';
+import { AllEnterpriseModule } from 'ag-grid-enterprise';
 import { AG_GRID_LOCALE_SE } from 'https://esm.sh/@ag-grid-community/locale@35.2.0/es2022/locale.mjs?exports=AG_GRID_LOCALE_SE'
+
 import tables from './schema.js'
 import { queryBuilder } from './query-builder.js';
 

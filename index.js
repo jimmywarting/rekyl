@@ -1,6 +1,17 @@
-import { initGrid } from './table.js'
+const script = document.createElement('script')
+script.type = 'importmap'
+script.textContent = JSON.stringify({
+  "imports": {
+    "ag-grid-community": "https://cdn.jsdelivr.net/npm/ag-grid-community@35.2.0/dist/package/main.esm.min.mjs",
+    "ag-grid-enterprise": "https://cdn.jsdelivr.net/npm/ag-grid-enterprise@35.2.0/dist/package/main.esm.min.mjs"
+  }
+})
 
-function init (rootElement) {
+document.head.append(script)
+script.remove()
+
+async function init (rootElement) {
+  const { initGrid } = await import('./table.js')
   const myGridDiv = document.createElement('div')
   rootElement.replaceWith(myGridDiv)
   initGrid(myGridDiv)
