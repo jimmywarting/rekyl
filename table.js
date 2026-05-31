@@ -426,7 +426,7 @@ async function initGrid (gridDiv) {
   // Hide loader
   // nn(document.getElementById('loader')).hidden = true
     const columnDefs = table.get('workorder').columnDefs
-
+  const notesStore = {}
     // const showThis = [
     //   'start',
     //   'project',
@@ -502,7 +502,7 @@ async function initGrid (gridDiv) {
         enableRowSelection: true,
       },
       hidePaddedHeaderRows: true,
-      rowNumbers: true,
+      rowNumbers: false,
 
       // show row grouping at the top
       // rowGroupPanelShow: "always",
@@ -556,30 +556,30 @@ async function initGrid (gridDiv) {
       paginationPageSize: 50,
       paginationPageSizeSelector: [25, 50, 100, 500, 1000],
 
-      // toolbar: {
-      //   items: [
-      //       'agQuickFilterToolbarItem',
-      //       'separator',
-      //       'agFindToolbarItem',
-      //       'separator',
-      //       {
-      //           label: 'Fit Columns To Grid',
-      //           icon: 'maximize',
-      //           alignment: 'right',
-      //           action: (params) => params.api.sizeColumnsToFit(),
-      //       },
-      //       {
-      //           toolbarItem: 'agMenuToolbarItem',
-      //           icon: 'save',
-      //           alignment: 'right',
-      //           label: 'Download',
-      //           tooltip: 'Download as CSV or Excel',
-      //           toolbarItemParams: {
-      //               menuItems: ['csvExport', 'excelExport'],
-      //           },
-      //       },
-      //   ],
-      // },
+    toolbar: {
+        items: [
+            'agQuickFilterToolbarItem',
+            'separator',
+            'agFindToolbarItem',
+            'separator',
+            {
+                label: 'Fit Columns To Grid',
+                icon: 'maximize',
+                alignment: 'right',
+                action: (params) => params.api.sizeColumnsToFit(),
+            },
+            {
+                toolbarItem: 'agMenuToolbarItem',
+                icon: 'save',
+                alignment: 'right',
+                label: 'Download',
+                tooltip: 'Download as CSV or Excel',
+                toolbarItemParams: {
+                    menuItems: ['csvExport', 'excelExport'],
+                },
+            },
+        ],
+    },
 
       // enableAdvancedFilter: true,
 
@@ -612,6 +612,24 @@ async function initGrid (gridDiv) {
         // checkboxLocation: 'autoGroupColumn',
       },
       // treeDataDisplayType: 'custom',
+
+      getRowId ({data}) {
+        return `${data.workorder.id}`
+      },
+
+      noteTrigger: 'hover',
+      notesDataSource: {
+        getNote: ({ rowNode, column }) => notesStore[rowNode.id]?.[column.getColId()],
+        setNote: ({ rowNode, column, note }) => {
+            const row = (notesStore[rowNode.id] ??= {});
+
+            if (note === undefined) {
+                delete row[column.getColId()];
+            } else {
+                row[column.getColId()] = note;
+            }
+        },
+    },
     }
 
     const gridApi = createGrid(gridDiv, gridOptions)

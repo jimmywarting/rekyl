@@ -2,7 +2,7 @@ const script = document.createElement('script')
 script.type = 'importmap'
 script.textContent = JSON.stringify({
   "imports": {
-    "ag-grid-community": "https://cdn.jsdelivr.net/npm/ag-grid-community@35.2.0/dist/package/main.esm.mjs",
+    "ag-grid-community": "https://cdn.jsdelivr.net/npm/ag-grid-community@35.3.0/dist/package/main.esm.mjs",
     "ag-charts-enterprise": "https://cdn.jsdelivr.net/npm/ag-charts-enterprise@13.3.0/+esm",
     "ag-grid-enterprise": "http://localhost:3846/main.esm.mjs"
   }

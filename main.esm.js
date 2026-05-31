@@ -184,17 +184,6 @@ var _LicenseManager = class _LicenseManager {
     this.md5.init();
   }
   validateLicense() {
-    const licenseDetails = this.getLicenseDetails(_LicenseManager.licenseKey);
-    const currentLicenseName = `AG Grid ${licenseDetails.currentLicenseType === "BOTH" ? "and AG Charts " : ""}Enterprise`;
-    const suppliedLicenseName = licenseDetails.suppliedLicenseType === void 0 ? "" : `AG ${licenseDetails.suppliedLicenseType === "BOTH" ? "Grid and AG Charts" : licenseDetails.suppliedLicenseType === "GRID" ? "Grid" : "Charts"} Enterprise`;
-    if (licenseDetails.missing) {
-
-    } else if (licenseDetails.expired) {
-
-    } else if (!licenseDetails.valid) {
-
-    } else if (licenseDetails.isTrial && licenseDetails.trialExpired) {
-    }
   }
   static extractExpiry(license) {
     const restrictionHashed = license.substring(license.lastIndexOf("_") + 1, license.length);
@@ -219,7 +208,7 @@ var _LicenseManager = class _LicenseManager {
         licenseKey,
         valid: true,
         missing: false,
-        currentLicenseType: "BOTH"
+        currentLicenseType
       };
     }
     const gridReleaseDate = _LicenseManager.getGridReleaseDate();
@@ -275,23 +264,22 @@ var _LicenseManager = class _LicenseManager {
     }
     return {
       licenseKey,
-      valid,
+      valid: true,
       expiry: _LicenseManager.formatDate(expiry),
-      expired,
+      expired: false,
       version,
-      isTrial,
-      trialExpired,
-      incorrectLicenseType,
+      isTrial: false,
+      trialExpired: false,
+      incorrectLicenseType: false,
       currentLicenseType,
       suppliedLicenseType
     };
   }
   isDisplayWatermark() {
     return false
-    return !this.isLocalhost() && !this.isWebsiteUrl() && !!this.watermarkMessage?.length;
   }
   getWatermarkMessage() {
-    return ""
+    return "";
   }
   getHostname() {
     const win = this.document.defaultView || window;
@@ -300,7 +288,7 @@ var _LicenseManager = class _LicenseManager {
     return hostname;
   }
   isForceWatermark() {
-    return false
+    return false;
   }
   isWebsiteUrl() {
     return true
@@ -482,7 +470,7 @@ var _LicenseManager = class _LicenseManager {
   }
 };
 // eslint-disable-next-line no-restricted-syntax
-_LicenseManager.RELEASE_INFORMATION = "MTc3NDQyNTc0Nzc3NQ==";
+_LicenseManager.RELEASE_INFORMATION = "MTc3ODU5NDg2MDI3Ng==";
 var LicenseManager = _LicenseManager;
 
 // packages/ag-grid-enterprise/src/license/watermark.ts
@@ -845,6 +833,7 @@ var ExcelSerializingSession = class extends BaseGridSerializingSession {
     this.frozenColumnCount = 0;
     this.skipFrozenColumns = false;
     this.formulaSvc = config.formulaSvc;
+    this.notesSvc = config.notesSvc;
     this.config = Object.assign({}, config);
     this.workbook = config.workbook;
     this.stylesByIds = {};
@@ -875,15 +864,17 @@ var ExcelSerializingSession = class extends BaseGridSerializingSession {
             return this.createCell(
               excelStyleId,
               this.getDataTypeForValue(image.value),
-              image.value == null ? "" : image.value
+              image.value == null ? "" : image.value,
+              void 0,
+              cell.note
             );
           }
           const value = cell.data?.value ?? "";
           const type = this.getDataTypeForValue(value);
           if (cell.mergeAcross) {
-            return this.createMergedCell(excelStyleId, type, value, cell.mergeAcross);
+            return this.createMergedCell(excelStyleId, type, value, cell.mergeAcross, cell.note);
           }
-          return this.createCell(excelStyleId, type, value);
+          return this.createCell(excelStyleId, type, value, void 0, cell.note);
         }),
         outlineLevel
       };
@@ -1090,12 +1081,19 @@ var ExcelSerializingSession = class extends BaseGridSerializingSession {
       const excelStyleId = this.getStyleId(styleIds);
       const colSpan = column.getColSpan(node);
       const addedImage = this.addImage(rowIndex, column, valueForCellString);
+      const note = this.resolveBodyCellNote({
+        accumulatedRowIndex: rowIndex,
+        column,
+        node
+      });
       if (addedImage) {
         currentCells.push(
           this.createCell(
             excelStyleId,
             this.getDataTypeForValue(addedImage.value),
-            addedImage.value == null ? "" : addedImage.value
+            addedImage.value == null ? "" : addedImage.value,
+            void 0,
+            note
           )
         );
       } else if (colSpan > 1) {
@@ -1105,11 +1103,12 @@ var ExcelSerializingSession = class extends BaseGridSerializingSession {
             excelStyleId,
             this.getDataTypeForValue(rawValueForCell),
             valueForCellString,
-            colSpan - 1
+            colSpan - 1,
+            note
           )
         );
       } else {
-        const isFormula = column.isAllowFormula() && this.formulaSvc?.isFormula(valueForCellString);
+        const isFormula = column.colDef.allowFormula && this.formulaSvc?.isFormula(valueForCellString);
         const cell = this.createCell(
           excelStyleId,
           isFormula ? "f" : this.getDataTypeForValue(rawValueForCell),
@@ -1118,7 +1117,8 @@ var ExcelSerializingSession = class extends BaseGridSerializingSession {
             rowDelta: rowIndex - (node.formulaRowIndex + 1),
             useRefFormat: false
           }) : valueForCellString,
-          valueFormatted
+          valueFormatted,
+          note
         );
         currentCells.push(cell);
       }
@@ -1146,20 +1146,14 @@ var ExcelSerializingSession = class extends BaseGridSerializingSession {
     return this.workbook.addWorksheet(excelStyles, worksheet, config);
   }
   mapSharedStrings(worksheet) {
-    let emptyStringPosition;
     for (const row of worksheet.table.rows) {
       for (const cell of row.cells) {
         const data = cell.data;
-        if (!data || data.type !== "s") {
+        if (data?.type !== "s") {
           continue;
         }
         const value = data.value;
-        if (value == null) {
-          continue;
-        }
-        if (value === "") {
-          emptyStringPosition ?? (emptyStringPosition = this.workbook.getStringPosition("").toString());
-          data.value = emptyStringPosition;
+        if (value == null || value === "") {
           continue;
         }
         data.value = this.workbook.getStringPosition(String(value)).toString();
@@ -1175,7 +1169,7 @@ var ExcelSerializingSession = class extends BaseGridSerializingSession {
       if (this.isNumerical(valueForCell)) {
         dataType = "n";
       }
-    } catch (e) {
+    } catch {
     }
     return dataType;
   }
@@ -1220,13 +1214,13 @@ var ExcelSerializingSession = class extends BaseGridSerializingSession {
     );
     return addedImage;
   }
-  createCell(styleId, type, value, valueFormatted) {
+  createCell(styleId, type, value, valueFormatted, note) {
     const actualStyle = this.getStyleById(styleId);
     if (!actualStyle?.dataType && type === "s" && valueFormatted != null) {
       value = valueFormatted;
     }
     const processedType = this.getTypeFromStyle(actualStyle, value) || type;
-    const { value: processedValue, escaped } = this.getCellValue(processedType, value);
+    const { type: processedCellType, value: processedValue, escaped } = this.getCellValue(processedType, value);
     const styles = [];
     if (actualStyle) {
       styles.push(styleId);
@@ -1238,44 +1232,93 @@ var ExcelSerializingSession = class extends BaseGridSerializingSession {
     return {
       styleId,
       data: {
-        type: processedType,
+        type: processedCellType,
         value: processedValue
-      }
+      },
+      note: note?.text ? note : void 0
     };
   }
-  createMergedCell(styleId, type, value, numOfCells) {
+  createMergedCell(styleId, type, value, numOfCells, note) {
+    const actualStyle = this.getStyleById(styleId);
     const valueToUse = value == null ? "" : value;
+    const processedType = this.getTypeFromStyle(actualStyle, valueToUse) || type;
+    const { type: processedCellType, value: processedValue } = this.getCellValue(processedType, valueToUse);
     return {
-      styleId: this.getStyleById(styleId) ? styleId : void 0,
+      styleId: actualStyle ? styleId : void 0,
       data: {
-        type,
-        value: type === "s" ? String(valueToUse) : value
+        type: processedCellType,
+        value: processedValue
       },
-      mergeAcross: numOfCells
+      mergeAcross: numOfCells,
+      note: note?.text ? note : void 0
     };
+  }
+  resolveBodyCellNote(params) {
+    const { processNoteCallback, suppressGridNotesExport } = this.config;
+    const shouldAutoExportGridNotes = !suppressGridNotesExport && !!this.notesSvc?.hasDataSource();
+    const shouldFetchGridNote = !!this.notesSvc && (shouldAutoExportGridNotes || !!processNoteCallback);
+    const gridNote = shouldFetchGridNote ? this.notesSvc?.getNote({ rowNode: params.node, column: params.column, location: "cell" }) : void 0;
+    let excelNote;
+    if (shouldAutoExportGridNotes && gridNote?.text != null && gridNote.text !== "") {
+      excelNote = { text: gridNote.text, author: gridNote.author };
+    }
+    if (!processNoteCallback) {
+      return excelNote;
+    }
+    const callbackResult = processNoteCallback(this.getCellNoteExportParams(params, gridNote, excelNote));
+    if (callbackResult === void 0) {
+      return excelNote;
+    }
+    if (callbackResult?.text == null || callbackResult.text === "") {
+      return void 0;
+    }
+    return { text: callbackResult.text, author: callbackResult.author };
+  }
+  getCellNoteExportParams(params, gridNote, excelNote) {
+    const { column, node, accumulatedRowIndex } = params;
+    const value = this.valueSvc.getValueForDisplay({ column, node, from: this.valueFrom }).value;
+    return _addGridCommonParams(this.gos, {
+      accumulatedRowIndex,
+      column,
+      node,
+      value,
+      type: "excel",
+      parseValue: (valueToParse) => this.valueSvc.parseValue(
+        column,
+        node,
+        valueToParse,
+        this.valueSvc.getValue(column, node, this.valueFrom)
+      ),
+      formatValue: (valueToFormat) => this.valueSvc.formatValue(column, node, valueToFormat) ?? valueToFormat,
+      gridNote,
+      excelNote
+    });
   }
   getCellValue(type, value) {
     let escaped = false;
-    if (value == null || type === "s" && value === "") {
-      return { value: "", escaped: false };
+    if (value == null || value === "" || type === "empty") {
+      return { type: "empty", value: null, escaped: false };
     }
     if (type === "s") {
       value = String(value);
       if (value[0] === "'") {
         escaped = true;
         value = value.slice(1);
+        if (value === "") {
+          return { type: "empty", value: null, escaped: false };
+        }
       }
     } else if (type === "f") {
       value = this.addXlfnPrefix(value).slice(1);
     } else if (type === "n") {
       const numberValue = Number(value);
       if (isNaN(numberValue)) {
-        value = "";
-      } else if (value !== "") {
+        return { type: "empty", value: null, escaped: false };
+      } else {
         value = numberValue.toString();
       }
     }
-    return { value, escaped };
+    return { type, value, escaped };
   }
   addXlfnPrefix(value) {
     if (!value) {
@@ -1343,7 +1386,94 @@ var ExcelSerializingSession = class extends BaseGridSerializingSession {
 };
 
 // packages/ag-grid-enterprise/src/excelExport/excelXlsxFactory.ts
-import { _escapeString as _escapeString7, _warn as _warn2 } from "ag-grid-community";
+import { _escapeString as _escapeString8, _warn as _warn2 } from "ag-grid-community";
+
+// packages/ag-grid-enterprise/src/excelExport/files/ooxml/comments.ts
+import { _escapeString as _escapeString2 } from "ag-grid-community";
+var defaultRunProperties = {
+  name: "rPr",
+  children: [
+    { name: "sz", properties: { rawMap: { val: "10" } } },
+    { name: "color", properties: { rawMap: { rgb: "FF000000" } } },
+    { name: "rFont", properties: { rawMap: { val: "Tahoma" } } },
+    { name: "family", properties: { rawMap: { val: "2" } } }
+  ]
+};
+var boldRunProperties = {
+  name: "rPr",
+  children: [{ name: "b" }, ...defaultRunProperties.children]
+};
+var buildTextElement = (value, preserveSpace) => ({
+  name: "t",
+  properties: preserveSpace ? { rawMap: { "xml:space": "preserve" } } : void 0,
+  textNode: _escapeString2(replaceInvisibleCharacters(value) ?? "")
+});
+var buildRichTextRun = (value, bold, preserveSpace) => ({
+  name: "r",
+  children: [bold ? boldRunProperties : defaultRunProperties, buildTextElement(value, preserveSpace)]
+});
+var buildNoteTextChildren = (text, author, prependAuthor) => {
+  if (!author || !prependAuthor) {
+    return [buildRichTextRun(text, false, text.includes("\n") || text.trim().length !== text.length)];
+  }
+  return [
+    buildRichTextRun(`${author}:
+`, true, true),
+    buildRichTextRun(text, false, text.includes("\n") || text.trim().length !== text.length)
+  ];
+};
+var commentsFactory = {
+  getTemplate(params) {
+    const authorIds = /* @__PURE__ */ new Map();
+    const authors = [];
+    const comments = params.comments.map((comment) => {
+      const author = comment.author || params.defaultAuthor;
+      let authorId = authorIds.get(author);
+      if (authorId == null) {
+        authorId = authors.length;
+        authors.push(author);
+        authorIds.set(author, authorId);
+      }
+      return {
+        name: "comment",
+        properties: {
+          rawMap: {
+            ref: comment.ref,
+            authorId
+          }
+        },
+        children: [
+          {
+            name: "text",
+            children: buildNoteTextChildren(comment.text, author, params.prependAuthor)
+          }
+        ]
+      };
+    });
+    return {
+      name: "comments",
+      properties: {
+        rawMap: {
+          xmlns: "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+        }
+      },
+      children: [
+        {
+          name: "authors",
+          children: authors.map((author) => ({
+            name: "author",
+            textNode: _escapeString2(author)
+          }))
+        },
+        {
+          name: "commentList",
+          children: comments
+        }
+      ]
+    };
+  }
+};
+var comments_default = commentsFactory;
 
 // packages/ag-grid-enterprise/src/excelExport/files/ooxml/contentType.ts
 var contentTypeFactory = {
@@ -1367,23 +1497,29 @@ var contentType_default = contentTypeFactory;
 var _normaliseImageExtension = (ext) => ext === "jpg" ? "jpeg" : ext;
 var contentTypesFactory = {
   getTemplate({ sheetLen, hasCustomProperties }) {
-    const worksheets = new Array(sheetLen).fill(void 0).map((v, i) => ({
+    const worksheets = new Array(sheetLen).fill(void 0).map((_v, i) => ({
       name: "Override",
       ContentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml",
       PartName: `/xl/worksheets/sheet${i + 1}.xml`
     }));
     const sheetsWithImages = XLSX_WORKSHEET_IMAGES.size;
     const headerFooterImages = XLSX_WORKSHEET_HEADER_FOOTER_IMAGES.size;
+    const sheetsWithComments = XLSX_WORKSHEET_COMMENTS.size;
     const imageTypesObject = {};
     XLSX_WORKBOOK_IMAGE_IDS.forEach((v) => {
       imageTypesObject[_normaliseImageExtension(v.type)] = true;
     });
-    const imageDocs = new Array(sheetsWithImages).fill(void 0).map((v, i) => ({
+    const imageDocs = new Array(sheetsWithImages).fill(void 0).map((_v, i) => ({
       name: "Override",
       ContentType: "application/vnd.openxmlformats-officedocument.drawing+xml",
       PartName: `/xl/drawings/drawing${i + 1}.xml`
     }));
     const tableDocs = [];
+    const commentDocs = new Array(sheetsWithComments).fill(void 0).map((_v, i) => ({
+      name: "Override",
+      ContentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml",
+      PartName: `/xl/comments${i + 1}.xml`
+    }));
     XLSX_WORKSHEET_DATA_TABLES.forEach(({ name }) => {
       tableDocs.push({
         name: "Override",
@@ -1403,7 +1539,7 @@ var contentTypesFactory = {
       ContentType: `image/${ext}`,
       Extension: ext
     }));
-    if (headerFooterImages) {
+    if (headerFooterImages || sheetsWithComments) {
       imageTypes.push({
         name: "Default",
         Extension: "vml",
@@ -1444,6 +1580,7 @@ var contentTypesFactory = {
         PartName: "/xl/sharedStrings.xml"
       },
       ...imageDocs,
+      ...commentDocs,
       ...tableDocs,
       {
         name: "Override",
@@ -1520,7 +1657,7 @@ var coreFactory = {
 var core_default = coreFactory;
 
 // packages/ag-grid-enterprise/src/excelExport/files/ooxml/customProperties.ts
-import { _escapeString as _escapeString2 } from "ag-grid-community";
+import { _escapeString as _escapeString3 } from "ag-grid-community";
 var DEFAULT_FMTID = "{D5CDD505-2E9C-101B-9397-08002B2CF9AE}";
 var buildPropertyElements = (metadata) => {
   const keys = Object.keys(metadata).filter((name) => name && metadata[name] != null);
@@ -1530,13 +1667,13 @@ var buildPropertyElements = (metadata) => {
       rawMap: {
         fmtid: DEFAULT_FMTID,
         pid: (index + 2).toString(),
-        name: _escapeString2(name) ?? ""
+        name: _escapeString3(name) ?? ""
       }
     },
     children: [
       {
         name: "vt:lpwstr",
-        textNode: _escapeString2(replaceInvisibleCharacters(String(metadata[name]))) ?? ""
+        textNode: _escapeString3(replaceInvisibleCharacters(String(metadata[name]))) ?? ""
       }
     ]
   }));
@@ -1890,6 +2027,232 @@ var drawingFactory = {
   }
 };
 var drawing_default = drawingFactory;
+
+// packages/ag-grid-enterprise/src/excelExport/files/ooxml/noteVmlDrawing.ts
+var parseCellRef = (ref) => {
+  let column = 0;
+  let index = 0;
+  while (index < ref.length) {
+    const code = ref.charCodeAt(index);
+    if (code < 65 || code > 90) {
+      break;
+    }
+    column = column * 26 + (code - 64);
+    index++;
+  }
+  const row = Number(ref.slice(index));
+  return {
+    row: row - 1,
+    column: column - 1
+  };
+};
+var getShapeLayout = () => ({
+  name: "o:shapelayout",
+  properties: {
+    prefixedAttributes: [
+      {
+        prefix: "v:",
+        map: {
+          ext: "edit"
+        }
+      }
+    ]
+  },
+  children: [
+    {
+      name: "o:idmap",
+      properties: {
+        prefixedAttributes: [
+          {
+            prefix: "v:",
+            map: {
+              ext: "edit"
+            }
+          }
+        ],
+        rawMap: {
+          data: "1"
+        }
+      }
+    }
+  ]
+});
+var getShapeType = () => ({
+  name: "v:shapetype",
+  properties: {
+    prefixedAttributes: [
+      {
+        prefix: "o:",
+        map: {
+          spt: "202"
+        }
+      }
+    ],
+    rawMap: {
+      id: "_x0000_t202",
+      coordsize: "21600,21600",
+      path: "m0,0l0,21600,21600,21600,21600,0xe"
+    }
+  },
+  children: [
+    {
+      name: "v:stroke",
+      properties: {
+        rawMap: {
+          joinstyle: "miter"
+        }
+      }
+    },
+    {
+      name: "v:path",
+      properties: {
+        prefixedAttributes: [
+          {
+            prefix: "o:",
+            map: {
+              connecttype: "rect"
+            }
+          }
+        ],
+        rawMap: {
+          gradientshapeok: "t"
+        }
+      }
+    }
+  ]
+});
+var getAnchor2 = (comment) => {
+  const { row, column } = parseCellRef(comment.ref);
+  return `${column + 1},0,${row + 1},0,${column + 3},20,${row + 5},20`;
+};
+var getClientData = (comment) => {
+  const { row, column } = parseCellRef(comment.ref);
+  return {
+    name: "x:ClientData",
+    properties: {
+      rawMap: {
+        ObjectType: "Note"
+      }
+    },
+    children: [
+      {
+        name: "x:MoveWithCells"
+      },
+      {
+        name: "x:SizeWithCells"
+      },
+      {
+        name: "x:Anchor",
+        textNode: getAnchor2(comment)
+      },
+      {
+        name: "x:AutoFill",
+        textNode: "False"
+      },
+      {
+        name: "x:Row",
+        textNode: String(row)
+      },
+      {
+        name: "x:Column",
+        textNode: String(column)
+      }
+    ]
+  };
+};
+var getShape = (comment, idx) => ({
+  name: "v:shape",
+  properties: {
+    prefixedAttributes: [
+      {
+        prefix: "o:",
+        map: {
+          insetmode: "auto"
+        }
+      }
+    ],
+    rawMap: {
+      id: `_x0000_s${1025 + idx}`,
+      type: "#_x0000_t202",
+      style: "position:absolute;margin-left:80pt;margin-top:5pt;width:104pt;height:64pt;z-index:10;visibility:hidden",
+      fillcolor: "#ffffe1",
+      strokecolor: "#000000"
+    }
+  },
+  children: [
+    {
+      name: "v:fill",
+      properties: {
+        rawMap: {
+          color2: "#ffffe1"
+        }
+      }
+    },
+    {
+      name: "v:shadow",
+      properties: {
+        rawMap: {
+          color: "black",
+          obscured: "t"
+        }
+      }
+    },
+    {
+      name: "v:path",
+      properties: {
+        prefixedAttributes: [
+          {
+            prefix: "o:",
+            map: {
+              connecttype: "none"
+            }
+          }
+        ]
+      }
+    },
+    {
+      name: "v:textbox",
+      properties: {
+        rawMap: {
+          style: "mso-direction-alt:auto"
+        }
+      },
+      children: [
+        {
+          name: "div",
+          properties: {
+            rawMap: {
+              style: "text-align:left"
+            }
+          }
+        }
+      ]
+    },
+    getClientData(comment)
+  ]
+});
+var noteVmlDrawingFactory = {
+  getTemplate(params) {
+    const comments = XLSX_WORKSHEET_COMMENTS.get(params.sheetIndex) || [];
+    return {
+      name: "xml",
+      properties: {
+        prefixedAttributes: [
+          {
+            prefix: "xmlns:",
+            map: {
+              v: "urn:schemas-microsoft-com:vml",
+              o: "urn:schemas-microsoft-com:office:office",
+              x: "urn:schemas-microsoft-com:office:excel"
+            }
+          }
+        ]
+      },
+      children: [getShapeLayout(), getShapeType(), ...comments.map((comment, idx) => getShape(comment, idx))]
+    };
+  }
+};
+var noteVmlDrawing_default = noteVmlDrawingFactory;
 
 // packages/ag-grid-enterprise/src/excelExport/files/ooxml/relationship.ts
 var relationshipFactory = {
@@ -2396,7 +2759,7 @@ var fontsFactory = {
 var fonts_default = fontsFactory;
 
 // packages/ag-grid-enterprise/src/excelExport/files/ooxml/styles/numberFormat.ts
-import { _escapeString as _escapeString3 } from "ag-grid-community";
+import { _escapeString as _escapeString4 } from "ag-grid-community";
 function prepareString(str) {
   const split = str.split(/(\[[^\]]*\])/);
   for (let i = 0; i < split.length; i++) {
@@ -2407,7 +2770,7 @@ function prepareString(str) {
     if (!currentString.startsWith("[")) {
       currentString = currentString.replace(/\$/g, '"$"');
     }
-    split[i] = _escapeString3(currentString);
+    split[i] = _escapeString4(currentString);
   }
   return split.join("");
 }
@@ -2724,7 +3087,7 @@ var registerStyles = (styles, _currentSheet) => {
 var stylesheet_default = stylesheetFactory;
 
 // packages/ag-grid-enterprise/src/excelExport/files/ooxml/table.ts
-import { _escapeString as _escapeString4 } from "ag-grid-community";
+import { _escapeString as _escapeString5 } from "ag-grid-community";
 var tableFactory = {
   getTemplate(dataTable, idx) {
     const {
@@ -2795,7 +3158,7 @@ var tableFactory = {
             properties: {
               rawMap: {
                 id: (idx2 + 1).toString(),
-                name: _escapeString4(sanitizeTableName(col)),
+                name: _escapeString5(sanitizeTableName(col)),
                 dataCellStyle: "Normal"
               }
             }
@@ -3230,7 +3593,7 @@ var officeTheme = {
 var office_default = officeTheme;
 
 // packages/ag-grid-enterprise/src/excelExport/files/ooxml/vmlDrawing.ts
-var getShapeLayout = () => ({
+var getShapeLayout2 = () => ({
   name: "o:shapelayout",
   properties: {
     prefixedAttributes: [
@@ -3377,7 +3740,7 @@ var getImageData = (image, idx) => {
     }
   };
 };
-var getShapeType = () => {
+var getShapeType2 = () => {
   const formulas = [
     "if lineDrawn pixelLineWidth 0",
     "sum @0 1 0",
@@ -3416,7 +3779,7 @@ var getShapeType = () => {
   };
 };
 var pixelToPoint = (value) => Math.floor((value ?? 0) * 0.74999943307122);
-var getShape = (image, idx) => {
+var getShape2 = (image, idx) => {
   const { width = 0, height = 0, altText } = image;
   const imageWidth = pixelToPoint(width);
   const imageHeight = pixelToPoint(height);
@@ -3438,9 +3801,9 @@ var vmlDrawingFactory = {
   getTemplate(params) {
     const headerFooterImages = XLSX_WORKSHEET_HEADER_FOOTER_IMAGES.get(params.sheetIndex) || [];
     const children = [
-      getShapeLayout(),
-      getShapeType(),
-      ...headerFooterImages.map((img, idx) => getShape(img, idx))
+      getShapeLayout2(),
+      getShapeType2(),
+      ...headerFooterImages.map((img, idx) => getShape2(img, idx))
     ];
     return {
       name: "xml",
@@ -3531,7 +3894,7 @@ var workbookFactory = {
 var workbook_default = workbookFactory;
 
 // packages/ag-grid-enterprise/src/excelExport/files/ooxml/worksheet.ts
-import { _escapeString as _escapeString6 } from "ag-grid-community";
+import { _escapeString as _escapeString7 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/excelExport/files/ooxml/column.ts
 var getExcelCellWidth = (width) => Math.ceil((width - 12) / 7 + 1);
@@ -3579,7 +3942,7 @@ var mergeCellFactory = {
 var mergeCell_default = mergeCellFactory;
 
 // packages/ag-grid-enterprise/src/excelExport/files/ooxml/cell.ts
-import { _escapeString as _escapeString5 } from "ag-grid-community";
+import { _escapeString as _escapeString6 } from "ag-grid-community";
 var convertLegacyType = (type) => {
   const t = type.charAt(0).toLowerCase();
   return t === "s" ? "inlineStr" : t;
@@ -3612,7 +3975,7 @@ var cellFactory = {
       children = [
         {
           name: "f",
-          textNode: _escapeString5(replaceInvisibleCharacters(value))
+          textNode: _escapeString6(replaceInvisibleCharacters(value))
         }
       ];
     } else if (convertedType === "inlineStr") {
@@ -3622,7 +3985,7 @@ var cellFactory = {
           children: [
             {
               name: "t",
-              textNode: _escapeString5(replaceInvisibleCharacters(value))
+              textNode: _escapeString6(replaceInvisibleCharacters(value))
             }
           ]
         }
@@ -3672,7 +4035,12 @@ var addEmptyCells = (cells, rowIdx) => {
     }
   }
 };
-var shouldDisplayCell = (cell) => cell.data?.value !== "" || cell.styleId !== void 0;
+var shouldDisplayCell = (cell) => {
+  if (cell.mergeAcross != null || cell.styleId !== void 0 || cell.note !== void 0) {
+    return true;
+  }
+  return !!cell.data && cell.data.type !== "empty" && cell.data.value !== "";
+};
 var rowFactory = {
   getTemplate(config, idx, currentSheet2) {
     const { collapsed, hidden, height, outlineLevel, cells = [] } = config;
@@ -3863,7 +4231,7 @@ var processHeaderFooterContent = (content, location, rule) => content.reduce((pr
     const imagePosition = `${pos}${location}${rule}`;
     addXlsxHeaderFooterImageToMap(image, imagePosition);
   }
-  return `${output}${_escapeString6(replaceHeaderFooterTokens(curr.value))}`;
+  return `${output}${_escapeString7(replaceHeaderFooterTokens(curr.value))}`;
 }, "");
 var buildHeaderFooter = (headerFooterConfig) => {
   const rules = ["all", "first", "even"];
@@ -3902,6 +4270,28 @@ var addColumns = (columns) => {
     }
     return params;
   };
+};
+var registerSheetComments = (currentSheet2, rows) => {
+  const comments = [];
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+    const cells = rows[rowIndex].cells;
+    for (let cellIndex = 0; cellIndex < cells.length; cellIndex++) {
+      const cell = cells[cellIndex];
+      if (!cell.note || !cell.ref) {
+        continue;
+      }
+      comments.push({
+        ref: cell.ref,
+        text: cell.note.text,
+        author: cell.note.author
+      });
+    }
+  }
+  if (comments.length) {
+    XLSX_WORKSHEET_COMMENTS.set(currentSheet2, comments);
+  } else {
+    XLSX_WORKSHEET_COMMENTS.delete(currentSheet2);
+  }
 };
 var addSheetData = (rows, sheetNumber) => {
   return (params) => {
@@ -4085,6 +4475,21 @@ var addDrawingRel = (currentSheet2) => {
     return params;
   };
 };
+var addLegacyDrawingRel = (currentSheet2) => {
+  return (params) => {
+    if (XLSX_WORKSHEET_COMMENTS.get(currentSheet2)?.length) {
+      params.children.push({
+        name: "legacyDrawing",
+        properties: {
+          rawMap: {
+            "r:id": `rId${++params.rIdCounter}`
+          }
+        }
+      });
+    }
+    return params;
+  };
+};
 var addVmlDrawingRel = (currentSheet2) => {
   return (params) => {
     if (XLSX_WORKSHEET_HEADER_FOOTER_IMAGES.get(currentSheet2)) {
@@ -4191,6 +4596,7 @@ var worksheetFactory = {
     const { table } = worksheet;
     const { rows, columns } = table;
     const mergedCells = columns?.length ? getMergedCellsAndAddColumnGroups(rows, columns, !!suppressColumnOutline) : [];
+    registerSheetComments(currentSheet2, rows);
     const worksheetExcelTables = XLSX_WORKSHEET_DATA_TABLES.get(currentSheet2);
     const { children } = [
       addSheetPr(),
@@ -4204,6 +4610,7 @@ var worksheetFactory = {
       addPageSetup(pageSetup),
       addHeaderFooter(headerFooterConfig),
       addDrawingRel(currentSheet2),
+      addLegacyDrawingRel(currentSheet2),
       addVmlDrawingRel(currentSheet2),
       addExcelTableRel(worksheetExcelTables)
     ].reduce((composed, f) => f(composed), { children: [], rIdCounter: 0 });
@@ -4239,6 +4646,7 @@ var XLSX_WORKSHEET_HEADER_FOOTER_IMAGES = /* @__PURE__ */ new Map();
 var XLSX_WORKBOOK_IMAGE_IDS = /* @__PURE__ */ new Map();
 var XLSX_WORKSHEET_IMAGE_IDS = /* @__PURE__ */ new Map();
 var XLSX_WORKSHEET_DATA_TABLES = /* @__PURE__ */ new Map();
+var XLSX_WORKSHEET_COMMENTS = /* @__PURE__ */ new Map();
 var DEFAULT_TABLE_DISPLAY_NAME = "AG-GRID-TABLE";
 var XLSX_FACTORY_MODE = "SINGLE_SHEET";
 function getXlsxFactoryMode() {
@@ -4379,7 +4787,7 @@ function buildImageMap(params) {
   }
 }
 function addSheetName(worksheet) {
-  const name = _escapeString7(worksheet.name) || "";
+  const name = _escapeString8(worksheet.name) || "";
   let append = "";
   while (XLSX_SHEET_NAMES.indexOf(`${name}${append}`) !== -1) {
     if (append === "") {
@@ -4407,6 +4815,7 @@ function resetXlsxFactory() {
   XLSX_WORKBOOK_IMAGE_IDS.clear();
   XLSX_WORKSHEET_IMAGE_IDS.clear();
   XLSX_WORKSHEET_DATA_TABLES.clear();
+  XLSX_WORKSHEET_COMMENTS.clear();
   XLSX_SHEET_NAMES = [];
   XLSX_SHEET_DATA = [];
   XLSX_SHEET_CONTENT_INDICES = /* @__PURE__ */ new Map();
@@ -4488,6 +4897,12 @@ function createXlsxWorkbookRels(sheetLen) {
 function createXlsxDrawing(sheetIndex) {
   return createXmlPart(drawing_default.getTemplate({ sheetIndex }));
 }
+function createXlsxComments(sheetIndex, author, suppressPrependAuthorToNotes) {
+  const comments = XLSX_WORKSHEET_COMMENTS.get(sheetIndex) || [];
+  const defaultAuthor = author || "AG Grid";
+  const prependAuthor = !suppressPrependAuthorToNotes;
+  return createXmlPart(comments_default.getTemplate({ comments, defaultAuthor, prependAuthor }));
+}
 function createXlsxDrawingRel(sheetIndex) {
   const worksheetImageIds = XLSX_WORKSHEET_IMAGE_IDS.get(sheetIndex) || [];
   const XMLArr = [];
@@ -4503,6 +4918,9 @@ function createXlsxDrawingRel(sheetIndex) {
 }
 function createXlsxVmlDrawing(sheetIndex) {
   return createXmlPart(vmlDrawing_default.getTemplate({ sheetIndex }), true);
+}
+function createXlsxNoteVmlDrawing(sheetIndex) {
+  return createXmlPart(noteVmlDrawing_default.getTemplate({ sheetIndex }), true);
 }
 function createXlsxVmlDrawingRel(sheetIndex) {
   const worksheetHeaderFooterImages = XLSX_WORKSHEET_HEADER_FOOTER_IMAGES.get(sheetIndex) || [];
@@ -4524,10 +4942,12 @@ function createXlsxVmlDrawingRel(sheetIndex) {
 }
 function createXlsxRelationships({
   drawingIndex,
-  vmlDrawingIndex,
+  noteVmlDrawingIndex,
+  headerFooterVmlDrawingIndex,
+  commentsIndex,
   tableName
 } = {}) {
-  if (drawingIndex === void 0 && vmlDrawingIndex === void 0 && tableName === void 0) {
+  if (drawingIndex === void 0 && noteVmlDrawingIndex === void 0 && headerFooterVmlDrawingIndex === void 0 && commentsIndex === void 0 && tableName === void 0) {
     return "";
   }
   const config = [];
@@ -4538,11 +4958,18 @@ function createXlsxRelationships({
       Target: `../drawings/drawing${drawingIndex + 1}.xml`
     });
   }
-  if (vmlDrawingIndex != null) {
+  if (noteVmlDrawingIndex != null) {
     config.push({
       Id: `rId${config.length + 1}`,
       Type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing",
-      Target: `../drawings/vmlDrawing${vmlDrawingIndex + 1}.vml`
+      Target: `../drawings/vmlDrawing${noteVmlDrawingIndex + 1}.vml`
+    });
+  }
+  if (headerFooterVmlDrawingIndex != null) {
+    config.push({
+      Id: `rId${config.length + 1}`,
+      Type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing",
+      Target: `../drawings/vmlDrawing${headerFooterVmlDrawingIndex + 1}.vml`
     });
   }
   if (tableName != null) {
@@ -4550,6 +4977,13 @@ function createXlsxRelationships({
       Id: `rId${config.length + 1}`,
       Type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/table",
       Target: `../tables/${tableName}.xml`
+    });
+  }
+  if (commentsIndex != null) {
+    config.push({
+      Id: `rId${config.length + 1}`,
+      Type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments",
+      Target: `../comments${commentsIndex + 1}.xml`
     });
   }
   const rs = relationships_default.getTemplate(config);
@@ -4621,6 +5055,7 @@ var reorderSheetState = (order) => {
   reorderSheetSpecificMap(XLSX_WORKSHEET_IMAGES, order);
   reorderSheetSpecificMap(XLSX_WORKSHEET_HEADER_FOOTER_IMAGES, order);
   reorderSheetSpecificMap(XLSX_WORKSHEET_DATA_TABLES, order);
+  reorderSheetSpecificMap(XLSX_WORKSHEET_COMMENTS, order);
   reorderSheetSpecificMap(XLSX_WORKSHEET_IMAGE_IDS, order);
   XLSX_IMAGES.forEach((sheetImages) => {
     sheetImages.forEach((entry) => {
@@ -4751,13 +5186,10 @@ var getCrcFromCrc32TableAndByteArray = (content) => {
     return 0;
   }
   let crc = 0 ^ -1;
-  let j = 0;
-  let k = 0;
-  let l = 0;
   for (let i = 0; i < content.length; i++) {
-    j = content[i];
-    k = (crc ^ j) & 255;
-    l = crcTable[k];
+    const j = content[i];
+    const k = (crc ^ j) & 255;
+    const l = crcTable[k];
     crc = crc >>> 8 ^ l;
   }
   return crc ^ -1;
@@ -5286,10 +5718,22 @@ var ZipContainer = class {
 // packages/ag-grid-enterprise/src/excelExport/excelCreator.ts
 var createExcelXMLCoreFolderStructure = (zipContainer) => {
   zipContainer.addFolders(["_rels/", "docProps/", "xl/", "xl/theme/", "xl/_rels/", "xl/worksheets/"]);
+  if (XLSX_IMAGES.size || XLSX_WORKSHEET_DATA_TABLES.size || XLSX_WORKSHEET_HEADER_FOOTER_IMAGES.size || XLSX_WORKSHEET_COMMENTS.size) {
+    zipContainer.addFolders(["xl/worksheets/_rels"]);
+  }
+  if (XLSX_IMAGES.size || XLSX_WORKSHEET_HEADER_FOOTER_IMAGES.size || XLSX_WORKSHEET_COMMENTS.size) {
+    zipContainer.addFolders(["xl/drawings/"]);
+  }
+  if (XLSX_IMAGES.size || XLSX_WORKSHEET_HEADER_FOOTER_IMAGES.size) {
+    zipContainer.addFolders(["xl/drawings/_rels"]);
+  }
+  if (XLSX_WORKSHEET_DATA_TABLES.size) {
+    zipContainer.addFolders(["xl/tables/"]);
+  }
   if (!XLSX_IMAGES.size) {
     return;
   }
-  zipContainer.addFolders(["xl/worksheets/_rels", "xl/drawings/", "xl/drawings/_rels", "xl/media/"]);
+  zipContainer.addFolders(["xl/media/"]);
   let imgCounter = 0;
   XLSX_IMAGES.forEach((value) => {
     const firstImage = value[0].image[0];
@@ -5297,30 +5741,48 @@ var createExcelXMLCoreFolderStructure = (zipContainer) => {
     zipContainer.addFile(`xl/media/image${++imgCounter}.${_normaliseImageExtension(imageType)}`, base64, true);
   });
 };
-var createExcelXmlWorksheets = (zipContainer, data) => {
+var createExcelXmlWorksheets = (zipContainer, data, author, suppressPrependAuthorToNotes) => {
   let imageRelationCounter = 0;
-  let headerFooterImageCounter = 0;
+  let commentCounter = 0;
+  let vmlDrawingCounter = 0;
   for (let i = 0; i < data.length; i++) {
     const value = data[i];
     zipContainer.addFile(`xl/worksheets/sheet${i + 1}.xml`, value, false);
     const hasImages = XLSX_IMAGES.size > 0 && XLSX_WORKSHEET_IMAGES.has(i);
     const tableData = XLSX_WORKSHEET_DATA_TABLES.size > 0 && XLSX_WORKSHEET_DATA_TABLES.get(i);
     const hasHeaderFooterImages = XLSX_IMAGES.size && XLSX_WORKSHEET_HEADER_FOOTER_IMAGES.has(i);
-    if (!hasImages && !tableData && !hasHeaderFooterImages) {
+    const hasComments = !!XLSX_WORKSHEET_COMMENTS.get(i)?.length;
+    if (!hasImages && !tableData && !hasHeaderFooterImages && !hasComments) {
       continue;
     }
     let tableName;
     let drawingIndex;
-    let vmlDrawingIndex;
+    let noteVmlDrawingIndex;
+    let headerFooterVmlDrawingIndex;
+    let commentsIndex;
     if (hasImages) {
       createExcelXmlDrawings(zipContainer, i, imageRelationCounter);
       drawingIndex = imageRelationCounter;
       imageRelationCounter++;
     }
+    if (hasComments) {
+      createExcelXmlComments(
+        zipContainer,
+        i,
+        commentCounter,
+        vmlDrawingCounter,
+        author,
+        suppressPrependAuthorToNotes
+      );
+      commentsIndex = commentCounter;
+      noteVmlDrawingIndex = vmlDrawingCounter;
+      commentCounter++;
+      vmlDrawingCounter++;
+    }
     if (hasHeaderFooterImages) {
-      createExcelVmlDrawings(zipContainer, i, headerFooterImageCounter);
-      vmlDrawingIndex = headerFooterImageCounter;
-      headerFooterImageCounter++;
+      createExcelHeaderFooterVmlDrawings(zipContainer, i, vmlDrawingCounter);
+      headerFooterVmlDrawingIndex = vmlDrawingCounter;
+      vmlDrawingCounter++;
     }
     if (tableData) {
       tableName = tableData.name;
@@ -5331,7 +5793,9 @@ var createExcelXmlWorksheets = (zipContainer, data) => {
       createXlsxRelationships({
         tableName,
         drawingIndex,
-        vmlDrawingIndex
+        noteVmlDrawingIndex,
+        headerFooterVmlDrawingIndex,
+        commentsIndex
       })
     );
   }
@@ -5343,7 +5807,15 @@ var createExcelXmlDrawings = (zipContainer, sheetIndex, drawingIndex) => {
   zipContainer.addFile(relFileName, createXlsxDrawingRel(sheetIndex));
   zipContainer.addFile(drawingFileName, createXlsxDrawing(sheetIndex));
 };
-var createExcelVmlDrawings = (zipContainer, sheetIndex, drawingIndex) => {
+var createExcelXmlComments = (zipContainer, sheetIndex, commentsIndex, drawingIndex, author, suppressPrependAuthorToNotes) => {
+  const drawingFolder = "xl/drawings";
+  zipContainer.addFile(
+    `xl/comments${commentsIndex + 1}.xml`,
+    createXlsxComments(sheetIndex, author, suppressPrependAuthorToNotes)
+  );
+  zipContainer.addFile(`${drawingFolder}/vmlDrawing${drawingIndex + 1}.vml`, createXlsxNoteVmlDrawing(sheetIndex));
+};
+var createExcelHeaderFooterVmlDrawings = (zipContainer, sheetIndex, drawingIndex) => {
   const drawingFolder = "xl/drawings";
   const drawingFileName = `${drawingFolder}/vmlDrawing${drawingIndex + 1}.vml`;
   const relFileName = `${drawingFolder}/_rels/vmlDrawing${drawingIndex + 1}.vml.rels`;
@@ -5383,18 +5855,18 @@ var createExcelFileForExcel = (zipContainer, data, options = {}, workbook) => {
     return false;
   }
   workbook.syncOrderWithSheetData(data);
-  const { fontSize = 11, author = "AG Grid", activeTab = 0, customMetadata } = options;
+  const { fontSize = 11, author = "AG Grid", activeTab = 0, customMetadata, suppressPrependAuthorToNotes } = options;
   const len = data.length;
   const activeTabWithinBounds = Math.max(Math.min(activeTab, len - 1), 0);
   createExcelXMLCoreFolderStructure(zipContainer);
   createExcelXmlTables(zipContainer);
-  createExcelXmlWorksheets(zipContainer, data);
+  createExcelXmlWorksheets(zipContainer, data, author, suppressPrependAuthorToNotes);
   createExcelXmlCoreSheets(zipContainer, fontSize, author, len, activeTabWithinBounds, customMetadata);
   workbook.reset();
   return true;
 };
 var getMultipleSheetsAsExcelCompressed = (params, workbook = new Workbook()) => {
-  const { data, fontSize, author, activeSheetIndex, customMetadata } = params;
+  const { data, fontSize, author, activeSheetIndex, customMetadata, suppressPrependAuthorToNotes } = params;
   const mimeType = params.mimeType || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   const zipContainer = new ZipContainer();
   if (!createExcelFileForExcel(
@@ -5404,7 +5876,8 @@ var getMultipleSheetsAsExcelCompressed = (params, workbook = new Workbook()) => 
       author,
       fontSize,
       activeTab: activeSheetIndex,
-      customMetadata
+      customMetadata,
+      suppressPrependAuthorToNotes
     },
     workbook
   )) {
@@ -5413,7 +5886,14 @@ var getMultipleSheetsAsExcelCompressed = (params, workbook = new Workbook()) => 
   return zipContainer.getZipFile(mimeType);
 };
 var getMultipleSheetsAsExcel = (params, workbook = new Workbook()) => {
-  const { data, fontSize, author, activeSheetIndex: activeTab, customMetadata } = params;
+  const {
+    data,
+    fontSize,
+    author,
+    activeSheetIndex: activeTab,
+    customMetadata,
+    suppressPrependAuthorToNotes
+  } = params;
   const mimeType = params.mimeType || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   const zipContainer = new ZipContainer();
   if (!createExcelFileForExcel(
@@ -5423,7 +5903,8 @@ var getMultipleSheetsAsExcel = (params, workbook = new Workbook()) => {
       author,
       fontSize,
       activeTab,
-      customMetadata
+      customMetadata,
+      suppressPrependAuthorToNotes
     },
     workbook
   )) {
@@ -5459,13 +5940,14 @@ var ExcelCreator = class extends BaseCreator {
     const exportFunc = () => {
       const mergedParams = this.getMergedParams(userParams);
       const data = this.getData(mergedParams);
-      const { fontSize, author, mimeType, customMetadata } = mergedParams;
+      const { fontSize, author, mimeType, customMetadata, suppressPrependAuthorToNotes } = mergedParams;
       const exportParams = {
         data: [data],
         fontSize,
         author,
         mimeType,
-        customMetadata
+        customMetadata,
+        suppressPrependAuthorToNotes
       };
       this.packageCompressedFile(exportParams).then((packageFile) => {
         if (packageFile) {
@@ -5488,13 +5970,14 @@ var ExcelCreator = class extends BaseCreator {
   getDataAsExcel(params) {
     const mergedParams = this.getMergedParams(params);
     const data = this.getData(mergedParams);
-    const { fontSize, author, mimeType, customMetadata } = mergedParams;
+    const { fontSize, author, mimeType, customMetadata, suppressPrependAuthorToNotes } = mergedParams;
     const exportParams = {
       data: [data],
       fontSize,
       author,
       mimeType,
-      customMetadata
+      customMetadata,
+      suppressPrependAuthorToNotes
     };
     return this.packageFile(exportParams);
   }
@@ -5524,7 +6007,7 @@ var ExcelCreator = class extends BaseCreator {
     return "xlsx";
   }
   createSerializingSession(params) {
-    const { colModel, colNames, rowGroupColsSvc, valueSvc, formula, gos } = this.beans;
+    const { colModel, colNames, rowGroupColsSvc, valueSvc, formula, gos, notesSvc } = this.beans;
     const baseExcelStyles = gos.get("excelStyles") || [];
     const styleLinker = this.createStyleLinker(baseExcelStyles);
     const config = {
@@ -5541,6 +6024,7 @@ var ExcelCreator = class extends BaseCreator {
       rightToLeft: params.rightToLeft ?? gos.get("enableRtl"),
       styleLinker,
       headerRowCount: _getHeaderRowCount(colModel),
+      notesSvc,
       pivotModeActive: colModel.isPivotActive(),
       workbook: this.workbook
     };
@@ -5825,7 +6309,7 @@ var AgVirtualList = class extends _AgTabGuardComp {
   }
   getComponentAt(rowIndex) {
     const comp = this.renderedRows.get(rowIndex);
-    return comp && comp.rowComponent;
+    return comp?.rowComponent;
   }
   forEachRenderedRow(func) {
     this.renderedRows.forEach((value, key) => func(value.rowComponent, key));
@@ -6096,7 +6580,7 @@ var AgVirtualListDragFeature = class extends _AgBeanStub {
       return;
     }
     const el = comp.getGui().parentElement;
-    if (this.lastHoveredListItem && this.lastHoveredListItem.rowIndex === hoveredListItem.rowIndex && this.lastHoveredListItem.position === hoveredListItem.position) {
+    if (this.lastHoveredListItem?.rowIndex === hoveredListItem.rowIndex && this.lastHoveredListItem.position === hoveredListItem.position) {
       return;
     }
     this.autoScrollService.check(e.event);
@@ -6850,6 +7334,9 @@ var AgPanel = class extends _AgComponentStub2 {
   getWidth() {
     return this.positionableFeature.getWidth();
   }
+  get isResizing() {
+    return this.positionableFeature.isResizing;
+  }
   setWidth(width) {
     this.positionableFeature.setWidth(width);
   }
@@ -7476,7 +7963,7 @@ var AgMenuItemComponent = class extends _AgBeanStub2 {
         )
       );
     } else {
-      this.openSubMenu(event && event.type === "keydown", event);
+      this.openSubMenu(event?.type === "keydown", event);
     }
     if (this.params.subMenu && !this.params.action || this.params.suppressCloseOnSelect) {
       return;
@@ -8847,7 +9334,7 @@ import {
 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/version.ts
-var VERSION = "35.2.0";
+var VERSION = "35.3.0";
 
 // packages/ag-grid-enterprise/src/agGridEnterpriseModule.ts
 var EnterpriseCoreModule = {
@@ -9909,9 +10396,9 @@ var AdvancedFilterExpressionService = class extends BeanStub2 {
     const entries = [];
     const includeHiddenColumns = this.gos.get("includeHiddenColumnsInAdvancedFilter");
     for (const column of columns) {
-      if (column.getColDef().filter && (includeHiddenColumns || column.isVisible() || column.isRowGroupActive())) {
+      if (column.colDef.filter && (includeHiddenColumns || column.isVisible() || column.isRowGroupActive())) {
         entries.push({
-          key: column.getColId(),
+          key: column.colId,
           displayValue: this.colNames.getDisplayNameForColumn(column, "advancedFilter")
         });
       }
@@ -9983,7 +10470,7 @@ var AdvancedFilterExpressionService = class extends BeanStub2 {
         };
         break;
       case "object":
-        if (column.getColDef().filterValueGetter) {
+        if (column.colDef.filterValueGetter) {
           params = { valueConverter: (v) => v };
         } else {
           params = {
@@ -9999,7 +10486,7 @@ var AdvancedFilterExpressionService = class extends BeanStub2 {
         params = { valueConverter: (v) => v };
         break;
     }
-    const { filterParams } = column.getColDef();
+    const { filterParams } = column.colDef;
     if (filterParams) {
       ["caseSensitive", "includeBlanksInEquals", "includeBlanksInLessThan", "includeBlanksInGreaterThan"].forEach(
         (param) => {
@@ -10046,7 +10533,7 @@ var AdvancedFilterExpressionService = class extends BeanStub2 {
     };
   }
   getActiveOperators(column) {
-    const filterOptions = column.getColDef().filterParams?.filterOptions;
+    const filterOptions = column.colDef.filterParams?.filterOptions;
     if (!filterOptions) {
       return void 0;
     }
@@ -15639,7 +16126,7 @@ var buildAggregationFeatureSchema = (beans) => {
         s.union(
           aggregatableColumns.map(
             (col) => s.object({
-              colId: s.literal(col.getColId(), "Column identifier"),
+              colId: s.literal(col.colId, "Column identifier"),
               aggFunc: s.enum(beans.aggFuncSvc?.getFuncNames(col) || [], "Aggregation function")
             })
           )
@@ -15658,7 +16145,7 @@ var buildColumnSizingFeatureSchema = (beans) => {
   if (resizableColumns.length === 0) {
     return;
   }
-  const resizableColumnIds = resizableColumns.map((col) => col.getColId());
+  const resizableColumnIds = resizableColumns.map((col) => col.colId);
   return s.object(
     {
       columnSizingModel: s.array(
@@ -15935,8 +16422,8 @@ var buildColumnFilterFeatureSchema = (beans, params) => {
   const filterSchemas = {};
   const enableFilterHandlers = gos.get("enableFilterHandlers");
   for (const column of filterableColumns) {
-    const columnParams = params?.columns ? params.columns[column.getColId()] : void 0;
-    const colDef = column.getColDef();
+    const columnParams = params?.columns ? params.columns[column.colId] : void 0;
+    const colDef = column.colDef;
     const defaultFilter = colFilter.getDefaultFilter(column);
     const includeSetValues = columnParams?.includeSetValues ?? false;
     const filter = buildColumnFilterSchema(
@@ -16116,7 +16603,7 @@ var buildMultiFilterSchema = (filters, defaultFilter, getKeys = () => []) => {
 // packages/ag-grid-enterprise/src/aiToolkit/features/pivotFeatureSchema.ts
 var buildPivotFeatureSchema = (beans) => {
   const columns = beans.colModel.getCols();
-  const pivotableColumnIds = columns.filter((col) => col.isAllowPivot()).map((col) => col.getColId());
+  const pivotableColumnIds = columns.filter((col) => col.isAllowPivot()).map((col) => col.colId);
   if (pivotableColumnIds.length === 0) {
     return;
   }
@@ -16139,7 +16626,7 @@ var buildRowGroupFeatureSchema = (beans) => {
   if (groupableColumns.length === 0) {
     return;
   }
-  const groupableColumnIds = groupableColumns.map((col) => col.getColId());
+  const groupableColumnIds = groupableColumns.map((col) => col.colId);
   return s.object(
     {
       groupColIds: s.array(
@@ -16162,7 +16649,7 @@ var buildSortFeatureSchema = (beans) => {
   if (sortableColumns.length === 0) {
     return;
   }
-  const sortableColumnIds = sortableColumns.map((col) => col.getColId());
+  const sortableColumnIds = sortableColumns.map((col) => col.colId);
   return s.object(
     {
       sortModel: s.array(
@@ -16189,7 +16676,7 @@ var StructuredSchemaBuilderMap = {
   rowGroup: buildRowGroupFeatureSchema
 };
 function getStructuredSchema(beans, params) {
-  const allColumnIds = beans.colModel.getCols().map((col) => col.getColId());
+  const allColumnIds = beans.colModel.getCols().map((col) => col.colId);
   const features = {};
   for (const feature of STRUCTURED_SCHEMA_FEATURES) {
     if (params?.exclude?.includes(feature)) {
@@ -16287,7 +16774,7 @@ import {
 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/sideBar/agSideBar.css
-var agSideBar_default = '.ag-tool-panel-wrapper{overflow:hidden;-webkit-user-select:none;-moz-user-select:none;user-select:none;width:var(--ag-horizontal-size,var(--ag-side-bar-panel-width))}.ag-tool-panel-content{display:flex;height:100%;overflow:hidden auto}.ag-tool-panel-wrapper.ag-tool-panel-animating{\n    /* !important required to override .ag-hidden to tool panel remains visible while animating */display:block!important;transition:width var(--ag-side-bar-panel-animation-duration) ease-in-out}@media (prefers-reduced-motion:reduce){.ag-tool-panel-wrapper.ag-tool-panel-animating{transition:none}}.ag-tool-panel-external{display:flex;flex-direction:row}:where(.ag-tool-panel-external) .ag-tool-panel-wrapper{flex-grow:1}.ag-select-agg-func-item{align-items:center;display:flex;flex:1 1 auto;flex-flow:row nowrap;height:100%;overflow:hidden;position:relative;text-overflow:ellipsis;white-space:nowrap}.ag-tool-panel-horizontal-resize{cursor:ew-resize;height:100%;position:absolute;top:0;width:5px;z-index:1}.ag-side-bar{background-color:var(--ag-side-bar-background-color);display:flex;flex-direction:row-reverse;position:relative}:where(.ag-ltr) :where(.ag-side-bar-left) .ag-tool-panel-horizontal-resize{right:-3px}:where(.ag-rtl) :where(.ag-side-bar-left) .ag-tool-panel-horizontal-resize{left:-3px}:where(.ag-ltr) :where(.ag-side-bar-right) .ag-tool-panel-horizontal-resize{left:-3px}:where(.ag-rtl) :where(.ag-side-bar-right) .ag-tool-panel-horizontal-resize{right:-3px}.ag-side-bar-left{flex-direction:row;order:-1}.ag-side-buttons{background-color:var(--ag-side-button-bar-background-color);padding-top:var(--ag-side-button-bar-top-padding);position:relative}.ag-side-button{background-color:var(--ag-side-button-background-color);border-bottom:var(--ag-side-button-border);border-top:var(--ag-side-button-border);color:var(--ag-side-button-text-color);margin-top:-1px;position:relative}.ag-side-button:before{background-color:transparent;bottom:0;content:"";display:block;position:absolute;top:0;transition:background-color var(--ag-side-button-selected-underline-transition-duration);width:var(--ag-side-button-selected-underline-width)}:where(.ag-ltr) .ag-side-button:before{left:0}:where(.ag-rtl) .ag-side-button:before{right:0}.ag-side-button:hover{background-color:var(--ag-side-button-hover-background-color);color:var(--ag-side-button-hover-text-color)}.ag-side-button.ag-selected{background-color:var(--ag-side-button-selected-background-color);border-bottom:var(--ag-side-button-selected-border);border-top:var(--ag-side-button-selected-border);color:var(--ag-side-button-selected-text-color)}.ag-side-button.ag-selected:before{background-color:var(--ag-side-button-selected-underline-color)}.ag-side-button-button{align-items:center;display:flex;flex-direction:column;gap:var(--ag-spacing);position:relative;white-space:nowrap;width:100%;&:focus{box-shadow:none}}:where(.ag-ltr) .ag-side-button-button{padding:var(--ag-side-button-vertical-padding) var(--ag-side-button-right-padding) var(--ag-side-button-vertical-padding) var(--ag-side-button-left-padding)}:where(.ag-rtl) .ag-side-button-button{padding:var(--ag-side-button-vertical-padding) var(--ag-side-button-left-padding) var(--ag-side-button-vertical-padding) var(--ag-side-button-right-padding)}.ag-side-button-button:focus-visible{box-shadow:inset var(--ag-focus-shadow)}.ag-side-button-label{writing-mode:vertical-lr}@media (resolution <= 1.5x){.ag-side-button-label{font-family:"Segoe UI",var(--ag-font-family)}:where(.ag-ltr) .ag-side-button-label{transform:rotate(.05deg)}:where(.ag-rtl) .ag-side-button-label{transform:rotate(-.05deg)}}:where(.ag-ltr) .ag-side-bar-left,:where(.ag-rtl) .ag-side-bar-right{border-right:var(--ag-side-panel-border);:where(.ag-tool-panel-wrapper){border-left:var(--ag-side-panel-border)}}:where(.ag-ltr) .ag-side-bar-right,:where(.ag-rtl) .ag-side-bar-left{border-left:var(--ag-side-panel-border);:where(.ag-tool-panel-wrapper){border-right:var(--ag-side-panel-border)}}';
+var agSideBar_default = '.ag-tool-panel-wrapper{overflow:hidden;-webkit-user-select:none;-moz-user-select:none;user-select:none;width:var(--ag-horizontal-size,var(--ag-side-bar-panel-width))}.ag-tool-panel-content{display:flex;height:100%;overflow:hidden auto}.ag-tool-panel-wrapper.ag-tool-panel-animating{\n    /* !important required to override .ag-hidden to tool panel remains visible while animating */display:block!important;transition:width var(--ag-side-bar-panel-animation-duration) ease-in-out}@media (prefers-reduced-motion:reduce){.ag-tool-panel-wrapper.ag-tool-panel-animating{transition:none}}.ag-tool-panel-external{display:flex;flex-direction:row}:where(.ag-tool-panel-external) .ag-tool-panel-wrapper{flex-grow:1}.ag-select-agg-func-item{align-items:center;display:flex;flex:1 1 auto;flex-flow:row nowrap;height:100%;overflow:hidden;position:relative;text-overflow:ellipsis;white-space:nowrap}.ag-tool-panel-horizontal-resize{cursor:ew-resize;height:100%;position:absolute;top:0;width:5px;z-index:1}.ag-side-bar{background-color:var(--ag-side-bar-background-color);display:flex;flex-direction:row-reverse;position:relative}:where(.ag-ltr) :where(.ag-side-bar-left) .ag-tool-panel-horizontal-resize{right:-3px}:where(.ag-rtl) :where(.ag-side-bar-left) .ag-tool-panel-horizontal-resize{left:-3px}:where(.ag-ltr) :where(.ag-side-bar-right) .ag-tool-panel-horizontal-resize{left:-3px}:where(.ag-rtl) :where(.ag-side-bar-right) .ag-tool-panel-horizontal-resize{right:-3px}.ag-side-bar-left{flex-direction:row;order:-1}.ag-side-buttons{background-color:var(--ag-side-button-bar-background-color);overflow:hidden auto;padding-top:var(--ag-side-button-bar-top-padding);position:relative;scrollbar-width:thin}.ag-side-button{background-color:var(--ag-side-button-background-color);border-bottom:var(--ag-side-button-border);border-top:var(--ag-side-button-border);color:var(--ag-side-button-text-color);margin-top:-1px;position:relative}.ag-side-button:before{background-color:transparent;bottom:0;content:"";display:block;position:absolute;top:0;transition:background-color var(--ag-side-button-selected-underline-transition-duration);width:var(--ag-side-button-selected-underline-width)}:where(.ag-ltr) .ag-side-button:before{left:0}:where(.ag-rtl) .ag-side-button:before{right:0}.ag-side-button:hover{background-color:var(--ag-side-button-hover-background-color);color:var(--ag-side-button-hover-text-color)}.ag-side-button.ag-selected{background-color:var(--ag-side-button-selected-background-color);border-bottom:var(--ag-side-button-selected-border);border-top:var(--ag-side-button-selected-border);color:var(--ag-side-button-selected-text-color)}.ag-side-button.ag-selected:before{background-color:var(--ag-side-button-selected-underline-color)}.ag-side-button-button{align-items:center;display:flex;flex-direction:column;gap:var(--ag-spacing);position:relative;white-space:nowrap;width:100%;&:focus{box-shadow:none}}:where(.ag-ltr) .ag-side-button-button{padding:var(--ag-side-button-vertical-padding) var(--ag-side-button-right-padding) var(--ag-side-button-vertical-padding) var(--ag-side-button-left-padding)}:where(.ag-rtl) .ag-side-button-button{padding:var(--ag-side-button-vertical-padding) var(--ag-side-button-left-padding) var(--ag-side-button-vertical-padding) var(--ag-side-button-right-padding)}.ag-side-button-button:focus-visible{box-shadow:inset var(--ag-focus-shadow)}.ag-side-button-label{writing-mode:vertical-lr}@media (resolution <= 1.5x){.ag-side-button-label{font-family:"Segoe UI",var(--ag-font-family)}:where(.ag-ltr) .ag-side-button-label{transform:rotate(.05deg)}:where(.ag-rtl) .ag-side-button-label{transform:rotate(-.05deg)}}:where(.ag-ltr) .ag-side-bar-left,:where(.ag-rtl) .ag-side-bar-right{border-right:var(--ag-side-panel-border);:where(.ag-tool-panel-wrapper){border-left:var(--ag-side-panel-border)}}:where(.ag-ltr) .ag-side-bar-right,:where(.ag-rtl) .ag-side-bar-left{border-left:var(--ag-side-panel-border);:where(.ag-tool-panel-wrapper){border-right:var(--ag-side-panel-border)}}';
 
 // packages/ag-grid-enterprise/src/sideBar/agSideBarButtons.ts
 import {
@@ -17414,8 +17901,8 @@ function getLeafPathTrees(columns) {
         leafPathTree = groupDef;
       }
     } else {
-      const colDef = Object.assign({}, node.getColDef());
-      colDef.colId = node.getColId();
+      const colDef = Object.assign({}, node.colDef);
+      colDef.colId = node.colId;
       leafPathTree = colDef;
     }
     const parent = node.getOriginalParent();
@@ -17425,12 +17912,11 @@ function getLeafPathTrees(columns) {
       return leafPathTree;
     }
   };
-  return columns.map((col) => getLeafPathTree(col, col.getColDef()));
+  return columns.map((col) => getLeafPathTree(col, col.colDef));
 }
 function getGridPrimaryColumns(colModel) {
   return colModel.getCols().filter((column) => {
-    const colDef = column.getColDef();
-    return column.isPrimary() && !colDef.showRowGroup;
+    return column.primary && !column.colDef.showRowGroup;
   });
 }
 
@@ -17540,7 +18026,7 @@ function setAllVisible(beans, columns, visible, eventType, params) {
   const updateStrategy = beans.columnStateUpdateStrategy;
   const colStateItems = [];
   for (const col of columns) {
-    if (col.getColDef().lockVisible) {
+    if (col.colDef.lockVisible) {
       continue;
     }
     if (updateStrategy.isColumnVisibleInToolPanel(isDeferredMode(params), col) !== visible) {
@@ -17602,7 +18088,7 @@ function updateColumns(beans, params) {
   const updateStrategy = beans.columnStateUpdateStrategy;
   const isPivotMode2 = updateStrategy.getPivotMode(isDeferredMode(params));
   const state = columns.map((column) => {
-    const colId = column.getColId();
+    const colId = column.colId;
     if (isPivotMode2) {
       const pivotStateForColumn = pivotState?.[colId];
       return {
@@ -17733,7 +18219,7 @@ var setRowNodeGroupValue = (rowNode, colModel, colKey, newValue) => {
     groupData = {};
     rowNode._groupData = groupData;
   }
-  const columnId = column.getColId();
+  const columnId = column.colId;
   const oldValue = groupData[columnId];
   if (oldValue === newValue) {
     return;
@@ -17774,7 +18260,7 @@ var isRowGroupColLocked = (column, beans) => {
   if (groupLockGroupColumns === -1) {
     return true;
   }
-  const colIndex = rowGroupColsSvc.columns.findIndex((groupCol) => groupCol.getColId() === column.getColId());
+  const colIndex = rowGroupColsSvc.columns.findIndex((groupCol) => groupCol.colId === column.colId);
   return groupLockGroupColumns > colIndex;
 };
 var getGroupingLocaleText = (localeTextFunc, key, displayName) => {
@@ -17910,8 +18396,8 @@ var ToolPanelContextMenu = class extends Component20 {
     this.columns = columns;
     const isPivotMode2 = updateStrategy.getPivotMode(isDeferredMode(this.params));
     this.allowScrollIntoView = !isPivotMode2 && columns.some(this.isColumnValidForScrollIntoView);
-    this.allowGrouping = columns.some((col) => col.isPrimary() && col.isAllowRowGroup());
-    this.allowValues = columns.some((col) => col.isPrimary() && col.isAllowValue());
+    this.allowGrouping = columns.some((col) => col.primary && col.isAllowRowGroup());
+    this.allowValues = columns.some((col) => col.primary && col.isAllowValue());
     this.allowPivoting = isPivotMode2 && columns.some((col) => col.isPrimary() && col.isAllowPivot());
   }
   buildMenuItemMap() {
@@ -17923,10 +18409,10 @@ var ToolPanelContextMenu = class extends Component20 {
     const deferMode = isDeferredMode(this.params);
     const isPivotMode2 = updateStrategy.getPivotMode(deferMode);
     const rowGroupColIdSet = new Set(
-      updateStrategy.getRowGroupColumns(deferMode).map((col) => col.getColId())
+      updateStrategy.getRowGroupColumns(deferMode).map((col) => col.colId)
     );
-    const valueColIdSet = new Set(updateStrategy.getValueColumns(deferMode).map((col) => col.getColId()));
-    const pivotColIdSet = new Set(updateStrategy.getPivotColumns(deferMode).map((col) => col.getColId()));
+    const valueColIdSet = new Set(updateStrategy.getValueColumns(deferMode).map((col) => col.colId));
+    const pivotColIdSet = new Set(updateStrategy.getPivotColumns(deferMode).map((col) => col.colId));
     menuItemMap.set("scrollIntoView", {
       allowedFunction: (col) => !col.isPinned() && !isPivotMode2 && this.isColumnValidForScrollIntoView(col),
       activeFunction: () => false,
@@ -17941,10 +18427,10 @@ var ToolPanelContextMenu = class extends Component20 {
       },
       addIcon: "ensureColumnVisible"
     });
-    const rowGroupAllowed = (col) => col.isPrimary() && col.isAllowRowGroup() && !isRowGroupColLocked(col, beans);
+    const rowGroupAllowed = (col) => col.primary && col.isAllowRowGroup() && !isRowGroupColLocked(col, beans);
     menuItemMap.set("rowGroup", {
       allowedFunction: rowGroupAllowed,
-      activeFunction: (col) => rowGroupColIdSet.has(col.getColId()),
+      activeFunction: (col) => rowGroupColIdSet.has(col.colId),
       activateLabel: () => getGroupingLocaleText(localeTextFunc, "groupBy", displayName),
       deactivateLabel: () => getGroupingLocaleText(localeTextFunc, "ungroupBy", displayName),
       activateFunction: () => {
@@ -17963,10 +18449,10 @@ var ToolPanelContextMenu = class extends Component20 {
       addIcon: "menuAddRowGroup",
       removeIcon: "menuRemoveRowGroup"
     });
-    const valueAllowed = (col) => col.isPrimary() && col.isAllowValue();
+    const valueAllowed = (col) => col.primary && col.isAllowValue();
     menuItemMap.set("value", {
       allowedFunction: valueAllowed,
-      activeFunction: (col) => valueColIdSet.has(col.getColId()),
+      activeFunction: (col) => valueColIdSet.has(col.colId),
       activateLabel: () => localeTextFunc("addToValues", `Add ${displayName} to values`, [displayName]),
       deactivateLabel: () => localeTextFunc("removeFromValues", `Remove ${displayName} from values`, [displayName]),
       activateFunction: () => {
@@ -17982,10 +18468,10 @@ var ToolPanelContextMenu = class extends Component20 {
       addIcon: "valuePanel",
       removeIcon: "valuePanel"
     });
-    const pivotAllowed = (col) => isPivotMode2 && col.isPrimary() && col.isAllowPivot();
+    const pivotAllowed = (col) => isPivotMode2 && col.primary && col.isAllowPivot();
     menuItemMap.set("pivot", {
       allowedFunction: pivotAllowed,
-      activeFunction: (col) => pivotColIdSet.has(col.getColId()),
+      activeFunction: (col) => pivotColIdSet.has(col.colId),
       activateLabel: () => localeTextFunc("addToLabels", `Add ${displayName} to labels`, [displayName]),
       deactivateLabel: () => localeTextFunc("removeFromLabels", `Remove ${displayName} from labels`, [displayName]),
       activateFunction: () => {
@@ -18353,7 +18839,7 @@ var ToolPanelColumnGroupComp = class extends Component21 {
     let checkedCount = 0;
     let uncheckedCount = 0;
     for (const column of visibleLeafColumns) {
-      if (pivotMode || !column.getColDef().lockVisible) {
+      if (pivotMode || !column.colDef.lockVisible) {
         if (this.isColumnChecked(column)) {
           checkedCount++;
         } else {
@@ -18374,7 +18860,7 @@ var ToolPanelColumnGroupComp = class extends Component21 {
         if (col.isAnyFunctionAllowed()) {
           colsThatCanAction++;
         }
-      } else if (!col.getColDef().lockVisible) {
+      } else if (!col.colDef.lockVisible) {
         colsThatCanAction++;
       }
     }
@@ -18564,7 +19050,7 @@ var ToolPanelColumnComp = class extends Component22 {
         getLocation: () => "columnToolPanelColumn",
         shouldDisplayTooltip: _getShouldDisplayTooltip2(gos, () => eLabel),
         getAdditionalParams: () => ({
-          colDef: column.getColDef()
+          colDef: column.colDef
         })
       })
     );
@@ -18592,7 +19078,7 @@ var ToolPanelColumnComp = class extends Component22 {
     this.onColumnStateChanged();
     this.refreshAriaLabel();
     this.setupTooltip();
-    const classes = _getToolPanelClassesFromColDef2(column.getColDef(), gos, column, null);
+    const classes = _getToolPanelClassesFromColDef2(column.colDef, gos, column, null);
     for (const c of classes) {
       this.toggleCss(c, true);
     }
@@ -18601,7 +19087,7 @@ var ToolPanelColumnComp = class extends Component22 {
     return this.column;
   }
   setupTooltip() {
-    const refresh = () => this.tooltipFeature?.setTooltipAndRefresh(this.column.getColDef().headerTooltip);
+    const refresh = () => this.tooltipFeature?.setTooltipAndRefresh(this.column.colDef.headerTooltip);
     refresh();
     this.addManagedEventListeners({ newColumnsLoaded: refresh });
   }
@@ -18706,7 +19192,7 @@ var ToolPanelColumnComp = class extends Component22 {
     this.addDestroyFunc(() => dragAndDrop.removeDragSource(dragSource));
   }
   createDragItem() {
-    const colId = this.column.getColId();
+    const colId = this.column.colId;
     const visibleState = { [colId]: this.column.isVisible() };
     const updateStrategy = this.beans.columnStateUpdateStrategy;
     const pivotState = {
@@ -18731,15 +19217,15 @@ var ToolPanelColumnComp = class extends Component22 {
     } else {
       this.cbSelect.setValue(updateStrategy.isColumnVisibleInToolPanel(isDeferredMode(this.params), this.column));
     }
-    let canBeToggled = true;
-    let canBeDragged = true;
+    let canBeToggled;
+    let canBeDragged;
     if (isPivotMode2) {
       const functionsReadOnly = this.gos.get("functionsReadOnly");
       const noFunctionsAllowed = !this.column.isAnyFunctionAllowed();
       canBeToggled = !functionsReadOnly && !noFunctionsAllowed;
       canBeDragged = canBeToggled;
     } else {
-      const { enableRowGroup, enableValue, lockPosition, suppressMovable, lockVisible } = this.column.getColDef();
+      const { enableRowGroup, enableValue, lockPosition, suppressMovable, lockVisible } = this.column.colDef;
       const forceDraggable = !!enableRowGroup || !!enableValue;
       const disableDraggable = !!lockPosition || !!suppressMovable;
       canBeToggled = !lockVisible;
@@ -18936,7 +19422,7 @@ var AgPrimaryColsList = class extends Component23 {
       this.isInitialState = !!params.initialState;
     }
     const expandedStates = this.getExpandedStates();
-    const pivotModeActive = this.colModel.isPivotMode();
+    const pivotModeActive = this.colModel.pivotMode;
     const deferApply = isDeferredMode(params);
     const hasDeferredColumnOrder = deferApply && this.beans.columnStateUpdateStrategy.hasDeferredColumnOrder(deferApply);
     const shouldSyncColumnLayoutWithGrid = (!params.suppressSyncLayoutWithGrid || deferApply) && !pivotModeActive || hasDeferredColumnOrder;
@@ -19064,7 +19550,7 @@ var AgPrimaryColsList = class extends Component23 {
       recursivelyBuild(columnGroup.getChildren(), depth + 1, item.children);
     };
     const createColumnItem = (column, depth, parentList) => {
-      const skipThisColumn = column.getColDef()?.suppressColumnsToolPanel;
+      const skipThisColumn = column.colDef?.suppressColumnsToolPanel;
       if (skipThisColumn) {
         return;
       }
@@ -19210,7 +19696,7 @@ var AgPrimaryColsList = class extends Component23 {
         return;
       }
       const column = item.column;
-      const colDef = column.getColDef();
+      const colDef = column.colDef;
       let checked;
       if (pivotMode) {
         const noPivotModeOptionsAllowed = !column.isAllowPivot() && !column.isAllowRowGroup() && !column.isAllowValue();
@@ -19241,17 +19727,17 @@ var AgPrimaryColsList = class extends Component23 {
     this.flattenAndFilterModel();
   }
   markFilteredColumns() {
-    const passesFilter = (item) => {
+    const passesFilter2 = (item) => {
       if (!_exists12(this.filterText)) {
         return true;
       }
       const displayName = item.displayName;
-      return displayName == null || displayName.toLowerCase().indexOf(this.filterText) !== -1;
+      return displayName?.toLowerCase().indexOf(this.filterText) !== -1;
     };
     const recursivelyCheckFilter = (item, parentPasses) => {
       let atLeastOneChildPassed = false;
       if (item.group) {
-        const groupPasses = passesFilter(item);
+        const groupPasses = passesFilter2(item);
         for (const child of item.children) {
           const childPasses = recursivelyCheckFilter(child, groupPasses || parentPasses);
           if (childPasses) {
@@ -19259,7 +19745,7 @@ var AgPrimaryColsList = class extends Component23 {
           }
         }
       }
-      const filterPasses = parentPasses || atLeastOneChildPassed ? true : passesFilter(item);
+      const filterPasses = parentPasses || atLeastOneChildPassed ? true : passesFilter2(item);
       item.passesFilter = filterPasses;
       return filterPasses;
     };
@@ -19559,12 +20045,12 @@ var ColumnToolPanel = class extends Component25 {
       rowGroupColIds: getColIds(beans.rowGroupColsSvc?.columns),
       valueColIds: getColIds(beans.valueColsSvc?.columns),
       pivotColIds: getColIds(beans.pivotColsSvc?.columns),
-      pivotMode: beans.colModel.isPivotMode(),
-      columnOrder: beans.colModel.getCols().map((c) => c.getColId()),
-      visibleColIds: beans.colModel.getCols().filter((c) => c.isVisible()).map((c) => c.getColId()),
-      sortState: beans.colModel.getCols().filter((c) => c.getSort()).map((c) => `${c.getColId()}:${c.getSort()}:${c.getSortIndex()}`),
+      pivotMode: beans.colModel.pivotMode,
+      columnOrder: beans.colModel.getCols().map((c) => c.colId),
+      visibleColIds: beans.colModel.getCols().filter((c) => c.isVisible()).map((c) => c.colId),
+      sortState: beans.colModel.getCols().filter((c) => c.getSort()).map((c) => `${c.colId}:${c.getSort()}:${c.getSortIndex()}`),
       aggFuncState: (beans.valueColsSvc?.columns ?? []).map((c) => c.getAggFunc()),
-      widthState: beans.colModel.getCols().map((c) => `${c.getColId()}:${c.getActualWidth()}`)
+      widthState: beans.colModel.getCols().map((c) => `${c.colId}:${c.getActualWidth()}`)
     };
   }
   isGridStateEqual(a, b) {
@@ -19747,7 +20233,7 @@ import {
 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/widgets/pillDropZonePanel.css
-var pillDropZonePanel_default = ".ag-column-drop{align-items:center;display:inline-flex;overflow:auto;position:relative;width:100%}.ag-column-drop-list{align-items:center;display:flex}.ag-column-drop-cell{align-items:center;background-color:var(--ag-column-drop-cell-background-color);border:var(--ag-column-drop-cell-border);border-radius:500px;color:var(--ag-column-drop-cell-text-color);display:flex;padding:calc(var(--ag-spacing)*.25);position:relative;&:focus-visible{box-shadow:var(--ag-focus-shadow)}:where(.ag-drag-handle){color:var(--ag-column-drop-cell-drag-handle-color)}}:where(.ag-ltr) .ag-column-drop-cell{padding-left:calc(var(--ag-spacing)*.75)}:where(.ag-rtl) .ag-column-drop-cell{padding-right:calc(var(--ag-spacing)*.75)}.ag-column-drop-cell-text{flex:1 1 auto;margin:0 var(--ag-spacing);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ag-column-drop-vertical{align-items:stretch;display:flex;flex-direction:column;min-height:75px;overflow:hidden}.ag-column-drop-vertical-title-bar{align-items:center;display:flex;flex:none;padding:var(--ag-widget-container-vertical-padding) calc(var(--ag-spacing)*2) 0}.ag-column-drop-vertical-list{align-items:stretch;flex-direction:column;flex-grow:1;overflow-x:auto;padding-bottom:var(--ag-spacing);padding-left:var(--ag-spacing);padding-right:var(--ag-spacing);position:relative}:where(.ag-column-drop-empty) .ag-column-drop-vertical-list{overflow:hidden}.ag-column-drop-cell-button{cursor:pointer;min-width:0;opacity:.75}:where(.ag-ltr) .ag-column-drop-cell-button{margin-right:calc(var(--ag-spacing)/4)}:where(.ag-rtl) .ag-column-drop-cell-button{margin-left:calc(var(--ag-spacing)/4)}.ag-column-drop-cell-button:hover{opacity:1}:where(.ag-ltr) .ag-column-drop-cell-drag-handle{margin-left:calc(var(--ag-spacing)/4)}:where(.ag-rtl) .ag-column-drop-cell-drag-handle{margin-right:calc(var(--ag-spacing)/4)}.ag-column-drop-wrapper{display:flex}.ag-column-drop-horizontal-half-width{width:50%!important}.ag-column-drop-cell-ghost{opacity:.5}.ag-column-drop-horizontal{background-color:var(--ag-header-background-color);border-bottom:var(--ag-header-row-border);gap:var(--ag-cell-widget-spacing);height:var(--ag-header-height);overflow:hidden;white-space:nowrap}:where(.ag-ltr) .ag-column-drop-horizontal{padding-left:var(--ag-cell-horizontal-padding)}:where(.ag-rtl) .ag-column-drop-horizontal{padding-right:var(--ag-cell-horizontal-padding)}.ag-column-drop-horizontal-list{gap:var(--ag-cell-widget-spacing)}.ag-column-drop-vertical-cell{margin-top:var(--ag-spacing)}:where(.ag-ltr) .ag-column-drop-vertical-icon{margin-right:var(--ag-widget-horizontal-spacing)}:where(.ag-rtl) .ag-column-drop-vertical-icon{margin-left:var(--ag-widget-horizontal-spacing)}.ag-select-agg-func-popup{background:var(--ag-background-color);border:solid var(--ag-border-width) var(--ag-border-color);border-radius:var(--ag-border-radius);box-shadow:var(--ag-dropdown-shadow);height:calc(var(--ag-spacing)*5*3.5);padding:0;position:absolute}.ag-select-agg-func-virtual-list-item{cursor:default}:where(.ag-ltr) .ag-select-agg-func-virtual-list-item{padding-left:calc(var(--ag-spacing)*2)}:where(.ag-rtl) .ag-select-agg-func-virtual-list-item{padding-right:calc(var(--ag-spacing)*2)}.ag-select-agg-func-virtual-list-item:hover{background-color:var(--ag-selected-row-background-color)}:where(.ag-ltr) .ag-column-drop-horizontal-half-width:where(:not(:last-child)){border-right:solid var(--ag-border-width) var(--ag-border-color)}:where(.ag-rtl) .ag-column-drop-horizontal-half-width:where(:not(:last-child)){border-left:solid var(--ag-border-width) var(--ag-border-color)}";
+var pillDropZonePanel_default = ".ag-column-drop{align-items:center;display:inline-flex;overflow:auto;position:relative;width:100%}.ag-column-drop-list{align-items:center;display:flex}.ag-column-drop-cell{align-items:center;background-color:var(--ag-column-drop-cell-background-color);border:var(--ag-column-drop-cell-border);border-radius:500px;color:var(--ag-column-drop-cell-text-color);display:flex;font-weight:400;padding:calc(var(--ag-spacing)*.25);position:relative;&:focus-visible{box-shadow:var(--ag-focus-shadow)}:where(.ag-drag-handle){color:var(--ag-column-drop-cell-drag-handle-color)}}:where(.ag-ltr) .ag-column-drop-cell{padding-left:calc(var(--ag-spacing)*.75)}:where(.ag-rtl) .ag-column-drop-cell{padding-right:calc(var(--ag-spacing)*.75)}.ag-column-drop-cell-text{flex:1 1 auto;margin:0 var(--ag-spacing);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ag-column-drop-vertical{align-items:stretch;display:flex;flex-direction:column;min-height:75px;overflow:hidden}.ag-column-drop-vertical-title-bar{align-items:center;display:flex;flex:none;padding:var(--ag-widget-container-vertical-padding) calc(var(--ag-spacing)*2) 0}.ag-column-drop-vertical-list{align-items:stretch;flex-direction:column;flex-grow:1;overflow-x:auto;padding-bottom:var(--ag-spacing);padding-left:var(--ag-spacing);padding-right:var(--ag-spacing);position:relative}:where(.ag-column-drop-empty) .ag-column-drop-vertical-list{overflow:hidden}.ag-column-drop-cell-button{cursor:pointer;min-width:0;opacity:.75}:where(.ag-ltr) .ag-column-drop-cell-button{margin-right:calc(var(--ag-spacing)/4)}:where(.ag-rtl) .ag-column-drop-cell-button{margin-left:calc(var(--ag-spacing)/4)}.ag-column-drop-cell-button:hover{opacity:1}:where(.ag-ltr) .ag-column-drop-cell-drag-handle{margin-left:calc(var(--ag-spacing)/4)}:where(.ag-rtl) .ag-column-drop-cell-drag-handle{margin-right:calc(var(--ag-spacing)/4)}.ag-column-drop-wrapper{display:flex}.ag-column-drop-horizontal-half-width{width:50%!important}.ag-column-drop-cell-ghost{opacity:.5}.ag-column-drop-horizontal{background-color:var(--ag-header-background-color);border-bottom:var(--ag-header-row-border);gap:var(--ag-cell-widget-spacing);height:var(--ag-header-height);overflow:auto hidden;scrollbar-width:thin;white-space:nowrap}:where(.ag-ltr) .ag-column-drop-horizontal{padding-left:var(--ag-cell-horizontal-padding)}:where(.ag-rtl) .ag-column-drop-horizontal{padding-right:var(--ag-cell-horizontal-padding)}.ag-column-drop-horizontal-list{gap:var(--ag-cell-widget-spacing)}.ag-column-drop-vertical-cell{margin-top:var(--ag-spacing)}:where(.ag-ltr) .ag-column-drop-vertical-icon{margin-right:var(--ag-widget-horizontal-spacing)}:where(.ag-rtl) .ag-column-drop-vertical-icon{margin-left:var(--ag-widget-horizontal-spacing)}.ag-select-agg-func-popup{background:var(--ag-background-color);border:solid var(--ag-border-width) var(--ag-border-color);border-radius:var(--ag-border-radius);box-shadow:var(--ag-dropdown-shadow);height:calc(var(--ag-spacing)*5*3.5);padding:0;position:absolute}.ag-select-agg-func-virtual-list-item{cursor:default}:where(.ag-ltr) .ag-select-agg-func-virtual-list-item{padding-left:calc(var(--ag-spacing)*2)}:where(.ag-rtl) .ag-select-agg-func-virtual-list-item{padding-right:calc(var(--ag-spacing)*2)}.ag-select-agg-func-virtual-list-item:hover{background-color:var(--ag-selected-row-background-color)}:where(.ag-ltr) .ag-column-drop-horizontal-half-width:where(:not(:last-child)){border-right:solid var(--ag-border-width) var(--ag-border-color)}:where(.ag-rtl) .ag-column-drop-horizontal-half-width:where(:not(:last-child)){border-left:solid var(--ag-border-width) var(--ag-border-color)}";
 
 // packages/ag-grid-enterprise/src/widgets/pillDropZonePanel.ts
 function _insertArrayIntoArray(dest, src, toIndex) {
@@ -19804,6 +20290,9 @@ var PillDropZonePanel = class extends Component26 {
     this.createManagedBean(this.positionableFeature);
     this.refreshGui();
     _setAriaLabel12(this.ePillDropList, this.getAriaLabel());
+    this.addManagedElementListeners(this.getFocusableElement(), {
+      focusin: this.onFocusIn.bind(this)
+    });
   }
   onTabKeyDown(e) {
     const focusableElements = _findFocusableElements3(this.getFocusableElement(), null, true);
@@ -19817,7 +20306,17 @@ var PillDropZonePanel = class extends Component26 {
     const isLastFocused = activeEl === _last5(focusableElements);
     const shouldAllowDefaultTab = len === 1 || isFirstFocused && shiftKey || isLastFocused && !shiftKey;
     if (!shouldAllowDefaultTab) {
-      focusableElements[shiftKey ? 0 : len - 1].focus();
+      focusableElements[shiftKey ? 0 : len - 1].focus({ preventScroll: true });
+    }
+  }
+  onFocusIn(e) {
+    const root = this.getFocusableElement();
+    if (root.contains(e.relatedTarget)) {
+      return;
+    }
+    const target = e.target;
+    if (target) {
+      _scrollContainerHorizontallyToShowChild(root, target);
     }
   }
   onKeyDown(e) {
@@ -19837,9 +20336,11 @@ var PillDropZonePanel = class extends Component26 {
     if (e.shiftKey) {
       this.moveFocusedItem(isPrevious);
     } else {
-      const el = _findNextFocusableElement6(this.beans, this.getFocusableElement(), false, isPrevious);
+      const root = this.getFocusableElement();
+      const el = _findNextFocusableElement6(this.beans, root, false, isPrevious);
       if (el) {
         el.focus();
+        _scrollContainerHorizontallyToShowChild(root, el);
       }
     }
   }
@@ -20186,6 +20687,18 @@ var PillDropZonePanel = class extends Component26 {
     }
   }
 };
+function _scrollContainerHorizontallyToShowChild(container, target) {
+  if (target === _findFocusableElements3(container, null, true)[0]) {
+    container.scrollLeft = 0;
+  }
+  const c = container.getBoundingClientRect();
+  const t = target.getBoundingClientRect();
+  if (t.left < c.left) {
+    container.scrollLeft -= c.left - t.left;
+  } else if (t.right > c.right) {
+    container.scrollLeft += t.right - c.right;
+  }
+}
 
 // packages/ag-grid-enterprise/src/rowGrouping/columnDropZones/dropZoneColumnComp.ts
 import { Component as Component28, DragSourceType as DragSourceType6, KeyCode as KeyCode24, RefPlaceholder as RefPlaceholder26, _createElement as _createElement8 } from "ag-grid-community";
@@ -20408,7 +20921,7 @@ var DropZoneColumnComp = class extends PillDragComp {
     return this.displayName;
   }
   getTooltip() {
-    return this.column.getColDef().headerTooltip;
+    return this.column.colDef.headerTooltip;
   }
   addAdditionalAriaInstructions(ariaInstructions, translate) {
     const isSortSuppressed = this.gos.get("rowGroupPanelSuppressSort");
@@ -20663,10 +21176,11 @@ var AggItemComp = class extends Component28 {
 
 // packages/ag-grid-enterprise/src/rowGrouping/columnDropZones/baseDropZonePanel.ts
 var BaseDropZonePanel = class extends PillDropZonePanel {
-  constructor(horizontal, dropZonePurpose, updateParams) {
+  constructor(horizontal, dropZonePurpose, updateParams, embedded = false) {
     super(horizontal);
     this.dropZonePurpose = dropZonePurpose;
     this.updateParams = updateParams;
+    this.embedded = embedded;
     this.addElementClasses(this.getGui(), this.dropZonePurpose.toLowerCase());
   }
   init(params) {
@@ -20701,20 +21215,18 @@ var BaseDropZonePanel = class extends PillDropZonePanel {
     }
     return Math.min(numberOfLockedCols, numberOfGroupCols);
   }
-  showOrHideColumnOnExit(draggingEvent) {
-    return this.isRowGroupPanel() && _shouldUpdateColVisibilityAfterGroup(this.gos, true) && !draggingEvent.fromNudge;
+  shouldToggleColumnVisibility(draggingEvent, isGrouped) {
+    return this.isRowGroupPanel() && _shouldUpdateColVisibilityAfterGroup(this.gos, isGrouped) && !draggingEvent.fromNudge;
   }
   handleDragEnterEnd(draggingEvent) {
-    const hideColumnOnExit = this.showOrHideColumnOnExit(draggingEvent);
-    if (hideColumnOnExit) {
+    if (this.shouldToggleColumnVisibility(draggingEvent, true)) {
       const dragItem = draggingEvent.dragSource.getDragItem();
       const columns = dragItem.columns;
       this.setColumnsVisible(columns, false, "uiColumnDragged");
     }
   }
   handleDragLeaveEnd(draggingEvent) {
-    const showColumnOnExit = this.showOrHideColumnOnExit(draggingEvent);
-    if (showColumnOnExit) {
+    if (this.shouldToggleColumnVisibility(draggingEvent, false)) {
       const dragItem = draggingEvent.dragSource.getDragItem();
       this.setColumnsVisible(dragItem.columns, true, "uiColumnDragged");
     }
@@ -20726,7 +21238,7 @@ var BaseDropZonePanel = class extends PillDropZonePanel {
     if (isDeferredMode(this.updateParams)) {
       return;
     }
-    const allowedCols = columns.filter((c) => !c.getColDef().lockVisible);
+    const allowedCols = columns.filter((c) => !c.colDef.lockVisible);
     this.beans.columnStateUpdateStrategy.setColumnsVisible(false, allowedCols, visible, source);
   }
   isRowGroupPanel() {
@@ -20739,8 +21251,8 @@ var BaseDropZonePanel = class extends PillDropZonePanel {
 
 // packages/ag-grid-enterprise/src/rowGrouping/columnDropZones/pivotDropZonePanel.ts
 var PivotDropZonePanel = class extends BaseDropZonePanel {
-  constructor(horizontal, params) {
-    super(horizontal, "pivot", params);
+  constructor(horizontal, params, embedded = false) {
+    super(horizontal, "pivot", params, embedded);
   }
   postConstruct() {
     const localeTextFunc = this.getLocaleTextFunc();
@@ -20751,7 +21263,7 @@ var PivotDropZonePanel = class extends BaseDropZonePanel {
       emptyMessage,
       title
     });
-    if (this.horizontal) {
+    if (this.horizontal && !this.embedded) {
       _addFocusableContainerListener2(this.beans, this, this.getGui());
     }
     this.addManagedEventListeners({
@@ -20771,7 +21283,7 @@ var PivotDropZonePanel = class extends BaseDropZonePanel {
   }
   checkVisibility() {
     const colModel = this.beans.colModel;
-    const pivotMode = colModel.isPivotMode();
+    const pivotMode = colModel.pivotMode;
     if (this.horizontal) {
       switch (this.gos.get("pivotPanelShow")) {
         case "always":
@@ -20791,7 +21303,7 @@ var PivotDropZonePanel = class extends BaseDropZonePanel {
     }
   }
   isItemDroppable(column, draggingEvent) {
-    if (this.gos.get("functionsReadOnly") || !column.isPrimary()) {
+    if (this.gos.get("functionsReadOnly") || !column.primary) {
       return false;
     }
     const isActive = this.beans.columnStateUpdateStrategy.getPivotColumns(isDeferredMode(this.updateParams)).includes(column);
@@ -20815,8 +21327,8 @@ var PivotDropZonePanel = class extends BaseDropZonePanel {
 // packages/ag-grid-enterprise/src/rowGrouping/columnDropZones/rowGroupDropZonePanel.ts
 import { _addFocusableContainerListener as _addFocusableContainerListener3, _createIconNoSpan as _createIconNoSpan13 } from "ag-grid-community";
 var RowGroupDropZonePanel = class extends BaseDropZonePanel {
-  constructor(horizontal, params) {
-    super(horizontal, "rowGroup", params);
+  constructor(horizontal, params, embedded = false) {
+    super(horizontal, "rowGroup", params, embedded);
   }
   postConstruct() {
     const localeTextFunc = this.getLocaleTextFunc();
@@ -20827,7 +21339,7 @@ var RowGroupDropZonePanel = class extends BaseDropZonePanel {
       emptyMessage,
       title
     });
-    if (this.horizontal) {
+    if (this.horizontal && !this.embedded) {
       _addFocusableContainerListener3(this.beans, this, this.getGui());
     }
     this.addManagedEventListeners({ columnRowGroupChanged: this.refreshGui.bind(this) });
@@ -20838,7 +21350,7 @@ var RowGroupDropZonePanel = class extends BaseDropZonePanel {
     return label;
   }
   isItemDroppable(column, draggingEvent) {
-    if (this.gos.get("functionsReadOnly") || !column.isPrimary() || column.colDef.showRowGroup) {
+    if (this.gos.get("functionsReadOnly") || !column.primary || column.colDef.showRowGroup) {
       return false;
     }
     const isActive = this.beans.columnStateUpdateStrategy.getRowGroupColumns(isDeferredMode(this.updateParams)).includes(column);
@@ -20889,7 +21401,7 @@ var ValuesDropZonePanel = class extends BaseDropZonePanel {
     return this.isPotentialDndItems() ? "aggregate" : "notAllowed";
   }
   isItemDroppable(column, draggingEvent) {
-    if (this.gos.get("functionsReadOnly") || !column.isPrimary()) {
+    if (this.gos.get("functionsReadOnly") || !column.primary) {
       return false;
     }
     const isActive = this.beans.columnStateUpdateStrategy.getValueColumns(isDeferredMode(this.updateParams)).includes(column);
@@ -21101,7 +21613,7 @@ var SynchronousColumnStateUpdateStrategy = class {
     syncPrimaryColDefOrderFromCurrentColumns(this.beans);
   }
   setColumnsVisible(columns, visible, eventType) {
-    const allowedCols = columns.filter((column) => !column.getColDef().lockVisible);
+    const allowedCols = columns.filter((column) => !column.colDef.lockVisible);
     this.beans.colModel.setColsVisible(allowedCols, visible, eventType);
   }
   setRowGroupColumns(columns, eventType) {
@@ -21126,7 +21638,7 @@ var SynchronousColumnStateUpdateStrategy = class {
     return column.getAggFunc();
   }
   setPivotColumns(columns, eventType) {
-    this.lastPivotColIds = columns.map((column) => column.getColId());
+    this.lastPivotColIds = columns.map((column) => column.colId);
     this.beans.pivotColsSvc?.setColumns(columns, eventType);
   }
   getPivotColumns() {
@@ -21134,10 +21646,10 @@ var SynchronousColumnStateUpdateStrategy = class {
   }
   setPivotMode(pivotMode, eventType) {
     const { colModel, gos, ctrlsSvc } = this.beans;
-    if (pivotMode === colModel.isPivotMode()) {
+    if (pivotMode === colModel.pivotMode) {
       return;
     }
-    const currentPivotColIds = this.beans.pivotColsSvc?.columns.map((col) => col.getColId()) ?? [];
+    const currentPivotColIds = this.beans.pivotColsSvc?.columns.map((col) => col.colId) ?? [];
     if (currentPivotColIds.length > 0) {
       this.lastPivotColIds = currentPivotColIds;
     }
@@ -21147,7 +21659,7 @@ var SynchronousColumnStateUpdateStrategy = class {
         this.beans,
         {
           state: cols.map((col) => ({
-            colId: col.getColId(),
+            colId: col.colId,
             pivot: false,
             pivotIndex: null
           }))
@@ -21173,7 +21685,7 @@ var SynchronousColumnStateUpdateStrategy = class {
     return column.isAnyFunctionActive();
   }
   getPivotMode() {
-    return this.beans.colModel.isPivotMode();
+    return this.beans.colModel.pivotMode;
   }
   getSortDef(column) {
     return column.getSortDef();
@@ -21193,7 +21705,7 @@ var DeferredColumnStateUpdateStrategy = class {
   hasPendingChanges() {
     const { state, beans } = this;
     const { columnState, columnOrder, rowGroup, aggregation, pivot, pivotMode, sort, aggFuncs } = state;
-    const getColIds = (cols) => (cols ?? []).map((c) => c.getColId());
+    const getColIds = (cols) => (cols ?? []).map((c) => c.colId);
     if (columnState) {
       for (const [colId, patch] of columnState.patches) {
         const column = beans.colModel.getColDefCol(colId);
@@ -21217,7 +21729,7 @@ var DeferredColumnStateUpdateStrategy = class {
     if (pivot && !_areEqual3(pivot.colIds, getColIds(beans.pivotColsSvc?.columns))) {
       return true;
     }
-    if (pivotMode && pivotMode.pivotMode !== beans.colModel.isPivotMode()) {
+    if (pivotMode && pivotMode.pivotMode !== beans.colModel.pivotMode) {
       return true;
     }
     if (sort) {
@@ -21233,7 +21745,7 @@ var DeferredColumnStateUpdateStrategy = class {
       if (sort.baselineCleared) {
         const primaryColumns = getPrimaryColumns(beans);
         for (const col of primaryColumns) {
-          if (!sort.sortDefsByColId.has(col.getColId()) && col.getSortDef() !== null) {
+          if (!sort.sortDefsByColId.has(col.colId) && col.getSortDef() !== null) {
             return true;
           }
         }
@@ -21270,7 +21782,7 @@ var DeferredColumnStateUpdateStrategy = class {
         }
         case "columnOrder": {
           const orderedColumns = operation.colIds.map((colId) => beans.colModel.getColDefCol(colId)).filter((column) => !!column && isPrimaryColDefColumn(column));
-          if (!beans.colModel.isPivotMode()) {
+          if (!beans.colModel.pivotMode) {
             for (let i = 0; i < orderedColumns.length; i++) {
               const column = orderedColumns[i];
               const allColumns = beans.colModel.getCols();
@@ -21299,8 +21811,8 @@ var DeferredColumnStateUpdateStrategy = class {
         }
         case "pivotMode": {
           const { colModel, ctrlsSvc, gos, stateSvc } = beans;
-          if (operation.pivotMode !== colModel.isPivotMode()) {
-            const currentPivotColIds = beans.pivotColsSvc?.columns.map((col) => col.getColId()) ?? [];
+          if (operation.pivotMode !== colModel.pivotMode) {
+            const currentPivotColIds = beans.pivotColsSvc?.columns.map((col) => col.colId) ?? [];
             if (currentPivotColIds.length > 0) {
               this.lastPivotColIds = currentPivotColIds;
             }
@@ -21322,7 +21834,7 @@ var DeferredColumnStateUpdateStrategy = class {
                 beans,
                 {
                   state: cols.map((col) => ({
-                    colId: col.getColId(),
+                    colId: col.colId,
                     pivot: false,
                     pivotIndex: null
                   }))
@@ -21388,10 +21900,10 @@ var DeferredColumnStateUpdateStrategy = class {
     columnState.eventType = eventType;
   }
   moveColumns(columns, targetIndex, eventType) {
-    const movingColIds = new Set(columns.map((column) => column.getColId()));
+    const movingColIds = new Set(columns.map((column) => column.colId));
     const orderedColIds = this.state.columnOrder?.colIds ?? getPrimaryColumnIds(this.beans);
     const remaining = orderedColIds.filter((colId) => !movingColIds.has(colId));
-    const movedIds = columns.map((column) => column.getColId());
+    const movedIds = columns.map((column) => column.colId);
     const seq = nextSeq(this.sequence);
     this.sequence = seq;
     this.state.columnOrder = {
@@ -21402,10 +21914,10 @@ var DeferredColumnStateUpdateStrategy = class {
   }
   setColumnsVisible(columns, visible, eventType) {
     for (const column of columns) {
-      if (column.getColDef().lockVisible) {
+      if (column.colDef.lockVisible) {
         continue;
       }
-      mergeColumnStatePatch(this.state, { colId: column.getColId(), hide: !visible });
+      mergeColumnStatePatch(this.state, { colId: column.colId, hide: !visible });
     }
     const columnState = ensureColumnStateDraft(this.state);
     columnState.seq = nextSeq(this.sequence);
@@ -21417,21 +21929,21 @@ var DeferredColumnStateUpdateStrategy = class {
     const seq = nextSeq(this.sequence);
     this.sequence = seq;
     this.state.rowGroup = {
-      colIds: columns.map((column) => column.getColId()),
+      colIds: columns.map((column) => column.colId),
       eventType,
       seq
     };
   }
   setValueColumns(columns, eventType) {
     clearDeferredFunctionPatches(this.state, "aggFunc");
-    const liveValueColIds = new Set((this.beans.valueColsSvc?.columns ?? []).map((col) => col.getColId()));
+    const liveValueColIds = new Set((this.beans.valueColsSvc?.columns ?? []).map((col) => col.colId));
     const aggFuncs = ensureAggFuncsDraft(this.state);
     for (const col of columns) {
-      if (!liveValueColIds.has(col.getColId()) && !aggFuncs.values.has(col.getColId())) {
+      if (!liveValueColIds.has(col.colId) && !aggFuncs.values.has(col.colId)) {
         const existingAggFunc = col.getAggFunc();
         const aggFunc = existingAggFunc != null ? existingAggFunc : this.beans.aggFuncSvc?.getDefaultAggFunc(col);
         if (aggFunc != null) {
-          aggFuncs.values.set(col.getColId(), aggFunc);
+          aggFuncs.values.set(col.colId, aggFunc);
         }
       }
     }
@@ -21440,13 +21952,13 @@ var DeferredColumnStateUpdateStrategy = class {
     aggFuncs.seq = seq;
     aggFuncs.eventType = eventType;
     this.state.aggregation = {
-      colIds: columns.map((column) => column.getColId()),
+      colIds: columns.map((column) => column.colId),
       eventType,
       seq
     };
   }
   setColumnAggFunc(column, aggFunc, eventType) {
-    mergeColumnStatePatch(this.state, { colId: column.getColId(), aggFunc });
+    mergeColumnStatePatch(this.state, { colId: column.colId, aggFunc });
     const columnState = ensureColumnStateDraft(this.state);
     columnState.seq = nextSeq(this.sequence);
     this.sequence = columnState.seq;
@@ -21454,24 +21966,24 @@ var DeferredColumnStateUpdateStrategy = class {
     const aggFuncs = ensureAggFuncsDraft(this.state);
     aggFuncs.seq = columnState.seq;
     aggFuncs.eventType = eventType;
-    aggFuncs.values.set(column.getColId(), aggFunc);
+    aggFuncs.values.set(column.colId, aggFunc);
   }
   getColumnAggFunc(column) {
-    const colId = column.getColId();
+    const colId = column.colId;
     if (this.state.aggFuncs?.values.has(colId)) {
       return this.state.aggFuncs.values.get(colId);
     }
     return column.getAggFunc();
   }
   isColumnVisibleInToolPanel(column) {
-    const columnState = this.state.columnState?.patches.get(column.getColId());
+    const columnState = this.state.columnState?.patches.get(column.colId);
     if (columnState?.hide !== void 0) {
       return !columnState.hide;
     }
     return column.isVisible();
   }
   isColumnSelectedInPivotModeToolPanel(column) {
-    const colId = column.getColId();
+    const colId = column.colId;
     const columnState = this.state.columnState?.patches.get(colId);
     let rowGroupActive;
     if (columnState?.rowGroup !== void 0) {
@@ -21504,7 +22016,7 @@ var DeferredColumnStateUpdateStrategy = class {
     const seq = nextSeq(this.sequence);
     this.sequence = seq;
     this.state.pivot = {
-      colIds: columns.map((column) => column.getColId()),
+      colIds: columns.map((column) => column.colId),
       eventType,
       seq
     };
@@ -21563,11 +22075,11 @@ var DeferredColumnStateUpdateStrategy = class {
     );
   }
   getPivotMode() {
-    return this.state.pivotMode?.pivotMode ?? this.beans.colModel.isPivotMode();
+    return this.state.pivotMode?.pivotMode ?? this.beans.colModel.pivotMode;
   }
   getSortDef(column) {
     const draftSortState = this.state.sort;
-    const colId = column.getColId();
+    const colId = column.colId;
     const sortDefsByColId = draftSortState?.sortDefsByColId;
     if (sortDefsByColId?.has(colId)) {
       return sortDefsByColId.get(colId) ?? null;
@@ -21585,7 +22097,7 @@ var DeferredColumnStateUpdateStrategy = class {
       eventType: "toolPanelUi"
     };
     const { sortSvc } = this.beans;
-    const colId = column.getColId();
+    const colId = column.colId;
     let currentSortDef;
     if (currentDraft.sortDefsByColId.has(colId)) {
       currentSortDef = currentDraft.sortDefsByColId.get(colId);
@@ -21619,7 +22131,7 @@ function getDraftColumns(beans, colIds) {
   return colIds.map((colId) => beans.colModel.getColDefCol(colId)).filter((column) => !!column);
 }
 function getDraftFunctionColumnIds(draftColIds, liveColumns, columnStatePatches, getPatchState) {
-  const colIds = [...draftColIds ?? liveColumns?.map((column) => column.getColId()) ?? []];
+  const colIds = [...draftColIds ?? liveColumns?.map((column) => column.colId) ?? []];
   if (!columnStatePatches?.size) {
     return colIds;
   }
@@ -21648,7 +22160,7 @@ function getDraftFunctionColumnIds(draftColIds, liveColumns, columnStatePatches,
   return colIds;
 }
 function syncPrimaryColDefOrderFromCurrentColumns(beans) {
-  const orderedPrimaryColumns = beans.colModel.getCols().filter((column) => isPrimaryColDefColumn(column)).map((column) => beans.colModel.getColDefCol(column.getColId())).filter((column) => !!column);
+  const orderedPrimaryColumns = beans.colModel.getCols().filter((column) => isPrimaryColDefColumn(column)).map((column) => beans.colModel.getColDefCol(column.colId)).filter((column) => !!column);
   syncPrimaryColDefOrder(beans, orderedPrimaryColumns);
 }
 function syncPrimaryColDefOrder(beans, orderedPrimaryColumns) {
@@ -21663,7 +22175,7 @@ function syncPrimaryColDefOrder(beans, orderedPrimaryColumns) {
   ];
 }
 function getPrimaryColumnIds(beans) {
-  return getPrimaryColumns(beans).map((column) => column.getColId());
+  return getPrimaryColumns(beans).map((column) => column.colId);
 }
 function getPrimaryColumns(beans) {
   return (beans.colModel.getColDefCols() ?? beans.colModel.getCols()).filter(
@@ -21679,7 +22191,7 @@ function getMutablePrimaryColDefCollection(beans) {
   return colDefCols;
 }
 function isPrimaryColDefColumn(column) {
-  if (!column.isPrimary()) {
+  if (!column.primary) {
     return false;
   }
   return !isColumnGroupAutoCol(column) && !isSpecialCol(column);
@@ -22376,7 +22888,7 @@ var ColumnChooserFactory = class extends BeanStub12 {
   }
   createColumnSelectPanel(parent, column, draggable, params) {
     const columnSelectPanel = parent.createManagedBean(new AgPrimaryCols());
-    const columnChooserParams = params ?? column?.getColDef().columnChooserParams ?? {};
+    const columnChooserParams = params ?? column?.colDef.columnChooserParams ?? {};
     const {
       contractColumnSelection,
       suppressColumnExpandAll,
@@ -22462,7 +22974,11 @@ var ColumnChooserFactory = class extends BeanStub12 {
     this.activeColumnChooser = columnSelectPanel;
   }
   hideActiveColumnChooser() {
-    this.destroyBean(this.activeColumnChooserDialog);
+    this.activeColumnChooserDialog = this.destroyBean(this.activeColumnChooserDialog);
+  }
+  destroy() {
+    this.hideActiveColumnChooser();
+    super.destroy();
   }
   dispatchVisibleChangedEvent(visible, column) {
     this.eventSvc.dispatchEvent({
@@ -22512,13 +23028,14 @@ var MENU_ITEM_MODULES = {
   rowGroup: "SharedRowGrouping",
   rowUnGroup: "SharedRowGrouping",
   resetColumns: "CommunityCore",
-  expandAll: ["ClientSideRowModelHierarchy", "ServerSideRowModel"],
-  contractAll: ["ClientSideRowModelHierarchy", "ServerSideRowModel"],
+  expandAll: ["CsrmHierarchy", "ServerSideRowModel"],
+  contractAll: ["CsrmHierarchy", "ServerSideRowModel"],
   copy: "Clipboard",
   copyWithHeaders: "Clipboard",
   copyWithGroupHeaders: "Clipboard",
   cut: "Clipboard",
   paste: "Clipboard",
+  note: "Notes",
   export: ["CsvExport", "ExcelExport"],
   csvExport: "CsvExport",
   excelExport: "ExcelExport",
@@ -22542,17 +23059,24 @@ function validateMenuItem(gos, key) {
 
 // packages/ag-grid-enterprise/src/menu/menuItemMapper.ts
 var MENU_ITEM_SEPARATOR = "separator";
-function _removeRepeatsFromArray(array, object) {
-  if (!array) {
+function _normaliseSeparators(array, separator) {
+  if (!array?.length) {
     return;
   }
-  for (let index = array.length - 2; index >= 0; index--) {
-    const thisOneMatches = array[index] === object;
-    const nextOneMatches = array[index + 1] === object;
-    if (thisOneMatches && nextOneMatches) {
-      array.splice(index + 1, 1);
+  let writeIndex = 0;
+  let lastItemWasSeparator = true;
+  for (const item of array) {
+    const isSeparator = item === separator;
+    if (isSeparator && lastItemWasSeparator) {
+      continue;
     }
+    array[writeIndex++] = item;
+    lastItemWasSeparator = isSeparator;
   }
+  if (writeIndex > 0 && array[writeIndex - 1] === separator) {
+    writeIndex--;
+  }
+  array.length = writeIndex;
 }
 var SORT_MENU_ITEM_TO_MENU_ACTION_PARAMS = {
   sortAscending: { fallback: "Sort Ascending", getSortDef: () => ({ type: "default", direction: "asc" }) },
@@ -22578,7 +23102,7 @@ var MenuItemMapper = class extends BeanStub13 {
     super(...arguments);
     this.beanName = "menuItemMapper";
   }
-  mapWithStockItems(originalList, column, node, sourceElement, source) {
+  mapWithStockItems(originalList, column, node, noteParams, sourceElement, source) {
     if (!originalList) {
       return [];
     }
@@ -22602,7 +23126,8 @@ var MenuItemMapper = class extends BeanStub13 {
       sortSvc,
       chartMenuItemMapper,
       valueColsSvc,
-      pinnedRowModel
+      pinnedRowModel,
+      notesSvc
     } = beans;
     const getStockMenuItem = (key, column2, sourceElement2, source2) => {
       validateMenuItem(gos, key);
@@ -22669,7 +23194,7 @@ var MenuItemMapper = class extends BeanStub13 {
             action: ({ node: node2, column: column3 }) => node2 && pinnedRowModel.pinRow(node2, null, column3)
           } : null;
         case "valueAggSubMenu":
-          if (aggFuncSvc && valueColsSvc && (column2?.isPrimary() || column2?.getColDef().pivotValueColumn)) {
+          if (aggFuncSvc && valueColsSvc && (column2?.primary || column2?.colDef.pivotValueColumn)) {
             return {
               name: localeTextFunc("valueAggregation", "Value Aggregation"),
               icon: _createIconNoSpan16("menuValue", beans, null),
@@ -22699,13 +23224,13 @@ var MenuItemMapper = class extends BeanStub13 {
               "groupBy",
               colNames.getDisplayNameForColumn(column2, "header")
             ),
-            disabled: gos.get("functionsReadOnly") || column2?.isRowGroupActive() || !column2?.getColDef().enableRowGroup,
+            disabled: gos.get("functionsReadOnly") || column2?.isRowGroupActive() || !column2?.colDef.enableRowGroup,
             action: () => rowGroupColsSvc.addColumns([column2], source2),
             icon: _createIconNoSpan16("menuAddRowGroup", beans, null)
           } : null;
         case "rowUnGroup": {
           if (rowGroupColsSvc && gos.isModuleRegistered("SharedRowGrouping")) {
-            const showRowGroup = column2?.getColDef().showRowGroup;
+            const showRowGroup = column2?.colDef.showRowGroup;
             const lockedGroups = gos.get("groupLockGroupColumns");
             let name;
             let disabled;
@@ -22728,7 +23253,7 @@ var MenuItemMapper = class extends BeanStub13 {
                 "ungroupBy",
                 colNames.getDisplayNameForColumn(column2, "header")
               );
-              disabled = gos.get("functionsReadOnly") || !column2?.isRowGroupActive() || !column2?.getColDef().enableRowGroup || isRowGroupColLocked(column2, beans);
+              disabled = gos.get("functionsReadOnly") || !column2?.isRowGroupActive() || !column2?.colDef.enableRowGroup || isRowGroupColLocked(column2, beans);
               action = () => rowGroupColsSvc.removeColumns([column2], source2);
             }
             return {
@@ -22883,6 +23408,19 @@ var MenuItemMapper = class extends BeanStub13 {
     for (const menuItemOrString of originalList) {
       let result;
       if (typeof menuItemOrString === "string") {
+        if (menuItemOrString === "note") {
+          const noteItems = createNoteMenuItems({
+            notesSvc,
+            column,
+            node,
+            noteParams,
+            localeTextFunc
+          });
+          if (noteItems.length) {
+            resultList.push(MENU_ITEM_SEPARATOR, ...noteItems, MENU_ITEM_SEPARATOR);
+          }
+          continue;
+        }
         result = getStockMenuItem(menuItemOrString, column, sourceElement, source);
       } else {
         result = { ...menuItemOrString };
@@ -22897,6 +23435,7 @@ var MenuItemMapper = class extends BeanStub13 {
           subMenu,
           column,
           node,
+          noteParams,
           sourceElement,
           source
         );
@@ -22905,16 +23444,62 @@ var MenuItemMapper = class extends BeanStub13 {
         resultList.push(result);
       }
     }
-    _removeRepeatsFromArray(resultList, MENU_ITEM_SEPARATOR);
+    _normaliseSeparators(resultList, MENU_ITEM_SEPARATOR);
     return resultList;
   }
 };
+function createNoteMenuItems({
+  notesSvc,
+  column,
+  node,
+  noteParams,
+  localeTextFunc
+}) {
+  const access = notesSvc?.hasDataSource() ? noteParams ? notesSvc.getNoteAccess(noteParams) : column && node ? notesSvc.getNoteAccess({ rowNode: node, column }) : void 0 : void 0;
+  if (!access) {
+    return [];
+  }
+  const result = [];
+  if (!access.note) {
+    result.push({
+      name: localeTextFunc("addNote", "Add Note"),
+      shortcut: localeTextFunc("shiftF2", "Shift+F2"),
+      disabled: !access.canCreate,
+      action: access.canCreate ? () => notesSvc.showNote(access.params, true) : void 0
+    });
+    return result;
+  }
+  if (access.canView && (access.isReadOnly || access.isSuppressed)) {
+    result.push({
+      name: localeTextFunc("viewNote", "View Note"),
+      shortcut: localeTextFunc("shiftF2", "Shift+F2"),
+      action: () => notesSvc.showNote(access.params, true)
+    });
+  }
+  if (!access.isReadOnly && !access.isSuppressed) {
+    result.push({
+      name: localeTextFunc("editNote", "Edit Note"),
+      shortcut: localeTextFunc("shiftF2", "Shift+F2"),
+      disabled: !access.canEdit,
+      action: access.canEdit ? () => notesSvc.showNote(access.params, true) : void 0
+    });
+  }
+  result.push({
+    name: localeTextFunc("deleteNote", "Remove Note"),
+    disabled: !access.canDelete,
+    action: access.canDelete ? () => notesSvc.setNote({
+      ...access.params,
+      note: void 0
+    }) : void 0
+  });
+  return result;
+}
 function createAggregationSubMenu(column, aggFuncSvc, valueColsSvc, localeTextFunc) {
   let columnToUse;
-  if (column.isPrimary()) {
+  if (column.primary) {
     columnToUse = column;
   } else {
-    const pivotValueColumn = column.getColDef().pivotValueColumn;
+    const pivotValueColumn = column.colDef.pivotValueColumn;
     columnToUse = _exists13(pivotValueColumn) ? pivotValueColumn : void 0;
   }
   const result = [];
@@ -22961,6 +23546,7 @@ var ColumnMenuFactory = class extends BeanStub14 {
       menuItems,
       column ?? null,
       null,
+      void 0,
       sourceElement,
       "columnMenu"
     );
@@ -22970,7 +23556,7 @@ var ColumnMenuFactory = class extends BeanStub14 {
   getMenuItems(column = null, columnGroup = null) {
     const defaultItems = this.getDefaultMenuOptions(column);
     let result;
-    const columnMainMenuItems = (column?.getColDef() ?? columnGroup?.getColGroupDef())?.mainMenuItems;
+    const columnMainMenuItems = (column?.colDef ?? columnGroup?.getColGroupDef())?.mainMenuItems;
     if (Array.isArray(columnMainMenuItems)) {
       result = columnMainMenuItems;
     } else if (typeof columnMainMenuItems === "function") {
@@ -22993,7 +23579,7 @@ var ColumnMenuFactory = class extends BeanStub14 {
         result = defaultItems;
       }
     }
-    _removeRepeatsFromArray(result, MENU_ITEM_SEPARATOR);
+    _normaliseSeparators(result, MENU_ITEM_SEPARATOR);
     return result;
   }
   getDefaultMenuOptions(column) {
@@ -23027,7 +23613,7 @@ var ColumnMenuFactory = class extends BeanStub14 {
     const doingGrouping = rowGroupCount > 0;
     const grandTotalRow = _getGrandTotalRow(gos);
     const treeData = gos.get("treeData");
-    const isPrimary = column.isPrimary();
+    const isPrimary = column.primary;
     const allowValueAgg = !isPrimary || aggFuncSvc && column.isAllowValue() && (doingGrouping || grandTotalRow || treeData);
     if (sortSvc && !isLegacyMenuEnabled && column.isSortable()) {
       const {
@@ -23096,7 +23682,7 @@ var ColumnMenuFactory = class extends BeanStub14 {
       }
     }
     addColumnItems();
-    if (expansionSvc && (_isClientSideRowModel2(gos) || gos.get("ssrmExpandAllAffectsAllRows")) && (treeData || rowGroupCount > (colModel.isPivotMode() ? 1 : 0))) {
+    if (expansionSvc && (_isClientSideRowModel2(gos) || gos.get("ssrmExpandAllAffectsAllRows")) && (treeData || rowGroupCount > (colModel.pivotMode ? 1 : 0))) {
       result.push("expandAll");
       result.push("contractAll");
     }
@@ -23142,7 +23728,7 @@ var ContextMenuService = class extends BeanStub15 {
   getMenuItems(menuActionParams, mouseEvent) {
     const { column, node, value } = menuActionParams;
     const defaultMenuOptions = [];
-    const { clipboardSvc, chartSvc, csvCreator, excelCreator, colModel, rangeSvc, gos } = this.beans;
+    const { clipboardSvc, chartSvc, csvCreator, excelCreator, colModel, rangeSvc, gos, notesSvc } = this.beans;
     if (_exists14(node) && clipboardSvc) {
       if (column) {
         if (!gos.get("suppressCutToClipboard")) {
@@ -23151,8 +23737,11 @@ var ContextMenuService = class extends BeanStub15 {
         defaultMenuOptions.push("copy", "copyWithHeaders", "copyWithGroupHeaders", "paste", "separator");
       }
     }
+    if (_exists14(node) && column && notesSvc?.hasDataSource()) {
+      defaultMenuOptions.push("note");
+    }
     if (gos.get("enableCharts") && chartSvc) {
-      if (colModel.isPivotMode()) {
+      if (colModel.pivotMode) {
         defaultMenuOptions.push("pivotChart");
       }
       if (rangeSvc && !rangeSvc.isEmpty()) {
@@ -23216,7 +23805,7 @@ var ContextMenuService = class extends BeanStub15 {
   showContextMenu(params) {
     const rowNode = params.rowNode ?? null;
     const column = params.column ?? null;
-    let { anchorToElement, value, source } = params;
+    let { anchorToElement, value, source, noteParams } = params;
     if (rowNode && column && value == null) {
       value = this.beans.valueSvc.getValueForDisplay({ column, node: rowNode, from: "edit" }).value;
     }
@@ -23226,13 +23815,19 @@ var ContextMenuService = class extends BeanStub15 {
     this.beans.menuUtils.onContextMenu({
       mouseEvent: params.mouseEvent ?? null,
       touchEvent: params.touchEvent ?? null,
-      showMenuCallback: (eventOrTouch) => this.menu.showMenu({ node: rowNode, column, value }, eventOrTouch, anchorToElement),
+      showMenuCallback: (eventOrTouch) => this.menu.showMenu({ node: rowNode, column, value, noteParams }, eventOrTouch, anchorToElement),
       source
     });
   }
   handleContextMenuMouseEvent(mouseEvent, touchEvent, rowCtrl, cellCtrl) {
+    const fullWidthInfo = rowCtrl?.findFullWidthInfoForEvent(mouseEvent || touchEvent);
     const rowNode = cellCtrl?.rowNode ?? rowCtrl?.rowNode ?? null;
-    const column = cellCtrl?.column ?? rowCtrl?.findFullWidthInfoForEvent(mouseEvent || touchEvent)?.column ?? null;
+    const column = cellCtrl?.column ?? fullWidthInfo?.column ?? null;
+    const noteParams = cellCtrl ? { rowNode: cellCtrl.rowNode, column: cellCtrl.column } : rowCtrl && fullWidthInfo ? {
+      rowNode: rowCtrl.rowNode,
+      location: "fullWidthRow",
+      pinned: fullWidthInfo.pinned === "left" || fullWidthInfo.pinned === "right" ? fullWidthInfo.pinned : void 0
+    } : void 0;
     const { valueSvc, ctrlsSvc } = this.beans;
     const value = column ? valueSvc.getValue(column, rowNode, "edit") : null;
     const gridBodyCon = ctrlsSvc.getGridBodyCtrl();
@@ -23244,6 +23839,7 @@ var ContextMenuService = class extends BeanStub15 {
       column,
       value,
       anchorToElement,
+      noteParams,
       source: "ui"
     });
   }
@@ -23306,6 +23902,7 @@ var ContextMenuService = class extends BeanStub15 {
       menuItems,
       column,
       node,
+      menuActionParams.noteParams,
       getGui,
       "contextMenu"
     );
@@ -23528,7 +24125,7 @@ var EnterpriseMenuFactory = class extends BeanStub16 {
       return true;
     }
     const isFilterDisabled = !this.beans.filterManager?.isFilterAllowed(column);
-    const tabs = column.getColDef().menuTabs ?? TABS_DEFAULT;
+    const tabs = column.colDef.menuTabs ?? TABS_DEFAULT;
     const numActiveTabs = isFilterDisabled && tabs.includes(TAB_FILTER) ? tabs.length - 1 : tabs.length;
     return numActiveTabs > 0;
   }
@@ -23578,7 +24175,7 @@ var TabbedColumnMenu = class extends BeanStub16 {
     if (this.restrictTo) {
       return this.restrictTo;
     }
-    return (this.column?.getColDef().menuTabs ?? TABS_DEFAULT).filter(
+    return (this.column?.colDef.menuTabs ?? TABS_DEFAULT).filter(
       (tabName) => this.isValidMenuTabItem(tabName) && this.isNotSuppressed(tabName)
     );
   }
@@ -23896,11 +24493,66 @@ var MenuUtils = class extends BeanStub17 {
   }
 };
 
+// packages/ag-grid-enterprise/src/menu/toolbarMenuBuilder.ts
+import { BeanStub as BeanStub18, _createElement as _createElement10, _focusInto as _focusInto7 } from "ag-grid-community";
+var ToolbarMenuBuilder = class extends BeanStub18 {
+  constructor() {
+    super(...arguments);
+    this.beanName = "toolbarMenuBuilder";
+  }
+  showMenu(params) {
+    const { anchorElement, menuItems, ariaLabel, onClose } = params;
+    const { popupSvc, menuItemMapper } = this.beans;
+    if (!popupSvc || !menuItemMapper) {
+      return;
+    }
+    const eMenu = _createElement10({ tag: "div", cls: "ag-menu" });
+    const menuList = this.createBean(new MenuList());
+    eMenu.appendChild(menuList.getGui());
+    menuList.addMenuItems(
+      menuItemMapper.mapWithStockItems(
+        menuItems,
+        null,
+        null,
+        void 0,
+        () => anchorElement,
+        "contextMenu"
+      )
+    );
+    let hidePopup;
+    menuList.addManagedListeners(menuList, {
+      closeMenu: () => hidePopup?.()
+    });
+    popupSvc.addPopup({
+      modal: true,
+      eChild: eMenu,
+      closeOnEsc: true,
+      afterGuiAttached: (attachedParams) => {
+        hidePopup = attachedParams.hidePopup;
+        _focusInto7(menuList.getGui());
+      },
+      ariaLabel,
+      closedCallback: () => {
+        this.destroyBean(menuList);
+        onClose?.();
+      }
+    });
+    popupSvc.positionPopupByComponent({
+      type: "toolbar",
+      eventSource: anchorElement,
+      ePopup: eMenu,
+      position: "under",
+      nudgeY: 4,
+      keepWithinBounds: true
+    });
+  }
+};
+
 // packages/ag-grid-enterprise/src/menu/menuModule.ts
 var MenuCoreModule = {
   moduleName: "MenuCore",
   version: VERSION,
-  beans: [MenuItemMapper, ChartMenuItemMapper, MenuUtils],
+  beans: [MenuItemMapper, ChartMenuItemMapper, MenuUtils, ToolbarMenuBuilder],
   icons: {
     // context menu chart item
     chart: "chart",
@@ -23963,7 +24615,7 @@ var ColumnMenuModule = {
     showColumnChooser,
     hideColumnChooser
   },
-  dependsOn: [MenuCoreModule, _SharedDragAndDropModule3, _ColumnMoveModule2]
+  dependsOn: [MenuCoreModule, SharedColumnStateUpdateStrategyModule, _SharedDragAndDropModule3, _ColumnMoveModule2]
 };
 var ContextMenuModule = {
   moduleName: "ContextMenu",
@@ -23991,6 +24643,8 @@ var RichSelectCellEditor = class extends AgAbstractCellEditor {
     super({ tag: "div", cls: "ag-cell-edit-wrapper" });
     this.pendingInitialEventKey = null;
     this.initialEventKeyProcessed = false;
+    /** Last raw input passed to `params.parseValue`. Initialised to `this` as an "uncached" sentinel — a DOM raw value can never equal the editor instance, so the first cache check always misses. */
+    this.cachedRaw = this;
   }
   initialiseEditor(_params) {
     const { cellStartedEdit, values, valuesPage, eventKey } = this.params;
@@ -24256,7 +24910,7 @@ var RichSelectCellEditor = class extends AgAbstractCellEditor {
       if (focusAfterAttached) {
         const focusableEl = richSelect.getFocusableElement();
         focusableEl.focus();
-        if (allowTyping && (!eventKey || eventKey.length !== 1)) {
+        if (allowTyping && eventKey?.length !== 1) {
           focusableEl.select();
         }
       }
@@ -24293,9 +24947,14 @@ var RichSelectCellEditor = class extends AgAbstractCellEditor {
     this.eEditor.setValue(value ?? null, true);
   }
   getValue() {
-    const { params } = this;
     const value = this.eEditor.getValue();
-    return params.parseValue?.(value) ?? value;
+    if (Object.is(this.cachedRaw, value)) {
+      return this.cachedParsed;
+    }
+    const parsed = this.params.parseValue?.(value) ?? value;
+    this.cachedRaw = value;
+    this.cachedParsed = parsed;
+    return parsed;
   }
   isPopup() {
     return false;
@@ -24645,7 +25304,7 @@ var SetFilterListItem = class extends Component31 {
       params: { column }
     } = this;
     let { value } = this;
-    let formattedValue = null;
+    let formattedValue;
     if (typeof value === "function") {
       this.valueFunction = value;
       formattedValue = this.valueFunction();
@@ -24954,7 +25613,7 @@ var TreeSetDisplayValueModel = class {
     }
   }
   updateFilter(matchesFilter, nullMatchesFilter) {
-    const passesFilter = (item) => {
+    const passesFilter2 = (item) => {
       if (!item.available) {
         return false;
       }
@@ -24968,7 +25627,7 @@ var TreeSetDisplayValueModel = class {
       );
     };
     for (const item of this.allDisplayedItemsTree.values()) {
-      this.recursiveItemCheck(item, false, passesFilter, "filterPasses");
+      this.recursiveItemCheck(item, false, passesFilter2, "filterPasses");
     }
   }
   getDisplayedValueCount() {
@@ -25987,13 +26646,13 @@ var TreeModelWrapper = class {
     if (oldRow == null && newRow == null) {
       return true;
     }
-    return oldRow != null && newRow != null && oldRow.treeKey === newRow.treeKey && oldRow.depth === newRow.depth;
+    return oldRow?.treeKey === newRow?.treeKey && oldRow?.depth === newRow?.depth;
   }
 };
 
 // packages/ag-grid-enterprise/src/setFilter/setFilterHandler.ts
 import {
-  BeanStub as BeanStub20,
+  BeanStub as BeanStub21,
   _addGridCommonParams as _addGridCommonParams14,
   _debounce as _debounce3,
   _error as _error3,
@@ -26003,9 +26662,9 @@ import {
   _toStringOrNull as _toStringOrNull5
 } from "ag-grid-community";
 
-// packages/ag-grid-enterprise/src/setFilter/clientSideValueExtractor.ts
-import { AgPromise as AgPromise4, BeanStub as BeanStub18, _makeNull as _makeNull5 } from "ag-grid-community";
-var ClientSideValuesExtractor = class extends BeanStub18 {
+// packages/ag-grid-enterprise/src/setFilter/csrmValueExtractor.ts
+import { AgPromise as AgPromise4, BeanStub as BeanStub19, _makeNull as _makeNull5 } from "ag-grid-community";
+var CsrmValuesExtractor = class extends BeanStub19 {
   constructor(createKey, caseFormat, getValue, isTreeDataOrGrouping, isTreeData) {
     super();
     this.createKey = createKey;
@@ -26137,7 +26796,7 @@ var SetFilterAppliedModel = class {
 // packages/ag-grid-enterprise/src/setFilter/setValueModel.ts
 import {
   AgPromise as AgPromise5,
-  BeanStub as BeanStub19,
+  BeanStub as BeanStub20,
   _addGridCommonParams as _addGridCommonParams13,
   _defaultComparator as _defaultComparator2,
   _error as _error2,
@@ -26151,10 +26810,10 @@ var SetFilterModelValuesType = /* @__PURE__ */ ((SetFilterModelValuesType2) => {
   return SetFilterModelValuesType2;
 })(SetFilterModelValuesType || {});
 var setValueModel_default = SetFilterModelValuesType;
-var SetValueModel = class extends BeanStub19 {
-  constructor(clientSideValuesExtractor, caseFormat, createKey, isTreeDataOrGrouping, params) {
+var SetValueModel = class extends BeanStub20 {
+  constructor(csrmValuesExtractor, caseFormat, createKey, isTreeDataOrGrouping, params) {
     super();
-    this.clientSideValuesExtractor = clientSideValuesExtractor;
+    this.csrmValuesExtractor = csrmValuesExtractor;
     this.caseFormat = caseFormat;
     this.createKey = createKey;
     this.isTreeDataOrGrouping = isTreeDataOrGrouping;
@@ -26302,7 +26961,7 @@ var SetValueModel = class extends BeanStub19 {
     return this.initialised ? values.filter((v) => this.availableKeys.has(v)) : values;
   }
   getParamsForValuesFromRows(removeUnavailableValues) {
-    if (!this.clientSideValuesExtractor) {
+    if (!this.csrmValuesExtractor) {
       _error2(113);
       return void 0;
     }
@@ -26311,11 +26970,11 @@ var SetValueModel = class extends BeanStub19 {
   }
   getValuesFromRows(predicate) {
     const existingValues = this.getParamsForValuesFromRows(true);
-    return this.clientSideValuesExtractor?.extractUniqueValues(predicate, existingValues) ?? null;
+    return this.csrmValuesExtractor?.extractUniqueValues(predicate, existingValues) ?? null;
   }
   getValuesFromRowsAsync() {
     const existingValues = this.getParamsForValuesFromRows(false);
-    return this.clientSideValuesExtractor?.extractUniqueValuesAsync(() => true, existingValues) ?? AgPromise5.resolve(null);
+    return this.csrmValuesExtractor?.extractUniqueValuesAsync(() => true, existingValues) ?? AgPromise5.resolve(null);
   }
   processAllValues(values) {
     const sortedKeys = this.sortKeys(values);
@@ -26384,7 +27043,7 @@ var SetValueModel = class extends BeanStub19 {
 };
 
 // packages/ag-grid-enterprise/src/setFilter/setFilterHandler.ts
-var SetFilterHandler = class extends BeanStub20 {
+var SetFilterHandler = class extends BeanStub21 {
   constructor() {
     super(...arguments);
     /** Used to get the filter type for filter models. */
@@ -26401,8 +27060,8 @@ var SetFilterHandler = class extends BeanStub20 {
     const createKey = this.createKey;
     const caseFormat = this.caseFormat.bind(this);
     const { gos, beans } = this;
-    const clientSideValuesExtractor = _isClientSideRowModel3(gos, beans.rowModel) ? this.createManagedBean(
-      new ClientSideValuesExtractor(
+    const csrmValuesExtractor = _isClientSideRowModel3(gos, beans.rowModel) ? this.createManagedBean(
+      new CsrmValuesExtractor(
         createKey,
         caseFormat,
         params.getValue,
@@ -26411,7 +27070,7 @@ var SetFilterHandler = class extends BeanStub20 {
       )
     ) : void 0;
     const valueModel = this.createManagedBean(
-      new SetValueModel(clientSideValuesExtractor, caseFormat, createKey, isTreeDataOrGrouping, {
+      new SetValueModel(csrmValuesExtractor, caseFormat, createKey, isTreeDataOrGrouping, {
         handlerParams: params,
         usingComplexObjects: !!(params.filterParams.keyCreator ?? params.colDef.keyCreator)
       })
@@ -27219,7 +27878,9 @@ var AggregationComp = class extends Component35 {
    */
   onCellSelectionChanged() {
     const beans = this.beans;
-    const { rangeSvc, valueSvc } = beans;
+    const valueSvc = beans.valueSvc;
+    const formulaSvc = beans.formula;
+    const rangeSvc = beans.rangeSvc;
     const cellRanges = rangeSvc?.getCellRanges();
     let sum = 0;
     let sumBigint = 0n;
@@ -27301,6 +27962,9 @@ var AggregationComp = class extends Component35 {
               return;
             }
             let value = valueSvc.getValue(col, rowNode, "data");
+            if (col.colDef.allowFormula && formulaSvc?.isFormula(value)) {
+              value = formulaSvc.resolveValue(col, rowNode);
+            }
             if (_missing2(value) || value === "") {
               return;
             }
@@ -27510,8 +28174,8 @@ function getStatusPanel(beans, key) {
 }
 
 // packages/ag-grid-enterprise/src/statusBar/statusBarService.ts
-import { BeanStub as BeanStub21 } from "ag-grid-community";
-var StatusBarService = class extends BeanStub21 {
+import { BeanStub as BeanStub22 } from "ag-grid-community";
+var StatusBarService = class extends BeanStub22 {
   // tslint:disable-next-line
   constructor() {
     super();
@@ -27555,14 +28219,772 @@ var StatusBarModule = {
   dependsOn: [EnterpriseCoreModule, _KeyboardNavigationModule]
 };
 
+// packages/ag-grid-enterprise/src/toolbar/agToolbar.ts
+import {
+  Component as Component36,
+  KeyCode as KeyCode27,
+  ManagedFocusFeature as ManagedFocusFeature3,
+  _addFocusableContainerListener as _addFocusableContainerListener5,
+  _addGridCommonParams as _addGridCommonParams17,
+  _clearElement as _clearElement11,
+  _createElement as _createElement11,
+  _error as _error5,
+  _findFocusableElements as _findFocusableElements4,
+  _getActiveDomElement as _getActiveDomElement11,
+  _removeFromParent as _removeFromParent7,
+  _unwrapUserComp as _unwrapUserComp3,
+  _warn as _warn23
+} from "ag-grid-community";
+
+// packages/ag-grid-enterprise/src/toolbar/agToolbar.css
+var agToolbar_default = ".ag-toolbar{align-items:center;background-color:var(--ag-toolbar-background-color);border-bottom:var(--ag-header-row-border);color:var(--ag-toolbar-text-color);display:flex;font-family:var(--ag-header-font-family);font-size:var(--ag-header-font-size);min-height:var(--ag-header-height);overflow:hidden;white-space:nowrap}.ag-toolbar-right-start{margin-inline-start:auto}.ag-toolbar-item{display:inline-flex}.ag-toolbar-item:where(:not(.ag-toolbar-panel)){font-weight:var(--ag-header-font-weight)}.ag-toolbar-button-wrapper{display:inline-flex;height:100%;padding:calc(var(--ag-spacing)*.25)}.ag-toolbar-button{align-items:center;background:transparent;border:0;color:var(--ag-toolbar-text-color);cursor:pointer;display:inline-flex;font-family:var(--ag-header-font-family);font-size:var(--ag-header-font-size);font-weight:var(--ag-header-font-weight);gap:var(--ag-spacing);line-height:1;outline:none;padding:var(--ag-spacing);white-space:nowrap}:where(.ag-toolbar-button) .ag-icon{color:var(--ag-icon-color)}.ag-toolbar-button-wrapper:hover{background-color:var(--ag-icon-button-hover-background-color);color:var(--ag-icon-button-hover-color)}:where(.ag-toolbar-button-wrapper:hover .ag-toolbar-button) .ag-icon,:where(.ag-toolbar-button-wrapper:hover) .ag-toolbar-button{color:var(--ag-icon-button-hover-color)}.ag-toolbar-button:focus-visible{box-shadow:var(--ag-focus-shadow)}:where(.ag-toolbar-button:focus):not(:focus-visible){box-shadow:none}.ag-toolbar-button:disabled{cursor:default;opacity:.5;pointer-events:none}.ag-toolbar>.ag-toolbar-button-wrapper:first-child>.ag-toolbar-button{border-start-start-radius:calc(var(--ag-border-radius) + 1px)}.ag-toolbar>.ag-toolbar-button-wrapper:last-child>.ag-toolbar-button{border-start-end-radius:calc(var(--ag-border-radius) + 1px)}.ag-toolbar-panel{display:inline-flex;flex:1;min-width:260px;padding:0 calc(var(--ag-spacing)*2)}.ag-toolbar-input{align-items:center;display:inline-flex;margin:0 calc(var(--ag-spacing)*2);max-width:none;min-width:200px;position:relative}.ag-toolbar-input+.ag-toolbar-input{margin-inline-start:0}.ag-toolbar-right-start+.ag-toolbar-input,.ag-toolbar>.ag-toolbar-input:first-child{margin-inline-start:var(--ag-spacing)}.ag-toolbar>.ag-toolbar-input:last-child{margin-inline-end:var(--ag-spacing)}.ag-toolbar-input-icon{align-items:center;color:var(--ag-icon-color);display:inline-flex;inset-inline-start:var(--ag-spacing);opacity:.5;pointer-events:none;position:absolute}.ag-toolbar-input-field{background-color:var(--ag-input-background-color);border:var(--ag-input-border);border-radius:var(--ag-input-border-radius);color:var(--ag-text-color);font-family:inherit;font-size:var(--ag-font-size);font-weight:inherit;line-height:1.5;outline:none;padding-block:calc(var(--ag-spacing)*.5);padding-inline:calc(var(--ag-icon-size) + var(--ag-spacing)*2) var(--ag-spacing);width:100%}.ag-toolbar-input-field:focus{border:var(--ag-input-focus-border);box-shadow:var(--ag-focus-shadow)}.ag-toolbar-input-field::-moz-placeholder{color:var(--ag-input-placeholder-text-color)}.ag-toolbar-input-field::placeholder{color:var(--ag-input-placeholder-text-color)}:where(.ag-toolbar-panel) .ag-column-drop-horizontal{background-color:transparent;border-bottom:none;font-family:var(--ag-cell-font-family);font-size:var(--ag-font-size);padding:0}.ag-toolbar .ag-column-drop-horizontal{border-bottom:none;padding-inline-start:0}.ag-toolbar-button-chevron{align-items:center;display:inline-flex}.ag-toolbar-separator{align-self:stretch;border-inline-start:var(--ag-toolbar-separator-border);margin:calc(var(--ag-spacing)*1.75) 0;width:0}.ag-toolbar-find{background-color:var(--ag-input-background-color);border:var(--ag-input-border);border-radius:var(--ag-input-border-radius);gap:calc(var(--ag-spacing)*.5);max-width:none;min-width:220px;width:280px}.ag-toolbar-find:focus-within{border:var(--ag-input-focus-border);box-shadow:var(--ag-focus-shadow)}.ag-toolbar-find .ag-toolbar-input-field{background-color:transparent;border:none;flex:1;min-width:0}.ag-toolbar-find .ag-toolbar-input-field:focus{border:none;box-shadow:none}.ag-toolbar-find-match-count{color:inherit;flex-shrink:0;font-size:var(--ag-font-size);font-variant-numeric:tabular-nums;opacity:.7;text-align:end;-webkit-user-select:none;-moz-user-select:none;user-select:none;white-space:nowrap}.ag-toolbar-find-button{flex-shrink:0;padding:calc(var(--ag-spacing)*.5)}";
+
+// packages/ag-grid-enterprise/src/toolbar/agToolbar.ts
+function normaliseItem(item, nextKey) {
+  if (typeof item === "string") {
+    return { toolbarItem: item, key: item };
+  }
+  let toolbarItem = item.toolbarItem;
+  let toolbarItemParams = item.toolbarItemParams;
+  let label;
+  let tooltip;
+  let icon;
+  let action;
+  if (toolbarItem == null) {
+    ({ label, tooltip, icon, action } = item);
+    if (action != null || label != null || icon != null) {
+      toolbarItem = "agButtonToolbarItem";
+      toolbarItemParams = void 0;
+    }
+  } else if (toolbarItem === "agMenuToolbarItem") {
+    ({ label, tooltip, icon } = item);
+  }
+  return {
+    toolbarItem,
+    toolbarItemParams,
+    alignment: item.alignment,
+    key: item.key ?? nextKey(),
+    label,
+    tooltip,
+    icon,
+    action
+  };
+}
+var ToolbarItemComponent = {
+  name: "toolbarItem",
+  optionalMethods: ["refresh"]
+};
+var AgToolbarElement = {
+  tag: "div",
+  cls: "ag-toolbar",
+  role: "toolbar"
+};
+var AgToolbar = class extends Component36 {
+  constructor() {
+    super(AgToolbarElement);
+    this.toolbarItems = /* @__PURE__ */ new Map();
+    this.nextKey = 0;
+    // Incremented on each rebuild so stale async resolves from a previous generation can be discarded
+    this.generation = 0;
+    this.registerCSS(agToolbar_default);
+  }
+  postConstruct() {
+    const eGui = this.getGui();
+    this.beans.toolbar.setToolbar(this);
+    this.processToolbarItems();
+    this.addManagedPropertyListeners(["toolbar"], this.updateToolbar.bind(this));
+    this.createManagedBean(
+      new ManagedFocusFeature3(eGui, {
+        onTabKeyDown: this.onTabKeyDown.bind(this),
+        handleKeyDown: this.handleKeyDown.bind(this)
+      })
+    );
+    this.addManagedElementListeners(eGui, {
+      focusin: this.ensureFocusedItemVisible.bind(this)
+    });
+    _addFocusableContainerListener5(this.beans, this, eGui);
+  }
+  ensureFocusedItemVisible(e) {
+    const eGui = this.getGui();
+    const target = e.target;
+    if (!target || !eGui.contains(target) || target === eGui) {
+      return;
+    }
+    if (typeof target.scrollIntoView === "function") {
+      target.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+  }
+  getFocusableContainerName() {
+    return "toolbar";
+  }
+  getToolbarItemInstance(key) {
+    const comp = this.toolbarItems.get(key);
+    if (!comp) {
+      return void 0;
+    }
+    return _unwrapUserComp3(comp);
+  }
+  onTabKeyDown(_e) {
+  }
+  handleKeyDown(e) {
+    const activeEl = _getActiveDomElement11(this.beans);
+    if (activeEl instanceof HTMLInputElement) {
+      return;
+    }
+    const { key } = e;
+    if (key !== KeyCode27.LEFT && key !== KeyCode27.RIGHT && key !== KeyCode27.PAGE_HOME && key !== KeyCode27.PAGE_END) {
+      return;
+    }
+    const items = _findFocusableElements4(this.getGui());
+    const currentIndex = items.indexOf(activeEl);
+    if (currentIndex === -1) {
+      return;
+    }
+    const rtl = this.gos.get("enableRtl");
+    let nextIndex;
+    switch (key) {
+      case KeyCode27.LEFT:
+        nextIndex = rtl ? currentIndex + 1 : currentIndex - 1;
+        break;
+      case KeyCode27.RIGHT:
+        nextIndex = rtl ? currentIndex - 1 : currentIndex + 1;
+        break;
+      case KeyCode27.PAGE_HOME:
+        nextIndex = 0;
+        break;
+      case KeyCode27.PAGE_END:
+        nextIndex = items.length - 1;
+        break;
+    }
+    nextIndex = Math.max(0, Math.min(nextIndex, items.length - 1));
+    if (nextIndex !== currentIndex) {
+      items[nextIndex].focus();
+      e.preventDefault();
+    }
+  }
+  getValidItems(toolbar) {
+    if (!toolbar?.items) {
+      return void 0;
+    }
+    this.nextKey = 0;
+    const nextKey = () => `toolbar-item-${this.nextKey++}`;
+    return toolbar.items.map((item) => normaliseItem(item, nextKey));
+  }
+  createItemParams(itemConfig, key) {
+    const { toolbarItem: _, ...rest } = itemConfig;
+    return _addGridCommonParams17(this.gos, { ...rest, key });
+  }
+  processToolbarItems() {
+    const toolbar = this.gos.get("toolbar");
+    const items = this.getValidItems(toolbar);
+    const validItemsProvided = Array.isArray(items) && items.length > 0;
+    this.setDisplayed(validItemsProvided);
+    if (!validItemsProvided) {
+      return;
+    }
+    const leftItems = [];
+    const rightItems = [];
+    const defaultAlignment = toolbar?.alignment ?? "left";
+    let lastAlignment = defaultAlignment;
+    for (const item of items) {
+      const isSeparator = item.toolbarItem === "separator";
+      const alignment = item.alignment ?? (isSeparator ? lastAlignment : defaultAlignment);
+      (alignment === "right" ? rightItems : leftItems).push(item);
+      if (!isSeparator) {
+        lastAlignment = alignment;
+      }
+    }
+    const generation = ++this.generation;
+    this.createAndRenderComponents([...leftItems, ...rightItems], leftItems.length, generation);
+  }
+  updateToolbar() {
+    this.generation++;
+    _clearElement11(this.getGui());
+    this.destroyToolbarItems();
+    this.processToolbarItems();
+  }
+  destroy() {
+    this.generation++;
+    this.destroyToolbarItems();
+    this.beans.toolbar?.clearToolbar(this);
+    super.destroy();
+  }
+  destroyToolbarItems() {
+    for (const comp of this.toolbarItems.values()) {
+      this.destroyBean(comp);
+    }
+    this.toolbarItems.clear();
+  }
+  createSeparator() {
+    return _createElement11({
+      tag: "div",
+      cls: "ag-toolbar-separator",
+      attrs: { role: "separator" }
+    });
+  }
+  createAndRenderComponents(toolbarItems, rightStartIndex, generation) {
+    const eContainer = this.getGui();
+    const hasRightItems = rightStartIndex < toolbarItems.length;
+    for (let i = 0; i < toolbarItems.length; i++) {
+      if (hasRightItems && i === rightStartIndex) {
+        eContainer.appendChild(_createElement11({ tag: "div", cls: "ag-toolbar-right-start" }));
+      }
+      const itemConfig = toolbarItems[i];
+      if (itemConfig.toolbarItem === "separator") {
+        eContainer.appendChild(this.createSeparator());
+        continue;
+      }
+      const { key } = itemConfig;
+      if (itemConfig.toolbarItem == null) {
+        _error5(301, { key });
+        continue;
+      }
+      const placeholder = _createElement11({ tag: "div" });
+      eContainer.appendChild(placeholder);
+      const compDetails = this.beans.userCompFactory.getCompDetails(
+        itemConfig,
+        ToolbarItemComponent,
+        void 0,
+        this.createItemParams(itemConfig, key),
+        true
+      );
+      if (compDetails == null) {
+        _removeFromParent7(placeholder);
+        continue;
+      }
+      compDetails.newAgStackInstance().then((component) => this.mountComponent(key, component, placeholder, generation));
+    }
+  }
+  mountComponent(key, component, placeholder, generation) {
+    if (generation !== this.generation) {
+      _removeFromParent7(placeholder);
+      if (component != null) {
+        this.destroyBean(component);
+      }
+      return;
+    }
+    if (component == null) {
+      _removeFromParent7(placeholder);
+      return;
+    }
+    const isDuplicate = this.toolbarItems.has(key);
+    if (isDuplicate || !this.isAlive() || placeholder.parentNode !== this.getGui()) {
+      _removeFromParent7(placeholder);
+      this.destroyBean(component);
+      if (isDuplicate) {
+        _warn23(303, { key });
+      }
+      return;
+    }
+    this.toolbarItems.set(key, component);
+    const eItemGui = component.getGui();
+    if ("agToolbarButton" in component) {
+      const eWrapper = _createElement11({ tag: "div", cls: "ag-toolbar-button-wrapper" });
+      eWrapper.appendChild(eItemGui);
+      placeholder.replaceWith(eWrapper);
+    } else {
+      placeholder.replaceWith(eItemGui);
+    }
+  }
+};
+var AgToolbarSelector = {
+  selector: "AG-TOOLBAR",
+  component: AgToolbar
+};
+
+// packages/ag-grid-enterprise/src/toolbar/providedItems/buttonToolbarItem.ts
+import { Component as Component37, RefPlaceholder as RefPlaceholder35, _addGridCommonParams as _addGridCommonParams18 } from "ag-grid-community";
+
+// packages/ag-grid-enterprise/src/toolbar/providedItems/toolbarItemUtils.ts
+import {
+  _addOrRemoveAttribute as _addOrRemoveAttribute3,
+  _clearElement as _clearElement12,
+  _createElement as _createElement12,
+  _createIconNoSpan as _createIconNoSpan19,
+  _error as _error6,
+  _setAriaLabel as _setAriaLabel15,
+  _setDisabled as _setDisabled2,
+  _setDisplayed as _setDisplayed17
+} from "ag-grid-community";
+function createToolbarInput(beans, { label, iconName, initialValue }) {
+  const eIcon = _createIconNoSpan19(iconName, beans);
+  let eIconWrapper;
+  if (eIcon) {
+    eIconWrapper = _createElement12({
+      tag: "span",
+      cls: "ag-toolbar-input-icon",
+      attrs: { "aria-hidden": "true" }
+    });
+    eIconWrapper.appendChild(eIcon);
+  }
+  const eInput = _createElement12({
+    tag: "input",
+    cls: "ag-toolbar-input-field",
+    attrs: {
+      type: "text",
+      placeholder: `${label}...`,
+      "aria-label": label
+    }
+  });
+  if (initialValue) {
+    eInput.value = initialValue;
+  }
+  return { eIconWrapper, eInput };
+}
+function createToolbarIconButton(beans, { iconName, label, cls, disabled }) {
+  const eButton = _createElement12({
+    tag: "button",
+    cls: cls ? `ag-toolbar-button ${cls}` : "ag-toolbar-button",
+    attrs: {
+      type: "button",
+      "aria-label": label,
+      title: label
+    }
+  });
+  if (disabled) {
+    _setDisabled2(eButton, true);
+  }
+  const eIcon = _createIconNoSpan19(iconName, beans);
+  if (eIcon) {
+    eButton.appendChild(eIcon);
+  }
+  return eButton;
+}
+function renderToolbarButtonContents(beans, { eIcon, eLabel, eGui, icon, label, hoverText }) {
+  _clearElement12(eIcon);
+  if (icon) {
+    const eIconEl = _createIconNoSpan19(icon, beans);
+    if (eIconEl) {
+      eIcon.appendChild(eIconEl);
+    }
+  }
+  _setDisplayed17(eIcon, !!icon);
+  const hasLabel = !!label;
+  eLabel.textContent = label ?? "";
+  _setDisplayed17(eLabel, hasLabel);
+  _setAriaLabel15(eGui, hoverText);
+  _addOrRemoveAttribute3(eGui, "title", hoverText);
+}
+function getRowGroupPanelBuilder(beans, itemName) {
+  const builder = beans.rowGroupPanelBuilder;
+  if (!builder) {
+    _error6(302, { itemName, moduleName: "RowGroupingPanel", ...beans.gos.getModuleErrorParams() });
+  }
+  return builder;
+}
+
+// packages/ag-grid-enterprise/src/toolbar/providedItems/buttonToolbarItem.ts
+var ButtonToolbarItemElement = {
+  tag: "button",
+  cls: "ag-toolbar-item ag-toolbar-button",
+  attrs: { type: "button" },
+  children: [
+    { tag: "span", ref: "eIcon", cls: "ag-toolbar-button-icon", attrs: { "aria-hidden": "true" } },
+    { tag: "span", ref: "eLabel", cls: "ag-toolbar-button-label" }
+  ]
+};
+var ButtonToolbarItem = class extends Component37 {
+  constructor() {
+    super(ButtonToolbarItemElement);
+    this.agToolbarButton = "agToolbarButton";
+    this.eIcon = RefPlaceholder35;
+    this.eLabel = RefPlaceholder35;
+  }
+  init(params) {
+    this.applyParams(params);
+    this.addManagedElementListeners(this.getGui(), {
+      click: () => this.invokeAction()
+    });
+  }
+  refresh(params) {
+    this.applyParams(params);
+    return true;
+  }
+  applyParams(params) {
+    this.params = params;
+    renderToolbarButtonContents(this.beans, {
+      eIcon: this.eIcon,
+      eLabel: this.eLabel,
+      eGui: this.getGui(),
+      icon: params.icon,
+      label: params.label,
+      hoverText: params.tooltip ?? params.label
+    });
+  }
+  invokeAction() {
+    const { action, key } = this.params;
+    if (!action) {
+      return;
+    }
+    const actionParams = _addGridCommonParams18(this.gos, { key });
+    action(actionParams);
+  }
+};
+
+// packages/ag-grid-enterprise/src/toolbar/providedItems/findToolbarItem.ts
+import { Component as Component38, _createElement as _createElement13, _debounce as _debounce4, _error as _error7, _setDisabled as _setDisabled3 } from "ag-grid-community";
+var INPUT_DEBOUNCE_MS = 300;
+var findInputIdCounter = 0;
+function createMatchCount(inputId) {
+  return _createElement13({
+    tag: "label",
+    cls: "ag-toolbar-find-match-count",
+    attrs: { "aria-live": "polite", for: inputId }
+  });
+}
+var FindToolbarItem = class extends Component38 {
+  constructor() {
+    super({ tag: "div", cls: "ag-toolbar-item ag-toolbar-input ag-toolbar-find" });
+  }
+  init(_params) {
+    if (!this.gos.isModuleRegistered("Find")) {
+      _error7(302, { itemName: "agFindToolbarItem", moduleName: "Find", ...this.gos.getModuleErrorParams() });
+      this.setDisplayed(false);
+      return;
+    }
+    const localeTextFunc = this.getLocaleTextFunc();
+    const label = localeTextFunc("toolbarFind", "Find");
+    const eGui = this.getGui();
+    const { eIconWrapper, eInput } = createToolbarInput(this.beans, {
+      label,
+      iconName: "search",
+      initialValue: this.gos.get("findSearchValue")
+    });
+    const inputId = `ag-toolbar-find-input-${++findInputIdCounter}`;
+    eInput.id = inputId;
+    if (eIconWrapper) {
+      eGui.appendChild(eIconWrapper);
+    }
+    this.eInput = eInput;
+    eGui.appendChild(this.eInput);
+    this.eMatchCount = createMatchCount(inputId);
+    eGui.appendChild(this.eMatchCount);
+    this.ePrevButton = createToolbarIconButton(this.beans, {
+      iconName: "previous",
+      label: localeTextFunc("toolbarFindPreviousMatch", "Previous Match"),
+      cls: "ag-toolbar-find-button",
+      disabled: true
+    });
+    eGui.appendChild(this.ePrevButton);
+    this.eNextButton = createToolbarIconButton(this.beans, {
+      iconName: "next",
+      label: localeTextFunc("toolbarFindNextMatch", "Next Match"),
+      cls: "ag-toolbar-find-button",
+      disabled: true
+    });
+    eGui.appendChild(this.eNextButton);
+    const flushFindSearchValue = () => this.gos.updateGridOptions({ options: { findSearchValue: this.eInput.value } });
+    const updateFindSearchValueDebounced = _debounce4(this, flushFindSearchValue, INPUT_DEBOUNCE_MS);
+    this.addManagedElementListeners(this.eInput, {
+      input: () => updateFindSearchValueDebounced(),
+      keydown: (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          flushFindSearchValue();
+          if (e.shiftKey) {
+            this.beans.findSvc?.previous();
+          } else {
+            this.beans.findSvc?.next();
+          }
+        }
+      }
+    });
+    this.addManagedElementListeners(this.ePrevButton, {
+      click: () => this.beans.findSvc?.previous()
+    });
+    this.addManagedElementListeners(this.eNextButton, {
+      click: () => this.beans.findSvc?.next()
+    });
+    this.addManagedEventListeners({
+      findChanged: (event) => this.onFindChanged(event)
+    });
+    this.syncMatchState();
+  }
+  refresh(_params) {
+    if (!this.eInput) {
+      return false;
+    }
+    this.eInput.value = this.gos.get("findSearchValue") ?? "";
+    this.syncMatchState();
+    return true;
+  }
+  onFindChanged(event) {
+    this.updateMatchDisplay(event.findSearchValue, event.activeMatch?.numOverall ?? 0, event.totalMatches);
+  }
+  syncMatchState() {
+    const findSvc = this.beans.findSvc;
+    const findSearchValue = this.gos.get("findSearchValue");
+    const activeIndex = findSvc?.activeMatch?.numOverall ?? 0;
+    const totalMatches = findSvc?.totalMatches ?? 0;
+    this.updateMatchDisplay(findSearchValue, activeIndex, totalMatches);
+  }
+  updateMatchDisplay(findSearchValue, activeIndex, totalMatches) {
+    const hasSearch = !!findSearchValue?.length;
+    this.eMatchCount.textContent = hasSearch ? `${activeIndex}/${totalMatches}` : "";
+    const hasMatches = totalMatches > 0;
+    _setDisabled3(this.ePrevButton, !hasMatches);
+    _setDisabled3(this.eNextButton, !hasMatches);
+  }
+};
+
+// packages/ag-grid-enterprise/src/toolbar/providedItems/menuToolbarItem.ts
+import {
+  Component as Component39,
+  RefPlaceholder as RefPlaceholder36,
+  _createIconNoSpan as _createIconNoSpan20,
+  _removeAriaExpanded as _removeAriaExpanded2,
+  _setAriaExpanded as _setAriaExpanded8,
+  _setAriaHasPopup as _setAriaHasPopup2,
+  _setDisabled as _setDisabled4,
+  _setDisplayed as _setDisplayed18
+} from "ag-grid-community";
+var MenuToolbarItemElement = {
+  tag: "button",
+  cls: "ag-toolbar-item ag-toolbar-button",
+  attrs: { type: "button" },
+  children: [
+    { tag: "span", ref: "eIcon", cls: "ag-toolbar-button-icon", attrs: { "aria-hidden": "true" } },
+    { tag: "span", ref: "eLabel", cls: "ag-toolbar-button-label" },
+    { tag: "span", ref: "eChevron", cls: "ag-toolbar-button-chevron", attrs: { "aria-hidden": "true" } }
+  ]
+};
+var MenuToolbarItem = class extends Component39 {
+  constructor() {
+    super(MenuToolbarItemElement);
+    this.agToolbarButton = "agToolbarButton";
+    this.eIcon = RefPlaceholder36;
+    this.eLabel = RefPlaceholder36;
+    this.eChevron = RefPlaceholder36;
+  }
+  init(params) {
+    const eChevronIcon = _createIconNoSpan20("selectOpen", this.beans);
+    if (eChevronIcon) {
+      this.eChevron.appendChild(eChevronIcon);
+    }
+    this.beans.gos.assertModuleRegistered(["ContextMenu", "ColumnMenu"], `AG Grid toolbar item: agMenuToolbarItem`);
+    this.applyParams(params);
+    this.addManagedElementListeners(this.getGui(), {
+      click: () => this.showMenu()
+    });
+  }
+  refresh(params) {
+    this.applyParams(params);
+    return true;
+  }
+  getAccessibleName() {
+    const { tooltip, label } = this.params;
+    return tooltip ?? label ?? this.getLocaleTextFunc()("toolbarMenu", "Menu");
+  }
+  applyParams(params) {
+    this.params = params;
+    const eGui = this.getGui();
+    renderToolbarButtonContents(this.beans, {
+      eIcon: this.eIcon,
+      eLabel: this.eLabel,
+      eGui,
+      icon: params.icon ?? "menu",
+      label: params.label,
+      hoverText: this.getAccessibleName()
+    });
+    const menuItems = params.toolbarItemParams?.menuItems;
+    const hasMenuItems = !!menuItems?.length;
+    _setDisplayed18(this.eChevron, hasMenuItems);
+    _setDisabled4(eGui, !hasMenuItems);
+    _setAriaHasPopup2(eGui, hasMenuItems ? "menu" : false);
+    if (hasMenuItems) {
+      _setAriaExpanded8(eGui, false);
+    } else {
+      _removeAriaExpanded2(eGui);
+    }
+  }
+  showMenu() {
+    const menuItems = this.params.toolbarItemParams?.menuItems;
+    if (!menuItems?.length) {
+      return;
+    }
+    const toolbarMenuBuilder = this.beans.toolbarMenuBuilder;
+    if (!toolbarMenuBuilder) {
+      return;
+    }
+    const eGui = this.getGui();
+    _setAriaExpanded8(eGui, true);
+    toolbarMenuBuilder.showMenu({
+      anchorElement: eGui,
+      menuItems,
+      ariaLabel: this.getAccessibleName(),
+      onClose: () => {
+        if (this.isAlive()) {
+          _setAriaExpanded8(eGui, false);
+          eGui.focus();
+        }
+      }
+    });
+  }
+};
+
+// packages/ag-grid-enterprise/src/toolbar/providedItems/pivotPanelToolbarItem.ts
+import { Component as Component40, _error as _error8 } from "ag-grid-community";
+var PivotPanelToolbarItem = class extends Component40 {
+  constructor() {
+    super({ tag: "div", cls: "ag-toolbar-item ag-toolbar-panel" });
+  }
+  init(_params) {
+    if (!this.gos.isModuleRegistered("Pivot")) {
+      _error8(302, {
+        itemName: "agPivotPanelToolbarItem",
+        moduleName: "Pivot",
+        ...this.gos.getModuleErrorParams()
+      });
+      this.setDisplayed(false);
+      return;
+    }
+    const builder = getRowGroupPanelBuilder(this.beans, "agPivotPanelToolbarItem");
+    if (!builder) {
+      this.setDisplayed(false);
+      return;
+    }
+    const panel = this.createManagedBean(builder.createPivotDropZone(true, true));
+    this.getGui().appendChild(panel.getGui());
+    panel.setDisplayed(true);
+    this.addManagedListeners(panel, {
+      displayChanged: () => panel.setDisplayed(true)
+    });
+    this.setDisplayed(this.beans.colModel.isPivotMode());
+    this.addManagedEventListeners({
+      columnPivotModeChanged: () => this.setDisplayed(this.beans.colModel.isPivotMode())
+    });
+  }
+  refresh(_params) {
+    return true;
+  }
+};
+
+// packages/ag-grid-enterprise/src/toolbar/providedItems/quickFilterToolbarItem.ts
+import { Component as Component41, _debounce as _debounce5, _error as _error9 } from "ag-grid-community";
+var INPUT_DEBOUNCE_MS2 = 300;
+var QuickFilterToolbarItem = class extends Component41 {
+  constructor() {
+    super({ tag: "div", cls: "ag-toolbar-item ag-toolbar-input" });
+  }
+  init(_params) {
+    if (!this.gos.isModuleRegistered("QuickFilter")) {
+      _error9(302, {
+        itemName: "agQuickFilterToolbarItem",
+        moduleName: "QuickFilter",
+        ...this.gos.getModuleErrorParams()
+      });
+      this.setDisplayed(false);
+      return;
+    }
+    const localeTextFunc = this.getLocaleTextFunc();
+    const label = localeTextFunc("toolbarQuickFilter", "Filter");
+    const eGui = this.getGui();
+    const { eIconWrapper, eInput } = createToolbarInput(this.beans, {
+      label,
+      iconName: "filter",
+      initialValue: this.gos.get("quickFilterText")
+    });
+    if (eIconWrapper) {
+      eGui.appendChild(eIconWrapper);
+    }
+    this.eInput = eInput;
+    eGui.appendChild(this.eInput);
+    const updateQuickFilterText = _debounce5(
+      this,
+      () => this.gos.updateGridOptions({ options: { quickFilterText: this.eInput.value } }),
+      INPUT_DEBOUNCE_MS2
+    );
+    this.addManagedElementListeners(this.eInput, {
+      input: () => updateQuickFilterText()
+    });
+  }
+  refresh(_params) {
+    if (!this.eInput) {
+      return false;
+    }
+    this.eInput.value = this.gos.get("quickFilterText") ?? "";
+    return true;
+  }
+};
+
+// packages/ag-grid-enterprise/src/toolbar/providedItems/rowGroupPanelToolbarItem.ts
+import { Component as Component42 } from "ag-grid-community";
+var RowGroupPanelToolbarItem = class extends Component42 {
+  constructor() {
+    super({ tag: "div", cls: "ag-toolbar-item ag-toolbar-panel" });
+  }
+  init(_params) {
+    const builder = getRowGroupPanelBuilder(this.beans, "agRowGroupPanelToolbarItem");
+    if (!builder) {
+      this.setDisplayed(false);
+      return;
+    }
+    const panel = this.createManagedBean(builder.createRowGroupDropZone(true, true));
+    this.getGui().appendChild(panel.getGui());
+  }
+  refresh(_params) {
+    return true;
+  }
+};
+
+// packages/ag-grid-enterprise/src/toolbar/toolbarApi.ts
+import { _unwrapUserComp as _unwrapUserComp4 } from "ag-grid-community";
+function getToolbarItemInstance(beans, key) {
+  const comp = beans.toolbar?.getToolbarItemInstance(key);
+  return _unwrapUserComp4(comp);
+}
+
+// packages/ag-grid-enterprise/src/toolbar/toolbarService.ts
+import { BeanStub as BeanStub23 } from "ag-grid-community";
+var ToolbarService = class extends BeanStub23 {
+  constructor() {
+    super(...arguments);
+    this.beanName = "toolbar";
+  }
+  setToolbar(toolbar) {
+    this.comp = toolbar;
+  }
+  clearToolbar(toolbar) {
+    if (this.comp === toolbar) {
+      this.comp = void 0;
+    }
+  }
+  getToolbarItemInstance(key) {
+    return this.comp?.getToolbarItemInstance(key);
+  }
+};
+
+// packages/ag-grid-enterprise/src/toolbar/toolbarModule.ts
+var ToolbarModule = {
+  moduleName: "Toolbar",
+  version: VERSION,
+  beans: [ToolbarService],
+  userComponents: {
+    agButtonToolbarItem: ButtonToolbarItem,
+    agFindToolbarItem: FindToolbarItem,
+    agMenuToolbarItem: MenuToolbarItem,
+    agPivotPanelToolbarItem: PivotPanelToolbarItem,
+    agQuickFilterToolbarItem: QuickFilterToolbarItem,
+    agRowGroupPanelToolbarItem: RowGroupPanelToolbarItem
+  },
+  icons: {
+    filter: "filter"
+  },
+  selectors: [AgToolbarSelector],
+  apiFunctions: {
+    getToolbarItemInstance
+  },
+  dependsOn: [EnterpriseCoreModule]
+};
+
 // packages/ag-grid-enterprise/src/excelExport/excelExportModule.ts
 import { _SharedExportModule } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/excelExport/excelExportApi.ts
-import { _warn as _warn23 } from "ag-grid-community";
+import { _warn as _warn24 } from "ag-grid-community";
 function assertNotExcelMultiSheet(beans) {
   if (beans.excelCreator?.getFactoryMode() === "MULTI_SHEET") {
-    _warn23(161);
+    _warn24(161);
     return false;
   }
   return true;
@@ -27623,11 +29045,11 @@ import {
 // packages/ag-grid-enterprise/src/multiFilter/baseMultiFilter.ts
 import {
   AgPromise as AgPromise7,
-  KeyCode as KeyCode27,
+  KeyCode as KeyCode28,
   TabGuardComp as TabGuardComp2,
-  _createElement as _createElement10,
-  _focusInto as _focusInto7,
-  _getActiveDomElement as _getActiveDomElement11,
+  _createElement as _createElement14,
+  _focusInto as _focusInto8,
+  _getActiveDomElement as _getActiveDomElement12,
   _isNothingFocused as _isNothingFocused3,
   _setAriaRole as _setAriaRole8
 } from "ag-grid-community";
@@ -27720,7 +29142,7 @@ var BaseMultiFilter = class extends TabGuardComp2 {
           return;
         }
         if (index > 0) {
-          this.appendChild(_createElement10({ tag: "div", cls: "ag-filter-separator" }));
+          this.appendChild(_createElement14({ tag: "div", cls: "ag-filter-separator" }));
         }
         this.appendChild(filterGui);
       });
@@ -27785,12 +29207,12 @@ var BaseMultiFilter = class extends TabGuardComp2 {
         keydown: (e) => {
           const { key } = e;
           switch (key) {
-            case KeyCode27.UP:
-            case KeyCode27.RIGHT:
-            case KeyCode27.DOWN:
-            case KeyCode27.LEFT:
+            case KeyCode28.UP:
+            case KeyCode28.RIGHT:
+            case KeyCode28.DOWN:
+            case KeyCode28.LEFT:
               e.preventDefault();
-              if (key === KeyCode27.RIGHT) {
+              if (key === KeyCode28.RIGHT) {
                 menuItem.openSubMenu(true);
               }
               break;
@@ -27864,7 +29286,7 @@ var BaseMultiFilter = class extends TabGuardComp2 {
           if (!suppressFocus && isFirst && notInlineDisplayType) {
             const filterGui = filterGuis[index];
             if (filterGui) {
-              if (!_focusInto7(filterGui)) {
+              if (!_focusInto8(filterGui)) {
                 filterGui.focus({ preventScroll: true });
               }
               hasFocused = true;
@@ -27872,7 +29294,7 @@ var BaseMultiFilter = class extends TabGuardComp2 {
           }
         });
       }
-      const activeEl = _getActiveDomElement11(beans);
+      const activeEl = _getActiveDomElement12(beans);
       if (!hasFocused && (_isNothingFocused3(beans) || this.getGui().contains(activeEl))) {
         this.forceFocusOutOfContainer(true);
       }
@@ -28332,8 +29754,8 @@ var MultiFilter = class extends BaseMultiFilter {
 };
 
 // packages/ag-grid-enterprise/src/multiFilter/multiFilterHandler.ts
-import { BeanStub as BeanStub22, _removeFromArray as _removeFromArray2, _warn as _warn24 } from "ag-grid-community";
-var MultiFilterHandler = class extends BeanStub22 {
+import { BeanStub as BeanStub24, _removeFromArray as _removeFromArray2, _warn as _warn25 } from "ag-grid-community";
+var MultiFilterHandler = class extends BeanStub24 {
   constructor() {
     super(...arguments);
     /** Used to get the filter type for filter models. */
@@ -28351,7 +29773,7 @@ var MultiFilterHandler = class extends BeanStub22 {
       const wrapper = this.beans.colFilter.createHandler(params.column, def, "agTextColumnFilter");
       this.handlerWrappers.push(wrapper);
       if (!wrapper) {
-        _warn24(278, { colId: params.column.getColId() });
+        _warn25(278, { colId: params.column.getColId() });
         return;
       }
       const { handler, handlerParams } = wrapper;
@@ -28381,7 +29803,7 @@ var MultiFilterHandler = class extends BeanStub22 {
     if (params.source !== "floating" && params.source !== "ui") {
       this.resetActiveList(params.model);
     }
-    if (params.additionalEventAttributes?.fromButtons) {
+    if (params.additionalEventAttributes?.fromButtons || params.source === "floating") {
       this.onAnyFilterChanged();
     }
   }
@@ -28402,7 +29824,7 @@ var MultiFilterHandler = class extends BeanStub22 {
   updateFilterParams(params, isInit, providedFilterParams) {
     const originalFilterParams = params.filterParams;
     if (providedFilterParams?.buttons && isInit) {
-      _warn24(292, { colId: params.column.getColId() });
+      _warn25(292, { colId: params.column.getColId() });
     }
     const filterParamsForFilter = providedFilterParams ? { ...originalFilterParams, ...providedFilterParams } : originalFilterParams;
     if (!filterParamsForFilter.buttons) {
@@ -28482,8 +29904,8 @@ var MultiFilterHandler = class extends BeanStub22 {
 };
 
 // packages/ag-grid-enterprise/src/multiFilter/multiFilterService.ts
-import { BeanStub as BeanStub23, _getDefaultSimpleFilter, _getFilterParamsForDataType } from "ag-grid-community";
-var MultiFilterService = class extends BeanStub23 {
+import { BeanStub as BeanStub25, _getDefaultSimpleFilter, _getFilterParamsForDataType } from "ag-grid-community";
+var MultiFilterService = class extends BeanStub25 {
   constructor() {
     super(...arguments);
     this.beanName = "multiFilter";
@@ -28530,7 +29952,7 @@ var MultiFilterService = class extends BeanStub23 {
 };
 
 // packages/ag-grid-enterprise/src/multiFilter/multiFilterUi.ts
-import { AgPromise as AgPromise9, _getFilterDetails, _isUseApplyButton, _refreshFilterUi as _refreshFilterUi2, _warn as _warn25 } from "ag-grid-community";
+import { AgPromise as AgPromise9, _getFilterDetails, _isUseApplyButton, _refreshFilterUi as _refreshFilterUi2, _warn as _warn26 } from "ag-grid-community";
 var MultiFilterUi = class extends BaseMultiFilter {
   constructor() {
     super(...arguments);
@@ -28543,7 +29965,7 @@ var MultiFilterUi = class extends BaseMultiFilter {
     this.params = params;
     const filterDefs = getMultiFilterDefs(params).map((filterDef) => {
       if (filterDef.filterParams?.buttons) {
-        _warn25(292, { colId: params.column.getColId() });
+        _warn26(292, { colId: params.column.getColId() });
         const newParams = { ...filterDef.filterParams };
         delete newParams.buttons;
         return {
@@ -28560,6 +29982,11 @@ var MultiFilterUi = class extends BaseMultiFilter {
     );
     return new AgPromise9((resolve) => {
       AgPromise9.all(filterPromises).then((filters) => {
+        if (!this.isAlive()) {
+          this.destroyBeans(filters ?? []);
+          resolve();
+          return;
+        }
         this.filters = filters;
         this.refreshGui("columnMenu").then(() => {
           resolve();
@@ -28599,10 +30026,7 @@ var MultiFilterUi = class extends BaseMultiFilter {
     return this.filters.length;
   }
   destroy() {
-    for (const filter of this.filters) {
-      this.destroyBean(filter);
-    }
-    this.filters.length = 0;
+    this.filters = this.destroyBeans(this.filters);
     super.destroy();
   }
   getFilterWrappers() {
@@ -28729,19 +30153,19 @@ var MultiFilterUi = class extends BaseMultiFilter {
 // packages/ag-grid-enterprise/src/multiFilter/multiFloatingFilter.ts
 import {
   AgPromise as AgPromise10,
-  Component as Component36,
-  _clearElement as _clearElement11,
-  _error as _error5,
+  Component as Component43,
+  _clearElement as _clearElement13,
+  _error as _error10,
   _getDefaultFloatingFilterType,
   _getFloatingFilterCompDetails,
   _mergeDeep as _mergeDeep2,
-  _setDisplayed as _setDisplayed17
+  _setDisplayed as _setDisplayed19
 } from "ag-grid-community";
 var MultiFloatingFilterElement = {
   tag: "div",
   cls: "ag-multi-floating-filter ag-floating-filter-input"
 };
-var MultiFloatingFilterComp = class extends Component36 {
+var MultiFloatingFilterComp = class extends Component43 {
   constructor() {
     super(MultiFloatingFilterElement);
     this.floatingFilters = [];
@@ -28767,7 +30191,7 @@ var MultiFloatingFilterComp = class extends Component36 {
         const gui = floatingFilter.getGui();
         this.appendChild(gui);
         if (index > 0) {
-          _setDisplayed17(gui, false);
+          _setDisplayed19(gui, false);
         }
       });
     });
@@ -28787,18 +30211,18 @@ var MultiFloatingFilterComp = class extends Component36 {
         const reactiveParams = params;
         if (reactiveParams.model == null) {
           this.floatingFilters.forEach((filter, i) => {
-            _setDisplayed17(filter.getGui(), i === 0);
+            _setDisplayed19(filter.getGui(), i === 0);
           });
         } else {
           const lastActiveFloatingFilterIndex = reactiveParams.getHandler()?.getLastActiveFilterIndex?.();
           this.floatingFilters.forEach((filter, i) => {
             const shouldShow = lastActiveFloatingFilterIndex == null ? i === 0 : i === lastActiveFloatingFilterIndex;
-            _setDisplayed17(filter.getGui(), shouldShow);
+            _setDisplayed19(filter.getGui(), shouldShow);
           });
         }
       }
     } else {
-      _clearElement11(this.getGui());
+      _clearElement13(this.getGui());
       this.destroyBeans(this.floatingFilters);
       this.floatingFilters = [];
       this.compDetailsList = [];
@@ -28862,7 +30286,7 @@ var MultiFloatingFilterComp = class extends Component36 {
       if (model == null) {
         this.floatingFilters.forEach((filter, i) => {
           filter.onParentModelChanged(null, event);
-          _setDisplayed17(filter.getGui(), i === 0);
+          _setDisplayed19(filter.getGui(), i === 0);
         });
       } else {
         const lastActiveFloatingFilterIndex = parent.getLastActiveFilterIndex();
@@ -28870,7 +30294,7 @@ var MultiFloatingFilterComp = class extends Component36 {
           const filterModel = model.filterModels.length > i ? model.filterModels[i] : null;
           filter.onParentModelChanged(filterModel, event);
           const shouldShow = lastActiveFloatingFilterIndex == null ? i === 0 : i === lastActiveFloatingFilterIndex;
-          _setDisplayed17(filter.getGui(), shouldShow);
+          _setDisplayed19(filter.getGui(), shouldShow);
         });
       }
     });
@@ -28892,7 +30316,7 @@ var MultiFloatingFilterComp = class extends Component36 {
   parentMultiFilterInstance(cb) {
     this.params.parentFilterInstance((parent) => {
       if (!(parent instanceof MultiFilter || parent instanceof MultiFilterUi)) {
-        _error5(120);
+        _error10(120);
       }
       cb(parent);
     });
@@ -28925,8 +30349,8 @@ var MultiFilterModule = {
 import { _ColumnFilterModule as _ColumnFilterModule3, _PopupModule as _PopupModule4 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/aggregation/aggColumnNameService.ts
-import { BeanStub as BeanStub24, _exists as _exists17 } from "ag-grid-community";
-var AggColumnNameService = class extends BeanStub24 {
+import { BeanStub as BeanStub26, _exists as _exists17 } from "ag-grid-community";
+var AggColumnNameService = class extends BeanStub26 {
   constructor() {
     super(...arguments);
     this.beanName = "aggColNameSvc";
@@ -28936,14 +30360,14 @@ var AggColumnNameService = class extends BeanStub24 {
       return headerName;
     }
     const { valueColsSvc, colModel, rowGroupColsSvc } = this.beans;
-    const pivotValueColumn = column.getColDef().pivotValueColumn;
+    const pivotValueColumn = column.colDef.pivotValueColumn;
     const pivotActiveOnThisColumn = _exists17(pivotValueColumn);
     let aggFunc = null;
     let aggFuncFound;
     if (pivotActiveOnThisColumn) {
       const valueColumns = valueColsSvc?.columns ?? [];
       const isCollapsedHeaderEnabled = this.gos.get("removePivotHeaderRowWhenSingleValueColumn") && valueColumns.length === 1;
-      const isTotalColumn = column.getColDef().pivotTotalColumnIds !== void 0;
+      const isTotalColumn = column.colDef.pivotTotalColumnIds !== void 0;
       if (isCollapsedHeaderEnabled && !isTotalColumn) {
         return headerName;
       }
@@ -28952,7 +30376,7 @@ var AggColumnNameService = class extends BeanStub24 {
     } else {
       const measureActive = column.isValueActive();
       const isGrouping = rowGroupColsSvc?.columns.length !== 0;
-      const aggregationPresent = colModel.isPivotMode() || isGrouping || this.gos.get("treeData");
+      const aggregationPresent = colModel.pivotMode || isGrouping || this.gos.get("treeData");
       if (measureActive && aggregationPresent) {
         aggFunc = column.getAggFunc();
         aggFuncFound = true;
@@ -28971,7 +30395,7 @@ var AggColumnNameService = class extends BeanStub24 {
 };
 
 // packages/ag-grid-enterprise/src/aggregation/aggFuncService.ts
-import { BeanStub as BeanStub25, _exists as _exists18, _last as _last9 } from "ag-grid-community";
+import { BeanStub as BeanStub27, _exists as _exists18, _last as _last9 } from "ag-grid-community";
 var defaultAggFuncNames = {
   sum: "Sum",
   first: "First",
@@ -28981,7 +30405,7 @@ var defaultAggFuncNames = {
   count: "Count",
   avg: "Average"
 };
-var AggFuncService = class extends BeanStub25 {
+var AggFuncService = class extends BeanStub27 {
   constructor() {
     super(...arguments);
     this.beanName = "aggFuncSvc";
@@ -29019,7 +30443,7 @@ var AggFuncService = class extends BeanStub25 {
     return defaultAggFuncNames[fctName] ?? fctName;
   }
   getDefaultAggFunc(column) {
-    const defaultAgg = column.getColDef().defaultAggFunc;
+    const defaultAgg = column.colDef.defaultAggFunc;
     if (_exists18(defaultAgg) && this.isAggFuncPossible(column, defaultAgg)) {
       return defaultAgg;
     }
@@ -29045,7 +30469,7 @@ var AggFuncService = class extends BeanStub25 {
     return this.aggFuncsMap[name];
   }
   getFuncNames(column) {
-    const userAllowedFuncs = column.getColDef().allowedAggFuncs;
+    const userAllowedFuncs = column.colDef.allowedAggFuncs;
     return userAllowedFuncs == null ? Object.keys(this.aggFuncsMap).sort() : userAllowedFuncs;
   }
   clear() {
@@ -29120,7 +30544,7 @@ function aggCount(params) {
     count += value != null && typeof value.value === "number" ? value.value : 1;
   }
   const existingAggData = params.rowNode?.aggData?.[params.column.getColId()];
-  if (existingAggData && existingAggData.value === count) {
+  if (existingAggData?.value === count) {
     return existingAggData;
   }
   const result = Object.create(COUNT_PROTO);
@@ -29163,7 +30587,7 @@ function aggAvg(params) {
     value = sum / (typeof sum === "number" ? count : BigInt(count));
   }
   const existingAggData = params.rowNode?.aggData?.[params.column?.getColId()];
-  if (existingAggData && existingAggData.count === count && existingAggData.value === value) {
+  if (existingAggData?.count === count && existingAggData.value === value) {
     return existingAggData;
   }
   const result = Object.create(AVERAGE_PROTO);
@@ -29173,8 +30597,8 @@ function aggAvg(params) {
 }
 
 // packages/ag-grid-enterprise/src/aggregation/aggregatedChildrenSvc.ts
-import { BeanStub as BeanStub26, _getGroupAggFiltering } from "ag-grid-community";
-var AggregatedChildrenSvc = class extends BeanStub26 {
+import { BeanStub as BeanStub28, _getGroupAggFiltering } from "ag-grid-community";
+var AggregatedChildrenSvc = class extends BeanStub28 {
   constructor() {
     super(...arguments);
     this.beanName = "aggChildrenSvc";
@@ -29241,13 +30665,13 @@ function setColumnAggFunc(beans, key, aggFunc) {
 
 // packages/ag-grid-enterprise/src/aggregation/aggregationStage.ts
 import {
-  BeanStub as BeanStub27,
+  BeanStub as BeanStub29,
   _forEachChangedGroupDepthFirst,
   _getGrandTotalRow as _getGrandTotalRow3,
   _getGroupAggFiltering as _getGroupAggFiltering2,
-  _warn as _warn26
+  _warn as _warn27
 } from "ag-grid-community";
-var AggregationStage = class extends BeanStub27 {
+var AggregationStage = class extends BeanStub29 {
   constructor() {
     super(...arguments);
     this.beanName = "aggStage";
@@ -29280,7 +30704,7 @@ var AggregationStage = class extends BeanStub27 {
     this.hadAgg = true;
     const colModel = beans.colModel;
     const aggFuncSvc = beans.aggFuncSvc;
-    const aggregateRoot = gos.get("alwaysAggregateAtRootLevel") || !!_getGrandTotalRow3(gos) || colModel.isPivotMode();
+    const aggregateRoot = gos.get("alwaysAggregateAtRootLevel") || !!_getGrandTotalRow3(gos) || colModel.pivotMode;
     const filteredOnly = !_getGroupAggFiltering2(gos) && !gos.get("suppressAggFilteredOnly");
     const valueSvc = beans.valueSvc;
     const api = beans.gridApi;
@@ -29470,7 +30894,7 @@ var resolveAggFunc = (aggFuncOrString, aggFuncSvc, column) => {
   }
   const aggFunc = aggFuncSvc.getAggFunc(aggFuncOrString);
   if (typeof aggFunc !== "function") {
-    _warn26(109, { inputValue: aggFuncOrString.toString(), allSuggestions: aggFuncSvc.getFuncNames(column) });
+    _warn27(109, { inputValue: aggFuncOrString.toString(), allSuggestions: aggFuncSvc.getFuncNames(column) });
     return null;
   }
   return aggFunc;
@@ -29510,8 +30934,8 @@ var resolvePivotColumns = (colModel, pivotResultCols, aggFuncSvc) => {
 };
 
 // packages/ag-grid-enterprise/src/aggregation/filterAggregatesStage.ts
-import { BeanStub as BeanStub28, _forEachChangedGroupDepthFirst as _forEachChangedGroupDepthFirst2, _getGroupAggFiltering as _getGroupAggFiltering3 } from "ag-grid-community";
-var FilterAggregatesStage = class extends BeanStub28 {
+import { BeanStub as BeanStub30, _forEachChangedGroupDepthFirst as _forEachChangedGroupDepthFirst2, _getGroupAggFiltering as _getGroupAggFiltering3 } from "ag-grid-community";
+var FilterAggregatesStage = class extends BeanStub30 {
   constructor() {
     super(...arguments);
     this.beanName = "filterAggStage";
@@ -29559,7 +30983,7 @@ var FilterAggregatesStage = class extends BeanStub28 {
   execute(changedPath) {
     const { rowModel, colModel, groupStage } = this.beans;
     const { filterManager } = this;
-    const isPivotMode2 = colModel.isPivotMode();
+    const isPivotMode2 = colModel.pivotMode;
     const isAggFilterActive = filterManager?.isAggregateFilterPresent() || filterManager?.isAggregateQuickFilterPresent();
     const isTreeData = !!groupStage?.treeData;
     const defaultPrimaryColumnPredicate = (params) => !params.node.group;
@@ -29619,22 +31043,24 @@ var FilterAggregatesStage = class extends BeanStub28 {
 };
 
 // packages/ag-grid-enterprise/src/aggregation/footerService.ts
-import { BeanStub as BeanStub29, _addGridCommonParams as _addGridCommonParams17, _getGrandTotalRow as _getGrandTotalRow4, _getGroupTotalRowCallback, _warn as _warn27 } from "ag-grid-community";
+import { BeanStub as BeanStub31, _addGridCommonParams as _addGridCommonParams19, _getGrandTotalRow as _getGrandTotalRow4, _getGroupTotalRowCallback, _warn as _warn28 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/aggregation/footerUtils.ts
-import { _createRowNodeSibling } from "ag-grid-community";
-function _createRowNodeFooter(rowNode, beans) {
-  if (rowNode.sibling) {
-    return;
+import { GROUP_TOTAL_ROW_ID_PREFIX, _createRowNodeSibling } from "ag-grid-community";
+function _createRowNodeFooter(rowNode, beans, id) {
+  let footerNode = rowNode.sibling;
+  if (footerNode) {
+    return footerNode;
   }
-  const footerNode = _createRowNodeSibling(rowNode, beans);
+  footerNode = _createRowNodeSibling(rowNode, beans);
   footerNode.footer = true;
   footerNode.setRowTop(null);
   footerNode.setRowIndex(null);
   footerNode.oldRowTop = null;
-  footerNode.id = "rowGroupFooter_" + rowNode.id;
+  footerNode.id = id ?? GROUP_TOTAL_ROW_ID_PREFIX + rowNode.id;
   footerNode.sibling = rowNode;
   rowNode.sibling = footerNode;
+  return footerNode;
 }
 function _destroyRowNodeFooter(rowNode) {
   const sibling = rowNode.sibling;
@@ -29647,7 +31073,7 @@ function _destroyRowNodeFooter(rowNode) {
 }
 
 // packages/ag-grid-enterprise/src/aggregation/footerService.ts
-var FooterService = class extends BeanStub29 {
+var FooterService = class extends BeanStub31 {
   constructor() {
     super(...arguments);
     this.beanName = "footerSvc";
@@ -29657,16 +31083,14 @@ var FooterService = class extends BeanStub29 {
     if (isRootNode) {
       const grandTotal = includeFooterNodes && _getGrandTotalRow4(this.gos);
       if (_positionMatchesGrandTotalRow(position, grandTotal)) {
-        _createRowNodeFooter(node, this.beans);
-        callback(node.sibling, index++);
+        callback(_createRowNodeFooter(node, this.beans), index++);
       }
       return index;
     }
     const isGroupIncludeFooter = _getGroupTotalRowCallback(this.gos);
     const groupTotal = includeFooterNodes && isGroupIncludeFooter({ node });
     if (groupTotal === position) {
-      _createRowNodeFooter(node, this.beans);
-      callback(node.sibling, index++);
+      callback(_createRowNodeFooter(node, this.beans), index++);
     }
     return index;
   }
@@ -29700,7 +31124,7 @@ var FooterService = class extends BeanStub29 {
   applyTotalPrefix(value, formattedValue, node, column) {
     const totalValueGetter = column.getColDef().cellRendererParams?.totalValueGetter;
     if (totalValueGetter) {
-      const valueGetterParams = _addGridCommonParams17(this.gos, { column, node, value, formattedValue });
+      const valueGetterParams = _addGridCommonParams19(this.gos, { column, node, value, formattedValue });
       const getterType = typeof totalValueGetter;
       if (getterType === "function") {
         return totalValueGetter(valueGetterParams);
@@ -29708,7 +31132,7 @@ var FooterService = class extends BeanStub29 {
       if (typeof totalValueGetter === "string") {
         return this.beans.expressionSvc?.evaluate(totalValueGetter, valueGetterParams);
       }
-      _warn27(179);
+      _warn28(179);
     }
     if (node.level === -1) {
       return this.getLocaleTextFunc()("footerTotal", "Total") + " ";
@@ -29733,7 +31157,7 @@ function _positionMatchesGrandTotalRow(position, grandTotaRow) {
 }
 
 // packages/ag-grid-enterprise/src/aggregation/valueColsSvc.ts
-import { BaseColsService, _exists as _exists19, _removeFromArray as _removeFromArray3, _warn as _warn28 } from "ag-grid-community";
+import { BaseColsService, _exists as _exists19, _removeFromArray as _removeFromArray3, _warn as _warn29 } from "ag-grid-community";
 var ValueColsSvc = class extends BaseColsService {
   constructor() {
     super(...arguments);
@@ -29770,7 +31194,7 @@ var ValueColsSvc = class extends BaseColsService {
   extractCols(source, oldProvidedCols) {
     this.columns = super.extractCols(source, oldProvidedCols);
     for (const col of this.columns) {
-      const colDef = col.getColDef();
+      const colDef = col.colDef;
       if (colDef.aggFunc != null && colDef.aggFunc != "") {
         this.setColAggFunc(col, colDef.aggFunc);
       } else if (!col.getAggFunc()) {
@@ -29801,7 +31225,7 @@ var ValueColsSvc = class extends BaseColsService {
         }
       } else {
         if (_exists19(aggFunc)) {
-          _warn28(33);
+          _warn29(33);
         }
         if (column.isValueActive()) {
           this.setColValueActive(column, false, source);
@@ -30009,7 +31433,7 @@ var RowGroupColsSvc = class extends BaseColsService3 {
 // packages/ag-grid-enterprise/src/rowHierarchy/autoColService.ts
 import {
   AgColumn,
-  BeanStub as BeanStub30,
+  BeanStub as BeanStub32,
   GROUP_AUTO_COLUMN_ID,
   _addColumnDefaultAndTypes,
   _applyColumnState as _applyColumnState2,
@@ -30025,10 +31449,10 @@ import {
   _mergeDeep as _mergeDeep3,
   _missing as _missing3,
   _updateColsMap,
-  _warn as _warn29,
+  _warn as _warn30,
   isColumnGroupAutoCol as isColumnGroupAutoCol2
 } from "ag-grid-community";
-var AutoColService = class extends BeanStub30 {
+var AutoColService = class extends BeanStub32 {
   constructor() {
     super(...arguments);
     this.beanName = "autoColSvc";
@@ -30060,7 +31484,7 @@ var AutoColService = class extends BeanStub30 {
   createColumns(cols, updateOrders, source) {
     const beans = this.beans;
     const { colModel, gos, rowGroupColsSvc, colGroupSvc } = beans;
-    const isPivotMode2 = colModel.isPivotMode();
+    const isPivotMode2 = colModel.pivotMode;
     const groupFullWidthRow = _isGroupUseEntireRow(gos, isPivotMode2);
     const suppressAutoColumn = isPivotMode2 ? gos.get("pivotSuppressAutoColumn") : this.isSuppressAutoCol();
     const rowGroupCols = rowGroupColsSvc?.columns;
@@ -30086,7 +31510,7 @@ var AutoColService = class extends BeanStub30 {
       for (const col of this.columns?.list ?? []) {
         const newDef = colsMap.get(col.getId());
         if (newDef) {
-          col.setColDef(newDef.getColDef(), null, source);
+          col.setColDef(newDef.colDef, null, source);
         }
       }
       return;
@@ -30125,7 +31549,7 @@ var AutoColService = class extends BeanStub30 {
     const doingTreeData = gos.get("treeData");
     let doingMultiAutoColumn = _isGroupMultiAutoColumn(gos);
     if (doingTreeData && doingMultiAutoColumn) {
-      _warn29(182);
+      _warn30(182);
       doingMultiAutoColumn = false;
     }
     if (doingMultiAutoColumn) {
@@ -30165,7 +31589,7 @@ var AutoColService = class extends BeanStub30 {
    * Refreshes an auto group col to load changes from defaultColDef or autoGroupColDef
    */
   updateOneAutoCol(colToUpdate, index, source) {
-    const oldColDef = colToUpdate.getColDef();
+    const oldColDef = colToUpdate.colDef;
     const underlyingColId = typeof oldColDef.showRowGroup == "string" ? oldColDef.showRowGroup : void 0;
     const beans = this.beans;
     const underlyingColumn = underlyingColId != null ? beans.colModel.getColDefCol(underlyingColId) : void 0;
@@ -30207,7 +31631,7 @@ var AutoColService = class extends BeanStub30 {
     const localeTextFunc = this.getLocaleTextFunc();
     const res = {
       headerName: localeTextFunc("group", "Group"),
-      showRowGroup: rowGroupCol?.getColId() ?? true
+      showRowGroup: rowGroupCol?.colId ?? true
     };
     const userHasProvidedGroupCellRenderer = userDef && (userDef.cellRenderer || userDef.cellRendererSelector);
     if (!userHasProvidedGroupCellRenderer) {
@@ -30288,7 +31712,7 @@ var AutoColService = class extends BeanStub30 {
 };
 
 // packages/ag-grid-enterprise/src/rowHierarchy/changedPathImpl/changedPathFactory.ts
-import { BeanStub as BeanStub31 } from "ag-grid-community";
+import { BeanStub as BeanStub33 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/rowHierarchy/sortNodesByDepthFirst.ts
 var _sortBuckets = null;
@@ -30664,7 +32088,7 @@ var ChangedRowsPathImpl = class {
 };
 
 // packages/ag-grid-enterprise/src/rowHierarchy/changedPathImpl/changedPathFactory.ts
-var ChangedPathFactory = class extends BeanStub31 {
+var ChangedPathFactory = class extends BeanStub33 {
   constructor() {
     super(...arguments);
     this.beanName = "changedPathFactory";
@@ -30688,12 +32112,12 @@ var ChangedPathFactory = class extends BeanStub31 {
   }
 };
 
-// packages/ag-grid-enterprise/src/rowHierarchy/clientSideExpansionService.ts
+// packages/ag-grid-enterprise/src/rowHierarchy/csrmExpansionService.ts
 import { _exists as _exists20 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/rowHierarchy/baseExpansionService.ts
-import { BeanStub as BeanStub32, _addGridCommonParams as _addGridCommonParams18, _createGlobalRowEvent, _setAriaExpanded as _setAriaExpanded8 } from "ag-grid-community";
-var BaseExpansionService = class extends BeanStub32 {
+import { BeanStub as BeanStub34, _addGridCommonParams as _addGridCommonParams20, _createGlobalRowEvent, _setAriaExpanded as _setAriaExpanded9 } from "ag-grid-community";
+var BaseExpansionService = class extends BeanStub34 {
   addExpandedCss(classes, rowNode) {
     if (rowNode.isExpandable()) {
       classes.push("ag-row-group");
@@ -30712,6 +32136,9 @@ var BaseExpansionService = class extends BeanStub32 {
     if (rowNode.expanded === expanded) {
       return;
     }
+    if (!expanded && rowNode.sticky) {
+      this.beans.ctrlsSvc.getScrollFeature().setVerticalScrollPosition(rowNode.rowTop - rowNode.stickyRowTop);
+    }
     rowNode._expanded = expanded;
     rowNode.dispatchRowEvent("expandedChanged");
     const event = { ..._createGlobalRowEvent(rowNode, this.gos, "rowGroupOpened"), expanded, event: e || null };
@@ -30726,7 +32153,7 @@ var BaseExpansionService = class extends BeanStub32 {
       const groupDefaultExpanded = gos.get("groupDefaultExpanded");
       return groupDefaultExpanded === -1 || level < groupDefaultExpanded;
     }
-    const params = _addGridCommonParams18(gos, {
+    const params = _addGridCommonParams20(gos, {
       rowNode,
       field: rowNode.field,
       key: rowNode.key,
@@ -30739,7 +32166,7 @@ var BaseExpansionService = class extends BeanStub32 {
     if (rowNode.footer) {
       return false;
     }
-    if (this.beans.colModel.isPivotMode()) {
+    if (this.beans.colModel.pivotMode) {
       return rowNode.hasChildren() && !rowNode.leafGroup;
     }
     return rowNode.hasChildren() || rowNode.master;
@@ -30752,7 +32179,7 @@ var BaseExpansionService = class extends BeanStub32 {
       rowComp.toggleCss("ag-row-group", expandable);
       rowComp.toggleCss("ag-row-group-expanded", expandable && expanded);
       rowComp.toggleCss("ag-row-group-contracted", expandable && !expanded);
-      _setAriaExpanded8(gui.element, expandable && expanded);
+      _setAriaExpanded9(gui.element, expandable && expanded);
     });
   }
   dispatchStateUpdatedEvent() {
@@ -30760,8 +32187,8 @@ var BaseExpansionService = class extends BeanStub32 {
   }
 };
 
-// packages/ag-grid-enterprise/src/rowHierarchy/clientSideExpansionService.ts
-var ClientSideExpansionService = class extends BaseExpansionService {
+// packages/ag-grid-enterprise/src/rowHierarchy/csrmExpansionService.ts
+var CsrmExpansionService = class extends BaseExpansionService {
   constructor() {
     super(...arguments);
     this.beanName = "expansionSvc";
@@ -30807,7 +32234,7 @@ var ClientSideExpansionService = class extends BaseExpansionService {
     if (rowNode.footer) {
       return !!rowNode._expanded;
     }
-    if (!(rowNode.group || rowNode.master) || rowNode.leafGroup && this.beans.colModel.isPivotMode()) {
+    if (!(rowNode.group || rowNode.master) || rowNode.leafGroup && this.beans.colModel.pivotMode) {
       return false;
     }
     let value = rowNode._expanded;
@@ -30959,7 +32386,7 @@ var ClientSideExpansionService = class extends BaseExpansionService {
 };
 
 // packages/ag-grid-enterprise/src/rowHierarchy/flattenStage.ts
-import { BeanStub as BeanStub33 } from "ag-grid-community";
+import { BeanStub as BeanStub35, _getGrandTotalPinnedFloat } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/rowHierarchy/flattenUtils.ts
 import { _getGrandTotalRow as _getGrandTotalRow5, _getGroupTotalRowCallback as _getGroupTotalRowCallback2, _isGroupMultiAutoColumn as _isGroupMultiAutoColumn2 } from "ag-grid-community";
@@ -31006,7 +32433,7 @@ function _shouldRowBeRendered(details, rowNode, isParent, skipLeafNodes, isRemov
 }
 
 // packages/ag-grid-enterprise/src/rowHierarchy/flattenStage.ts
-var FlattenStage = class extends BeanStub33 {
+var FlattenStage = class extends BeanStub35 {
   constructor() {
     super(...arguments);
     this.beanName = "flattenStage";
@@ -31026,7 +32453,7 @@ var FlattenStage = class extends BeanStub33 {
     if (!rootNode) {
       return result;
     }
-    const skipLeafNodes = beans.colModel.isPivotMode();
+    const skipLeafNodes = beans.colModel.pivotMode;
     const showRootNode = skipLeafNodes && rootNode.leafGroup && rootNode.aggData;
     const topList = showRootNode ? [rootNode] : rootNode.childrenAfterSort;
     const details = _getFlattenDetails(gos);
@@ -31036,12 +32463,12 @@ var FlattenStage = class extends BeanStub33 {
     const includeGrandTotalRow = !showRootNode && // don't show total footer when showRootNode is true (i.e. in pivot mode and no groups)
     atLeastOneRowPresent && grandTotalRow;
     if (includeGrandTotalRow) {
-      _createRowNodeFooter(rootNode, beans);
-      if (grandTotalRow === "pinnedBottom" || grandTotalRow === "pinnedTop") {
-        this.beans.pinnedRowModel?.setGrandTotalPinned(grandTotalRow === "pinnedBottom" ? "bottom" : "top");
+      const footerNode = _createRowNodeFooter(rootNode, beans);
+      const pinnedFloat = _getGrandTotalPinnedFloat(grandTotalRow);
+      if (pinnedFloat) {
+        this.beans.pinnedRowModel?.setGrandTotalPinned(pinnedFloat);
       } else {
-        const addToTop = grandTotalRow === "top";
-        this.addRowNodeToRowsToDisplay(details, rootNode.sibling, result, 0, addToTop);
+        this.addRowNodeToRowsToDisplay(details, footerNode, result, 0, grandTotalRow === "top");
       }
     }
     return result;
@@ -31078,9 +32505,10 @@ var FlattenStage = class extends BeanStub33 {
             _destroyRowNodeFooter(rowNode);
           }
           const uiLevelForChildren = excludedParent ? uiLevel : uiLevel + 1;
+          let footerNode;
           if (doesRowShowFooter === "top") {
-            _createRowNodeFooter(rowNode, this.beans);
-            this.addRowNodeToRowsToDisplay(details, rowNode.sibling, result, uiLevelForChildren);
+            footerNode = _createRowNodeFooter(rowNode, this.beans);
+            this.addRowNodeToRowsToDisplay(details, footerNode, result, uiLevelForChildren);
           }
           const detailNode = masterDetailSvc?.getDetail(rowNode);
           if (detailNode) {
@@ -31094,8 +32522,8 @@ var FlattenStage = class extends BeanStub33 {
             uiLevelForChildren
           );
           if (doesRowShowFooter === "bottom") {
-            _createRowNodeFooter(rowNode, this.beans);
-            this.addRowNodeToRowsToDisplay(details, rowNode.sibling, result, uiLevelForChildren);
+            footerNode = _createRowNodeFooter(rowNode, this.beans);
+            this.addRowNodeToRowsToDisplay(details, footerNode, result, uiLevelForChildren);
           }
         }
       } else {
@@ -31119,7 +32547,7 @@ var FlattenStage = class extends BeanStub33 {
 
 // packages/ag-grid-enterprise/src/rowHierarchy/groupEditService.ts
 import {
-  BeanStub as BeanStub34,
+  BeanStub as BeanStub36,
   _ChangedRowNodes,
   _csrmFirstLeaf,
   _csrmReorderAllLeafs,
@@ -31127,7 +32555,7 @@ import {
   _isClientSideRowModel as _isClientSideRowModel4,
   _prevOrNextDisplayedRow
 } from "ag-grid-community";
-var GroupEditService = class extends BeanStub34 {
+var GroupEditService = class extends BeanStub36 {
   constructor() {
     super(...arguments);
     this.beanName = "groupEditSvc";
@@ -31157,7 +32585,7 @@ var GroupEditService = class extends BeanStub34 {
     if (!this.gos.get("refreshAfterGroupEdit")) {
       return false;
     }
-    return !!this.beans.rowGroupColsSvc?.columns?.length && !this.beans.colModel.isPivotMode();
+    return !!this.beans.rowGroupColsSvc?.columns?.length && !this.beans.colModel.pivotMode;
   }
   initDraggingGroups(rowsDrop) {
     const structure = /* @__PURE__ */ new Map();
@@ -31374,7 +32802,7 @@ var GroupEditService = class extends BeanStub34 {
       nextRow = rowModel.getRow(nextRowIndex++);
     } while (nextRow?.footer);
     const childrenAfterGroup = this.draggingGroups?.get(target) ?? target.childrenAfterGroup;
-    if (nextRow && nextRow.parent === target && childrenAfterGroup?.length) {
+    if (nextRow?.parent === target && childrenAfterGroup?.length) {
       const rowsSet = new Set(rows);
       for (let i = 0, len = childrenAfterGroup.length; i < len; ++i) {
         const child = childrenAfterGroup[i];
@@ -31493,7 +32921,7 @@ var GroupEditService = class extends BeanStub34 {
     while (current && current.level >= 0) {
       const column = columns[current.level];
       if (column) {
-        const colId = column.getColId();
+        const colId = column.colId;
         const level = current.level;
         values[level] = current.groupData?.[colId] ?? current.key ?? void 0;
         if (level > maxLevel) {
@@ -31659,9 +33087,245 @@ var rowsHaveSameParent = (rows, newParent) => {
   return true;
 };
 
+// packages/ag-grid-enterprise/src/rowHierarchy/groupFilterStage.ts
+import { BeanStub as BeanStub37, _forEachChangedGroupDepthFirst as _forEachChangedGroupDepthFirst3 } from "ag-grid-community";
+var syncSibling = (node) => {
+  const sibling = node.sibling;
+  if (sibling) {
+    sibling.childrenAfterFilter = node.childrenAfterFilter;
+  }
+};
+var passThrough = (node) => {
+  node.childrenAfterFilter = node.childrenAfterGroup;
+  syncSibling(node);
+};
+var passesFilter = (child, fm) => {
+  if (child.childrenAfterFilter && child.childrenAfterFilter.length > 0) {
+    return true;
+  }
+  return !!(child.data && fm.doesRowPassFilter(child));
+};
+var filterDeep = (rows, prev, fm) => {
+  const len = rows.length;
+  prev ?? (prev = rows);
+  const prevLen = prev.length;
+  let n = 0;
+  for (let i = 0; i < len; ++i) {
+    const row = rows[i];
+    if (passesFilter(row, fm)) {
+      if (n >= prevLen || prev[n] !== row) {
+        return filterDeepBuild(rows, len, i, prev, n, fm);
+      }
+      ++n;
+    } else if (n < prevLen) {
+      return filterDeepBuild(rows, len, i, prev, n, fm);
+    }
+  }
+  return n === prevLen ? prev : rows;
+};
+var filterDeepBuild = (rows, len, i, prev, n, fm) => {
+  const result = n > 0 ? prev.slice(0, n) : [];
+  while (i < len) {
+    const row = rows[i++];
+    if (passesFilter(row, fm)) {
+      result.push(row);
+    }
+  }
+  return result;
+};
+var GroupFilterStage = class extends BeanStub37 {
+  constructor() {
+    super(...arguments);
+    this.beanName = "groupFilterStage";
+    this.step = "filter";
+    this.refreshProps = ["excludeChildrenWhenTreeDataFiltering"];
+  }
+  wireBeans(beans) {
+    this.filterManager = beans.filterManager;
+  }
+  execute(changedPath) {
+    const fm = this.filterManager;
+    if (fm?.isChildFilterPresent()) {
+      if (this.doingTreeDataFiltering()) {
+        this.treeDataFilter(fm);
+      } else {
+        this.filterActive(fm, changedPath);
+      }
+    } else {
+      _forEachChangedGroupDepthFirst3(this.beans.rowModel.rootNode, true, changedPath, passThrough);
+    }
+  }
+  filterActive(fm, changedPath) {
+    const callback = (node) => {
+      const children = node.childrenAfterGroup;
+      if (children) {
+        node.childrenAfterFilter = filterDeep(children, node.childrenAfterFilter, fm);
+      } else {
+        node.childrenAfterFilter = children;
+      }
+      syncSibling(node);
+    };
+    _forEachChangedGroupDepthFirst3(this.beans.rowModel.rootNode, true, changedPath, callback);
+  }
+  treeDataFilter(fm) {
+    const filterCallback = (node, includeChildNodes) => {
+      const children = node.childrenAfterGroup;
+      if (children && !includeChildNodes) {
+        node.childrenAfterFilter = filterDeep(children, node.childrenAfterFilter, fm);
+      } else {
+        node.childrenAfterFilter = children;
+      }
+      syncSibling(node);
+    };
+    const depthFirst = (node, alreadyFoundInParent) => {
+      const children = node.childrenAfterGroup;
+      if (children) {
+        for (let i = 0, len = children.length; i < len; ++i) {
+          const child = children[i];
+          const foundInParent = alreadyFoundInParent || fm.doesRowPassFilter(child);
+          if (child.childrenAfterGroup) {
+            depthFirst(child, foundInParent);
+          } else {
+            filterCallback(child, foundInParent);
+          }
+        }
+      }
+      filterCallback(node, alreadyFoundInParent);
+    };
+    depthFirst(this.beans.rowModel.rootNode, false);
+  }
+  doingTreeDataFiltering() {
+    return !!this.beans.groupStage?.treeData && !this.gos.get("excludeChildrenWhenTreeDataFiltering");
+  }
+};
+
+// packages/ag-grid-enterprise/src/rowHierarchy/groupSortStage.ts
+import {
+  BeanStub as BeanStub38,
+  _doDeltaSort,
+  _forEachChangedGroupDepthFirst as _forEachChangedGroupDepthFirst4,
+  _reuseArrayIfEqual,
+  _updateRowNodeAfterSort
+} from "ag-grid-community";
+var GroupSortStage = class extends BeanStub38 {
+  constructor() {
+    super(...arguments);
+    this.beanName = "groupSortStage";
+    this.step = "sort";
+    this.refreshProps = [
+      "postSortRows",
+      "groupDisplayType",
+      "accentedSort",
+      "groupMaintainOrder"
+    ];
+  }
+  execute(changedPath, changedRowNodes) {
+    const {
+      gos,
+      colModel,
+      groupStage,
+      rowGroupColsSvc,
+      rowModel,
+      rowNodeSorter,
+      rowRenderer,
+      sortSvc,
+      showRowGroupCols
+    } = this.beans;
+    const sortOptions = sortSvc?.getSortOptions() ?? [];
+    const hasSortOptions = sortOptions.length > 0;
+    const postSortFunc = gos.getCallback("postSortRows");
+    const deltaSortChangedRowNodes = hasSortOptions && !postSortFunc && gos.get("deltaSort") && changedRowNodes;
+    const groupColsByLevel = rowGroupColsSvc?.columns;
+    const sortOptionsByLevel = hasSortOptions && groupColsByLevel?.length && !groupStage?.treeData && gos.get("groupMaintainOrder") ? partitionSortOptionsByLevel(sortOptions, groupColsByLevel) : null;
+    const fallbackSortOptions = !sortOptionsByLevel && hasSortOptions ? sortOptions : void 0;
+    const isPivotMode2 = colModel.pivotMode;
+    let hasAnyFirstChildChanged = false;
+    function sortGroupChildren2(rowNode) {
+      const isPivotLeaf = isPivotMode2 && rowNode.leafGroup;
+      let sortOptionsForLevel;
+      if (!isPivotLeaf) {
+        sortOptionsForLevel = sortOptionsByLevel ? sortOptionsByLevel[rowNode.level + 1] : fallbackSortOptions;
+      }
+      const prevSort = rowNode.childrenAfterSort;
+      const aggFilter = rowNode.childrenAfterAggFilter;
+      const prevFirstChild = prevSort?.[0];
+      let newChildrenAfterSort;
+      if (sortOptionsForLevel) {
+        if (deltaSortChangedRowNodes) {
+          newChildrenAfterSort = _doDeltaSort(
+            rowNodeSorter,
+            rowNode,
+            deltaSortChangedRowNodes,
+            changedPath,
+            sortOptionsForLevel
+          );
+        } else {
+          newChildrenAfterSort = rowNodeSorter.doFullSortInPlace(
+            aggFilter?.slice() ?? [],
+            sortOptionsForLevel
+          );
+        }
+      } else {
+        newChildrenAfterSort = _reuseArrayIfEqual(prevSort, aggFilter);
+      }
+      rowNode.childrenAfterSort = newChildrenAfterSort;
+      _updateRowNodeAfterSort(rowNode);
+      postSortFunc?.({ nodes: newChildrenAfterSort });
+      hasAnyFirstChildChanged || (hasAnyFirstChildChanged = prevFirstChild !== newChildrenAfterSort[0]);
+    }
+    _forEachChangedGroupDepthFirst4(rowModel.rootNode, true, changedPath, sortGroupChildren2);
+    if (hasAnyFirstChildChanged && gos.get("groupHideOpenParents")) {
+      const columns = showRowGroupCols?.columns;
+      if (columns?.length) {
+        rowRenderer.refreshCells({ columns, force: true });
+      }
+    }
+  }
+};
+var partitionSortOptionsByLevel = (sortOptions, groupColsByLevel) => {
+  const sortLen = sortOptions.length;
+  const numLevels = groupColsByLevel.length;
+  const leafIndex = numLevels;
+  const levelByKey = /* @__PURE__ */ new Map();
+  for (let j = 0; j < numLevels; ++j) {
+    const groupCol = groupColsByLevel[j];
+    levelByKey.set(groupCol, j);
+    levelByKey.set(groupCol.colId, j);
+  }
+  const result = new Array(numLevels + 1);
+  for (let i = 0; i < sortLen; ++i) {
+    const sortOption = sortOptions[i];
+    const column = sortOption.column;
+    const colDef = column.colDef;
+    const showRowGroup = colDef.showRowGroup;
+    const hasOwnLeafSort = colDef.field != null || colDef.valueGetter != null || colDef.comparator != null;
+    if (showRowGroup === true) {
+      for (let j = 0; j < numLevels; ++j) {
+        (result[j] ?? (result[j] = [])).push(sortOption);
+      }
+      if (hasOwnLeafSort) {
+        (result[leafIndex] ?? (result[leafIndex] = [])).push(sortOption);
+      }
+      continue;
+    }
+    const isLinkedDisplayCol = typeof showRowGroup === "string";
+    const key = isLinkedDisplayCol ? showRowGroup : column;
+    const matchedLevel = levelByKey.get(key);
+    if (matchedLevel !== void 0) {
+      (result[matchedLevel] ?? (result[matchedLevel] = [])).push(sortOption);
+      if (isLinkedDisplayCol && hasOwnLeafSort) {
+        (result[leafIndex] ?? (result[leafIndex] = [])).push(sortOption);
+      }
+    } else if (!isLinkedDisplayCol || hasOwnLeafSort) {
+      (result[leafIndex] ?? (result[leafIndex] = [])).push(sortOption);
+    }
+  }
+  return result;
+};
+
 // packages/ag-grid-enterprise/src/rowHierarchy/groupStage.ts
-import { BeanStub as BeanStub35 } from "ag-grid-community";
-var GroupStage = class extends BeanStub35 {
+import { BeanStub as BeanStub39 } from "ag-grid-community";
+var GroupStage = class extends BeanStub39 {
   constructor() {
     super(...arguments);
     this.beanName = "groupStage";
@@ -31794,7 +33458,7 @@ var GroupStage = class extends BeanStub35 {
   }
   getStrategy() {
     let strategy = this.strategy;
-    const pivotMode = this.beans.colModel.isPivotMode();
+    const pivotMode = this.beans.colModel.pivotMode;
     if (pivotMode !== this.pivotMode) {
       this.pivotMode = pivotMode;
       this.columnsInvalidated = true;
@@ -31926,13 +33590,13 @@ var resetChildRowGrouping = (row) => {
 };
 
 // packages/ag-grid-enterprise/src/rowHierarchy/rendering/groupCellRenderer.ts
-import { Component as Component37, RefPlaceholder as RefPlaceholder35, _setAriaRole as _setAriaRole9, _setDisplayed as _setDisplayed18 } from "ag-grid-community";
+import { Component as Component44, RefPlaceholder as RefPlaceholder37, _setAriaRole as _setAriaRole9, _setDisplayed as _setDisplayed20 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/rowHierarchy/rendering/groupCellRendererCtrl.ts
 import {
-  BeanStub as BeanStub36,
-  KeyCode as KeyCode28,
-  _createIconNoSpan as _createIconNoSpan19,
+  BeanStub as BeanStub40,
+  KeyCode as KeyCode29,
+  _createIconNoSpan as _createIconNoSpan21,
   _getCellRendererDetails as _getCellRendererDetails2,
   _getCheckboxLocation,
   _getCheckboxes,
@@ -31940,8 +33604,8 @@ import {
   _isElementInEventPath,
   _isRowSelection,
   _isStopPropagationForAgGrid as _isStopPropagationForAgGrid2,
-  _removeAriaExpanded as _removeAriaExpanded2,
-  _setAriaExpanded as _setAriaExpanded9,
+  _removeAriaExpanded as _removeAriaExpanded3,
+  _setAriaExpanded as _setAriaExpanded10,
   _stopPropagationForAgGrid as _stopPropagationForAgGrid8
 } from "ag-grid-community";
 
@@ -31967,7 +33631,7 @@ function _isHiddenParent(node, ancestor, gos) {
 }
 
 // packages/ag-grid-enterprise/src/rowHierarchy/rendering/groupCellRendererCtrl.ts
-var GroupCellRendererCtrl = class extends BeanStub36 {
+var GroupCellRendererCtrl = class extends BeanStub40 {
   constructor() {
     super(...arguments);
     // keep reference to this, so we can remove again when indent changes
@@ -32085,7 +33749,7 @@ var GroupCellRendererCtrl = class extends BeanStub36 {
     const { colModel } = this.beans;
     const { eGridCell, suppressDoubleClickExpand } = this.params;
     const addIconToDom = (iconName, element) => {
-      const icon = _createIconNoSpan19(iconName, this.beans, null);
+      const icon = _createIconNoSpan21(iconName, this.beans, null);
       if (icon) {
         element.appendChild(icon);
         this.addDestroyFunc(() => icon.remove());
@@ -32102,15 +33766,15 @@ var GroupCellRendererCtrl = class extends BeanStub36 {
       const expanded = !!this.displayedNode.expanded;
       comp.setExpandedDisplayed(expanded);
       comp.setContractedDisplayed(!expanded);
-      _setAriaExpanded9(eGridCell, expanded);
+      _setAriaExpanded10(eGridCell, expanded);
     };
     const onExpandableChanged = () => {
       const expandable = this.isExpandable();
       comp.toggleCss("ag-cell-expandable", expandable);
       comp.toggleCss("ag-row-group", expandable);
-      const pivotModeAndLeaf = !expandable && colModel.isPivotMode();
+      const pivotModeAndLeaf = !expandable && colModel.pivotMode;
       comp.toggleCss("ag-pivot-leaf-group", pivotModeAndLeaf);
-      const normalModeNotTotalFooter = !colModel.isPivotMode() && (!this.displayedNode.footer || this.displayedNode.level !== -1);
+      const normalModeNotTotalFooter = !colModel.pivotMode && (!this.displayedNode.footer || this.displayedNode.level !== -1);
       comp.toggleCss("ag-row-group-leaf-indent", !expandable && normalModeNotTotalFooter);
       const count = this.getChildCount();
       const countString = count > 0 ? `(${count})` : ``;
@@ -32118,7 +33782,7 @@ var GroupCellRendererCtrl = class extends BeanStub36 {
       if (!expandable) {
         comp.setExpandedDisplayed(false);
         comp.setContractedDisplayed(false);
-        _removeAriaExpanded2(eGridCell);
+        _removeAriaExpanded3(eGridCell);
       } else {
         onExpandedChanged();
       }
@@ -32387,7 +34051,7 @@ var GroupCellRendererCtrl = class extends BeanStub36 {
    * Called on cell key press - only handles 'Enter' key for expand/collapse
    */
   onKeyDown(event) {
-    const isEnterKey = event.key === KeyCode28.ENTER;
+    const isEnterKey = event.key === KeyCode29.ENTER;
     if (!isEnterKey || this.params.suppressEnterExpand) {
       return;
     }
@@ -32409,7 +34073,7 @@ var GroupCellRendererCtrl = class extends BeanStub36 {
     }
   }
   /**
-   * Called when expand or contract is attempted, to scroll the row and update the node state
+   * Called when expand or contract is attempted to update the node state
    * @param e originating event
    */
   onExpandOrContract(e) {
@@ -32417,11 +34081,7 @@ var GroupCellRendererCtrl = class extends BeanStub36 {
       return;
     }
     const rowNode = this.displayedNode;
-    const nextExpandState = !rowNode.expanded;
-    if (!nextExpandState && rowNode.sticky) {
-      this.beans.ctrlsSvc.getScrollFeature().setVerticalScrollPosition(rowNode.rowTop - rowNode.stickyRowTop);
-    }
-    rowNode.setExpanded(nextExpandState, e);
+    rowNode.setExpanded(!rowNode.expanded, e);
   }
   destroy() {
     super.destroy();
@@ -32441,22 +34101,22 @@ var GroupCellRendererElement = {
     { tag: "span", ref: "eChildCount", cls: "ag-group-child-count" }
   ]
 };
-var GroupCellRenderer = class extends Component37 {
+var GroupCellRenderer = class extends Component44 {
   constructor() {
     super(GroupCellRendererElement);
-    this.eExpanded = RefPlaceholder35;
-    this.eContracted = RefPlaceholder35;
-    this.eCheckbox = RefPlaceholder35;
-    this.eValue = RefPlaceholder35;
-    this.eChildCount = RefPlaceholder35;
+    this.eExpanded = RefPlaceholder37;
+    this.eContracted = RefPlaceholder37;
+    this.eCheckbox = RefPlaceholder37;
+    this.eValue = RefPlaceholder37;
+    this.eChildCount = RefPlaceholder37;
   }
   init(params) {
     const compProxy = {
       setInnerRenderer: (compDetails, valueToDisplay) => this.setRenderDetails(compDetails, valueToDisplay),
       setChildCount: (count) => this.eChildCount.textContent = count,
       toggleCss: (cssClass, value) => this.toggleCss(cssClass, value),
-      setContractedDisplayed: (expanded) => _setDisplayed18(this.eContracted, expanded),
-      setExpandedDisplayed: (expanded) => _setDisplayed18(this.eExpanded, expanded),
+      setContractedDisplayed: (expanded) => _setDisplayed20(this.eContracted, expanded),
+      setExpandedDisplayed: (expanded) => _setDisplayed20(this.eExpanded, expanded),
       setCheckboxVisible: (visible) => this.eCheckbox.classList.toggle("ag-invisible", !visible),
       setCheckboxSpacing: (add) => this.eCheckbox.classList.toggle("ag-group-checkbox-spacing", add)
     };
@@ -32499,8 +34159,8 @@ var GroupCellRenderer = class extends Component37 {
 var groupCellStyles_default = ".ag-group-checkbox-spacing{width:var(--ag-icon-size)}:where(.ag-ltr) .ag-group-checkbox-spacing{margin-right:var(--ag-cell-widget-spacing)}:where(.ag-rtl) .ag-group-checkbox-spacing{margin-left:var(--ag-cell-widget-spacing)}";
 
 // packages/ag-grid-enterprise/src/rowHierarchy/showRowGroupColValueService.ts
-import { BeanStub as BeanStub37 } from "ag-grid-community";
-var ShowRowGroupColValueService = class extends BeanStub37 {
+import { BeanStub as BeanStub41 } from "ag-grid-community";
+var ShowRowGroupColValueService = class extends BeanStub41 {
   constructor() {
     super(...arguments);
     this.beanName = "showRowGroupColValueSvc";
@@ -32636,8 +34296,8 @@ var ShowRowGroupColValueService = class extends BeanStub37 {
 };
 
 // packages/ag-grid-enterprise/src/rowHierarchy/showRowGroupColsService.ts
-import { BeanStub as BeanStub38 } from "ag-grid-community";
-var ShowRowGroupColsService = class extends BeanStub38 {
+import { BeanStub as BeanStub42 } from "ag-grid-community";
+var ShowRowGroupColsService = class extends BeanStub42 {
   constructor() {
     super(...arguments);
     this.beanName = "showRowGroupCols";
@@ -32663,7 +34323,7 @@ var ShowRowGroupColsService = class extends BeanStub38 {
     const cols = colModel.getCols();
     for (let colIdx = 0, colsLen = cols.length; colIdx < colsLen; ++colIdx) {
       const col = cols[colIdx];
-      const colDef = col.getColDef();
+      const colDef = col.colDef;
       const showRowGroup = colDef.showRowGroup;
       if (typeof showRowGroup === "string") {
         showRowGroupColsMap.set(showRowGroup, col);
@@ -32694,7 +34354,7 @@ var ShowRowGroupColsService = class extends BeanStub38 {
     return this.colsMap.get(id);
   }
   getSourceColumnsForGroupColumn(groupCol) {
-    const sourceColumnId = groupCol.getColDef().showRowGroup;
+    const sourceColumnId = groupCol.colDef.showRowGroup;
     if (!sourceColumnId) {
       return null;
     }
@@ -32706,17 +34366,17 @@ var ShowRowGroupColsService = class extends BeanStub38 {
     return column ? [column] : null;
   }
   isRowGroupDisplayed(column, colId) {
-    const showRowGroup = column.getColDef()?.showRowGroup;
+    const showRowGroup = column.colDef.showRowGroup;
     return showRowGroup === true || showRowGroup != null && showRowGroup === colId;
   }
 };
 
 // packages/ag-grid-enterprise/src/rowHierarchy/stickyRowService.ts
-import { BeanStub as BeanStub40, _isClientSideRowModel as _isClientSideRowModel6, _isGroupRowsSticky as _isGroupRowsSticky2, _isServerSideRowModel as _isServerSideRowModel2 } from "ag-grid-community";
+import { BeanStub as BeanStub44, _isClientSideRowModel as _isClientSideRowModel6, _isGroupRowsSticky as _isGroupRowsSticky2, _isServerSideRowModel as _isServerSideRowModel2 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/rowHierarchy/stickyRowFeature.ts
-import { BeanStub as BeanStub39, _getRowHeightForNode, _isClientSideRowModel as _isClientSideRowModel5, _isGroupRowsSticky, _last as _last10 } from "ag-grid-community";
-var StickyRowFeature = class extends BeanStub39 {
+import { BeanStub as BeanStub43, _getRowHeightForNode, _isClientSideRowModel as _isClientSideRowModel5, _isGroupRowsSticky, _last as _last10 } from "ag-grid-community";
+var StickyRowFeature = class extends BeanStub43 {
   constructor(createRowCon, destroyRowCtrls) {
     super();
     this.createRowCon = createRowCon;
@@ -33108,7 +34768,7 @@ function getClientSideLastPixelOfGroup(row) {
 }
 
 // packages/ag-grid-enterprise/src/rowHierarchy/stickyRowService.ts
-var StickyRowService = class extends BeanStub40 {
+var StickyRowService = class extends BeanStub44 {
   constructor() {
     super(...arguments);
     this.beanName = "stickyRowSvc";
@@ -33159,12 +34819,19 @@ var ChangedPathModule = {
   beans: [ChangedPathFactory],
   dependsOn: [EnterpriseCoreModule]
 };
-var ClientSideRowModelHierarchyModule = {
-  moduleName: "ClientSideRowModelHierarchy",
+var CsrmHierarchyModule = {
+  moduleName: "CsrmHierarchy",
   version: VERSION,
   rowModels: ["clientSide"],
-  beans: [GroupStage, FlattenStage, ClientSideExpansionService],
-  dependsOn: [EnterpriseCoreModule, ChangedPathModule]
+  beans: [FlattenStage, CsrmExpansionService],
+  dependsOn: [ChangedPathModule]
+};
+var CsrmGroupStagesModule = {
+  moduleName: "CsrmGroupStages",
+  version: VERSION,
+  rowModels: ["clientSide"],
+  beans: [GroupStage, GroupFilterStage, GroupSortStage],
+  dependsOn: [CsrmHierarchyModule]
 };
 var StickyRowModule = {
   moduleName: "StickyRow",
@@ -33175,13 +34842,13 @@ var GroupEditModule = {
   moduleName: "GroupEdit",
   version: VERSION,
   beans: [GroupEditService],
-  dependsOn: [EnterpriseCoreModule, ClientSideRowModelHierarchyModule]
+  dependsOn: [CsrmHierarchyModule]
 };
 
 // packages/ag-grid-enterprise/src/groupHierarchy/groupHierarchyColService.ts
 import {
   AgColumn as AgColumn2,
-  BeanStub as BeanStub41,
+  BeanStub as BeanStub45,
   GROUP_HIERARCHY_COLUMN_ID_PREFIX,
   _addColumnDefaultAndTypes as _addColumnDefaultAndTypes2,
   _areColIdsEqual as _areColIdsEqual2,
@@ -33230,7 +34897,7 @@ function _getGroupHierarchy(colDef) {
 }
 
 // packages/ag-grid-enterprise/src/groupHierarchy/groupHierarchyColService.ts
-var GroupHierarchyColService = class extends BeanStub41 {
+var GroupHierarchyColService = class extends BeanStub45 {
   constructor() {
     super(...arguments);
     this.beanName = "groupHierarchyColSvc";
@@ -33245,7 +34912,7 @@ var GroupHierarchyColService = class extends BeanStub41 {
     if (groupHierarchyCols == null) {
       return;
     }
-    cols.list = groupHierarchyCols.list.filter((col) => !cols.list.some((c) => c.getColId() === col.getColId())).concat(cols.list);
+    cols.list = groupHierarchyCols.list.filter((col) => !cols.list.some((c) => c.colId === col.colId)).concat(cols.list);
     cols.tree = groupHierarchyCols.tree.filter((col) => !cols.tree.some((c) => c.getId() === col.getId())).concat(cols.tree);
     _updateColsMap2(cols);
   }
@@ -33282,7 +34949,7 @@ var GroupHierarchyColService = class extends BeanStub41 {
   expandColumnInto(target, col) {
     const expanded = this.getVirtualColumnsForColumn(col).concat(col);
     for (const expandedCol of expanded) {
-      if (!target.some((_c) => _columnsMatch2(_c, expandedCol) || _c.getColId() === expandedCol.getColId())) {
+      if (!target.some((_c) => _columnsMatch2(_c, expandedCol) || _c.colId === expandedCol.colId)) {
         target.push(expandedCol);
       }
     }
@@ -33325,13 +34992,13 @@ var GroupHierarchyColService = class extends BeanStub41 {
     return cols.list.some((col) => this.isGroupHierarchyColsEnabledForCol(col));
   }
   isGroupHierarchyColsEnabledForCol(col) {
-    const def = col.getColDef();
+    const def = col.colDef;
     const groupHierarchy = _getGroupHierarchy(def);
     return !!(groupHierarchy && (def.rowGroup || def.enableRowGroup || def.rowGroupIndex != null || def.pivot || def.enablePivot || def.pivotIndex != null));
   }
   createGroupHierarchyColDefs(sourceCol) {
     const colDefs = [];
-    const sourceColDef = sourceCol.getColDef();
+    const sourceColDef = sourceCol.colDef;
     const groupHierarchy = _getGroupHierarchy(sourceColDef);
     if (!groupHierarchy) {
       return colDefs;
@@ -33340,12 +35007,7 @@ var GroupHierarchyColService = class extends BeanStub41 {
       return colDefs;
     }
     for (const part of groupHierarchy) {
-      let colDef = null;
-      if (typeof part === "string") {
-        colDef = this.createColDefForPart(part, sourceCol, sourceColDef);
-      } else {
-        colDef = part;
-      }
+      const colDef = typeof part === "string" ? this.createColDefForPart(part, sourceCol, sourceColDef) : part;
       if (colDef) {
         colDefs.push(colDef);
       }
@@ -33372,7 +35034,7 @@ var GroupHierarchyColService = class extends BeanStub41 {
   }
   createColDefForPart(part, sourceCol, sourceColDef) {
     const { beans, gos } = this;
-    const colId = `${GROUP_HIERARCHY_COLUMN_ID_PREFIX}-${sourceCol.getColId()}-${part}`;
+    const colId = `${GROUP_HIERARCHY_COLUMN_ID_PREFIX}-${sourceCol.colId}-${part}`;
     const defaults = {
       enableRowGroup: sourceColDef.enableRowGroup,
       rowGroup: sourceColDef.rowGroup,
@@ -33465,8 +35127,8 @@ var GroupHierarchyModule = {
 };
 
 // packages/ag-grid-enterprise/src/rowGrouping/columnDropZones/agGridHeaderDropZones.ts
-import { Component as Component38, _createElement as _createElement11 } from "ag-grid-community";
-var AgGridHeaderDropZones = class extends Component38 {
+import { Component as Component45, _createElement as _createElement15 } from "ag-grid-community";
+var AgGridHeaderDropZones = class extends Component45 {
   constructor() {
     super();
   }
@@ -33482,7 +35144,7 @@ var AgGridHeaderDropZones = class extends Component38 {
     this.onRowGroupChanged();
   }
   createNorthPanel() {
-    const topPanelGui = _createElement11({ tag: "div", cls: "ag-column-drop-wrapper", role: "presentation" });
+    const topPanelGui = _createElement15({ tag: "div", cls: "ag-column-drop-wrapper", role: "presentation" });
     const rowGroupComp = new RowGroupDropZonePanel(true);
     this.rowGroupComp = this.createManagedBean(rowGroupComp);
     const pivotComp = new PivotDropZonePanel(true);
@@ -33545,17 +35207,32 @@ var AgGridHeaderDropZonesSelector = {
   component: AgGridHeaderDropZones
 };
 
+// packages/ag-grid-enterprise/src/rowGrouping/columnDropZones/rowGroupPanelBuilder.ts
+import { BeanStub as BeanStub46 } from "ag-grid-community";
+var RowGroupPanelBuilder = class extends BeanStub46 {
+  constructor() {
+    super(...arguments);
+    this.beanName = "rowGroupPanelBuilder";
+  }
+  createRowGroupDropZone(horizontal, embedded = false) {
+    return new RowGroupDropZonePanel(horizontal, void 0, embedded);
+  }
+  createPivotDropZone(horizontal, embedded = false) {
+    return new PivotDropZonePanel(horizontal, void 0, embedded);
+  }
+};
+
 // packages/ag-grid-enterprise/src/rowGrouping/groupFilter/groupFilter.ts
 import {
   AgPromise as AgPromise11,
   AgSelect,
   FilterComp as FilterComp2,
-  RefPlaceholder as RefPlaceholder36,
+  RefPlaceholder as RefPlaceholder38,
   TabGuardComp as TabGuardComp3,
-  _clearElement as _clearElement12,
-  _createElement as _createElement12,
-  _setDisplayed as _setDisplayed19,
-  _warn as _warn30
+  _clearElement as _clearElement14,
+  _createElement as _createElement16,
+  _setDisplayed as _setDisplayed21,
+  _warn as _warn31
 } from "ag-grid-community";
 function processGroupFilterParams(params) {
   if (params.buttons) {
@@ -33575,8 +35252,8 @@ var GroupFilter = class extends TabGuardComp3 {
   constructor() {
     super(GroupFilterElement);
     this.filterType = "group";
-    this.eGroupField = RefPlaceholder36;
-    this.eUnderlyingFilter = RefPlaceholder36;
+    this.eGroupField = RefPlaceholder38;
+    this.eUnderlyingFilter = RefPlaceholder38;
   }
   wireBeans(beans) {
     this.groupFilterSvc = beans.groupFilter;
@@ -33605,13 +35282,13 @@ var GroupFilter = class extends TabGuardComp3 {
   validateParams() {
     const { colDef } = this.params;
     if (colDef.field) {
-      _warn30(234);
+      _warn31(234);
     }
     if (colDef.filterValueGetter) {
-      _warn30(235);
+      _warn31(235);
     }
     if (colDef.filterParams) {
-      _warn30(236);
+      _warn31(236);
     }
   }
   addHandlerListeners(listener) {
@@ -33642,16 +35319,16 @@ var GroupFilter = class extends TabGuardComp3 {
     }
     const { sourceColumns, hasMultipleColumns, selectedColumn } = handler;
     const eGroupField = this.eGroupField;
-    _clearElement12(eGroupField);
+    _clearElement14(eGroupField);
     if (this.eGroupFieldSelect) {
       this.destroyBean(this.eGroupFieldSelect);
     }
     if (hasMultipleColumns && sourceColumns) {
       this.createGroupFieldSelectElement(sourceColumns, selectedColumn);
       eGroupField.appendChild(this.eGroupFieldSelect.getGui());
-      eGroupField.appendChild(_createElement12({ tag: "div", cls: "ag-filter-separator" }));
+      eGroupField.appendChild(_createElement16({ tag: "div", cls: "ag-filter-separator" }));
     }
-    _setDisplayed19(eGroupField, hasMultipleColumns);
+    _setDisplayed21(eGroupField, hasMultipleColumns);
     return { sourceColumns, selectedColumn };
   }
   createGroupFieldSelectElement(sourceColumns, selectedColumn) {
@@ -33662,11 +35339,11 @@ var GroupFilter = class extends TabGuardComp3 {
     eGroupFieldSelect.setLabelAlignment("top");
     eGroupFieldSelect.addOptions(
       sourceColumns.map((sourceColumn) => ({
-        value: sourceColumn.getColId(),
+        value: sourceColumn.colId,
         text: this.beans.colNames.getDisplayNameForColumn(sourceColumn, "groupFilter", false) ?? void 0
       }))
     );
-    eGroupFieldSelect.setValue(selectedColumn.getColId());
+    eGroupFieldSelect.setValue(selectedColumn.colId);
     eGroupFieldSelect.onValueChange((newValue) => this.updateSelectedColumn(newValue));
     eGroupFieldSelect.addCss("ag-group-filter-field-select-wrapper");
     if (sourceColumns.length === 1) {
@@ -33693,7 +35370,7 @@ var GroupFilter = class extends TabGuardComp3 {
                 column
               });
             }
-            if (column.getColId() === selectedColumn.getColId()) {
+            if (column.colId === selectedColumn.colId) {
               this.selectedFilter = filter ?? void 0;
             }
           })
@@ -33705,7 +35382,7 @@ var GroupFilter = class extends TabGuardComp3 {
     });
   }
   addUnderlyingFilterElement(selectedColumn) {
-    _clearElement12(this.eUnderlyingFilter);
+    _clearElement14(this.eUnderlyingFilter);
     if (!selectedColumn) {
       return AgPromise11.resolve();
     }
@@ -33753,7 +35430,7 @@ var GroupFilter = class extends TabGuardComp3 {
     this.addUnderlyingFilterElement(this.getHandler().selectedColumn);
   }
   afterGuiDetached() {
-    _clearElement12(this.eUnderlyingFilter);
+    _clearElement14(this.eUnderlyingFilter);
     this.selectedFilter?.afterGuiDetached?.();
   }
   getSelectedColumn() {
@@ -33766,13 +35443,13 @@ var GroupFilter = class extends TabGuardComp3 {
     if (!columnId) {
       return void 0;
     }
-    return this.filterColumnPairs?.find(({ column }) => column.getColId() === columnId);
+    return this.filterColumnPairs?.find(({ column }) => column.colId === columnId);
   }
 };
 
 // packages/ag-grid-enterprise/src/rowGrouping/groupFilter/groupFilterHandler.ts
-import { BeanStub as BeanStub42, _warn as _warn31 } from "ag-grid-community";
-var GroupFilterHandler = class extends BeanStub42 {
+import { BeanStub as BeanStub47, _warn as _warn32 } from "ag-grid-community";
+var GroupFilterHandler = class extends BeanStub47 {
   init(params) {
     this.params = params;
     this.validateModel(params);
@@ -33804,12 +35481,12 @@ var GroupFilterHandler = class extends BeanStub42 {
   getSourceColumns() {
     const groupColumn = this.params.column;
     if (this.gos.get("treeData")) {
-      _warn31(237);
+      _warn32(237);
       return [];
     }
     const sourceColumns = this.beans.groupFilter.getSourceColumns(groupColumn);
     if (!sourceColumns) {
-      _warn31(183);
+      _warn32(183);
       return [];
     }
     return sourceColumns;
@@ -33842,7 +35519,7 @@ var GroupFilterHandler = class extends BeanStub42 {
       return;
     }
     const colId = eventColumn.getColId();
-    if (this.sourceColumns?.some((column) => column.getColId() === colId)) {
+    if (this.sourceColumns?.some((column) => column.colId === colId)) {
       setTimeout(() => {
         if (this.isAlive()) {
           this.updateColumns();
@@ -33853,8 +35530,8 @@ var GroupFilterHandler = class extends BeanStub42 {
 };
 
 // packages/ag-grid-enterprise/src/rowGrouping/groupFilter/groupFilterService.ts
-import { BeanStub as BeanStub43 } from "ag-grid-community";
-var GroupFilterService = class extends BeanStub43 {
+import { BeanStub as BeanStub48 } from "ag-grid-community";
+var GroupFilterService = class extends BeanStub48 {
   constructor() {
     super(...arguments);
     this.beanName = "groupFilter";
@@ -33865,7 +35542,7 @@ var GroupFilterService = class extends BeanStub43 {
     });
   }
   isGroupFilter(column) {
-    return column.getColDef().filter === "agGroupColumnFilter";
+    return column.colDef.filter === "agGroupColumnFilter";
   }
   isFilterAllowed(column) {
     const colFilter = this.beans.colFilter;
@@ -33897,9 +35574,9 @@ var GroupFilterService = class extends BeanStub43 {
 import {
   AgInputTextField as AgInputTextField3,
   AgPromise as AgPromise12,
-  Component as Component39,
-  RefPlaceholder as RefPlaceholder37,
-  _clearElement as _clearElement13,
+  Component as Component46,
+  RefPlaceholder as RefPlaceholder39,
+  _clearElement as _clearElement15,
   _isGroupMultiAutoColumn as _isGroupMultiAutoColumn3
 } from "ag-grid-community";
 var GroupFloatingFilterElement = {
@@ -33908,10 +35585,10 @@ var GroupFloatingFilterElement = {
   cls: "ag-group-floating-filter ag-floating-filter-input",
   role: "presentation"
 };
-var GroupFloatingFilterComp = class extends Component39 {
+var GroupFloatingFilterComp = class extends Component46 {
   constructor() {
     super(GroupFloatingFilterElement);
-    this.eFloatingFilter = RefPlaceholder37;
+    this.eFloatingFilter = RefPlaceholder39;
     this.haveAddedColumnListeners = false;
   }
   init(params) {
@@ -33988,7 +35665,7 @@ var GroupFloatingFilterComp = class extends Component39 {
   setupUnderlyingFloatingFilterElement() {
     this.showingUnderlyingFloatingFilter = false;
     this.underlyingFloatingFilter = void 0;
-    _clearElement13(this.eFloatingFilter);
+    _clearElement15(this.eFloatingFilter);
     const column = this.getSelectedColumn();
     if (column && !column.isVisible()) {
       const colFilter = this.beans.colFilter;
@@ -34080,7 +35757,7 @@ var GroupFloatingFilterComp = class extends Component39 {
 };
 
 // packages/ag-grid-enterprise/src/rowGrouping/groupStrategy/groupStrategy.ts
-import { BeanStub as BeanStub44, RowNode, _csrmFirstLeaf as _csrmFirstLeaf2, _forEachChangedGroupDepthFirst as _forEachChangedGroupDepthFirst3, _warn as _warn32 } from "ag-grid-community";
+import { BeanStub as BeanStub49, RowNode, _csrmFirstLeaf as _csrmFirstLeaf2, _forEachChangedGroupDepthFirst as _forEachChangedGroupDepthFirst5, _warn as _warn33 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/rowGrouping/groupStrategy/groupColumns.ts
 var makeGroupColumns = (columns, result) => {
@@ -34092,7 +35769,7 @@ var makeGroupColumns = (columns, result) => {
   result.length = len;
   for (let i = 0; i < len; i++) {
     const col = columns[i];
-    const colDef = col.getColDef();
+    const colDef = col.colDef;
     result[i] = {
       col,
       field: colDef.field,
@@ -34113,7 +35790,7 @@ var groupColumnsChanged = (groupColumns, columns) => {
     if (a.col !== b) {
       return true;
     }
-    const bColDef = b.getColDef();
+    const bColDef = b.colDef;
     if (a.field !== bColDef.field || a.type !== bColDef.type || a.valueGetter !== bColDef.valueGetter || a.keyCreator !== bColDef.keyCreator) {
       return true;
     }
@@ -34163,7 +35840,7 @@ function compareGroupChildren(nodeA, nodeB) {
 }
 
 // packages/ag-grid-enterprise/src/rowGrouping/groupStrategy/groupStrategy.ts
-var GroupStrategy = class extends BeanStub44 {
+var GroupStrategy = class extends BeanStub49 {
   constructor() {
     super(...arguments);
     // when grouping, these items are of note:
@@ -34188,7 +35865,7 @@ var GroupStrategy = class extends BeanStub44 {
   clearNonLeafs() {
     const nonLeafsById = this.nonLeafsById;
     for (const node of nonLeafsById.values()) {
-      node._destroy(false);
+      node._destroy(null);
     }
     nonLeafsById.clear();
   }
@@ -34213,7 +35890,7 @@ var GroupStrategy = class extends BeanStub44 {
     for (let i = 0, len = groupDisplayCols.length; i < len; ++i) {
       const col = groupDisplayCols[i];
       if (col.isRowGroupDisplayed(rowGroupColId)) {
-        groupData[col.getColId()] = valueSvc.getValue(rowGroupCol, leafNode, "data");
+        groupData[col.colId] = valueSvc.getValue(rowGroupCol, leafNode, "data");
       }
     }
     return groupData;
@@ -34234,7 +35911,7 @@ var GroupStrategy = class extends BeanStub44 {
     this.beans.selectionSvc?.updateSelectableAfterGrouping(changedPath);
   }
   positionLeafsAndGroups(rootNode, changedPath) {
-    _forEachChangedGroupDepthFirst3(rootNode, true, changedPath, (group) => {
+    _forEachChangedGroupDepthFirst5(rootNode, true, changedPath, (group) => {
       const children = group.childrenAfterGroup;
       const childrenLen = children?.length;
       if (!childrenLen) {
@@ -34273,7 +35950,7 @@ var GroupStrategy = class extends BeanStub44 {
   }
   initRefresh(params) {
     const { rowGroupColsSvc, colModel, gos } = this.beans;
-    this.pivotMode = colModel.isPivotMode();
+    this.pivotMode = colModel.pivotMode;
     this.groupEmpty = this.pivotMode || !gos.get("groupAllowUnbalanced");
     const cols = rowGroupColsSvc?.columns;
     const groupCols = this.groupCols;
@@ -34331,7 +36008,7 @@ var GroupStrategy = class extends BeanStub44 {
   }
   // this is used when doing delta updates, eg Redux, keeps nodes in right order
   sortChildren(rootNode, changedPath) {
-    _forEachChangedGroupDepthFirst3(rootNode, true, void 0, (node) => {
+    _forEachChangedGroupDepthFirst5(rootNode, true, void 0, (node) => {
       const didSort = sortGroupChildren(node.childrenAfterGroup);
       if (didSort) {
         changedPath?.addRow(node);
@@ -34561,7 +36238,7 @@ var GroupStrategy = class extends BeanStub44 {
       parentGroup = newGroup;
     }
     if (!parentGroup.group) {
-      _warn32(184, { parentGroupData: parentGroup.data, childNodeData: childNode.data });
+      _warn33(184, { parentGroupData: parentGroup.data, childNodeData: childNode.data });
     }
     childNode.parent = parentGroup;
     childNode.level = parentGroup.level + 1;
@@ -34571,7 +36248,7 @@ var GroupStrategy = class extends BeanStub44 {
   }
   createGroup(parent, groupCol, key, level, isLeafLevel, leafNode) {
     const col = groupCol.col;
-    const id = (parent.level >= 0 ? parent.id + "-" : "row-group-") + (col.getColId() + "-" + key);
+    const id = (parent.level >= 0 ? parent.id + "-" : "row-group-") + (col.colId + "-" + key);
     const groupsById = this.nonLeafsById;
     let node = groupsById.get(id);
     let singleUse = true;
@@ -34713,11 +36390,18 @@ var RowGroupingModule = {
   version: VERSION,
   dynamicBeans: { groupStrategy: GroupStrategy },
   rowModels: ["clientSide"],
-  dependsOn: [SharedRowGroupingModule, AggregationModule, ClientSideRowModelHierarchyModule, GroupEditModule]
+  dependsOn: [
+    SharedRowGroupingModule,
+    AggregationModule,
+    CsrmHierarchyModule,
+    CsrmGroupStagesModule,
+    GroupEditModule
+  ]
 };
 var RowGroupingPanelModule = {
   moduleName: "RowGroupingPanel",
   version: VERSION,
+  beans: [RowGroupPanelBuilder],
   selectors: [AgGridHeaderDropZonesSelector],
   icons: {
     // identifies the pivot drop zone
@@ -34750,14 +36434,14 @@ var GroupFilterModule = {
 
 // packages/ag-grid-enterprise/src/viewportRowModel/viewportRowModel.ts
 import {
-  BeanStub as BeanStub45,
+  BeanStub as BeanStub50,
   RowNode as RowNode2,
-  _addGridCommonParams as _addGridCommonParams19,
+  _addGridCommonParams as _addGridCommonParams21,
   _getRowHeightAsNumber,
   _getRowIdCallback,
-  _warn as _warn33
+  _warn as _warn34
 } from "ag-grid-community";
-var ViewportRowModel = class extends BeanStub45 {
+var ViewportRowModel = class extends BeanStub50 {
   constructor() {
     super(...arguments);
     this.beanName = "rowModel";
@@ -34887,10 +36571,10 @@ var ViewportRowModel = class extends BeanStub45 {
     this.datasource = viewportDatasource;
     this.rowCount = -1;
     if (!viewportDatasource.init) {
-      _warn33(226);
+      _warn34(226);
     } else {
       viewportDatasource.init(
-        _addGridCommonParams19(this.gos, {
+        _addGridCommonParams21(this.gos, {
           setRowCount: this.setRowCount.bind(this),
           setRowData: this.setRowData.bind(this),
           getRow: this.getRow.bind(this)
@@ -35098,11 +36782,11 @@ function pasteFromClipboard(beans) {
 
 // packages/ag-grid-enterprise/src/clipboard/clipboardService.ts
 import {
-  BeanStub as BeanStub46,
+  BeanStub as BeanStub51,
   _createCellId as _createCellId2,
   _exists as _exists21,
-  _forEachChangedGroupDepthFirst as _forEachChangedGroupDepthFirst4,
-  _getActiveDomElement as _getActiveDomElement12,
+  _forEachChangedGroupDepthFirst as _forEachChangedGroupDepthFirst6,
+  _getActiveDomElement as _getActiveDomElement13,
   _getDocument as _getDocument4,
   _getRowBelow as _getRowBelow2,
   _getRowNode as _getRowNode3,
@@ -35110,7 +36794,7 @@ import {
   _isSameRow,
   _last as _last11,
   _removeFromArray as _removeFromArray6,
-  _warn as _warn34,
+  _warn as _warn35,
   isColumnSelectionCol,
   isSpecialCol as isSpecialCol2
 } from "ag-grid-community";
@@ -35168,7 +36852,7 @@ function stringToArray(strData, delimiter = ",") {
   }
   return data;
 }
-var ClipboardService = class extends BeanStub46 {
+var ClipboardService = class extends BeanStub51 {
   constructor() {
     super(...arguments);
     this.beanName = "clipboardSvc";
@@ -35195,7 +36879,7 @@ var ClipboardService = class extends BeanStub46 {
     const allowNavigator = !this.gos.get("suppressClipboardApi");
     if (allowNavigator && !this.navigatorApiFailed && navigator.clipboard?.readText) {
       navigator.clipboard.readText().then(this.processClipboardData.bind(this)).catch((e) => {
-        _warn34(40, { e, method: "readText" });
+        _warn35(40, { e, method: "readText" });
         this.navigatorApiFailed = true;
         this.pasteFromClipboardLegacy();
       });
@@ -35291,7 +36975,7 @@ var ClipboardService = class extends BeanStub46 {
     const nodesToRefresh = updatedRowNodes.slice();
     if (changedPath) {
       clientSideRowModel.doAggregate(changedPath);
-      _forEachChangedGroupDepthFirst4(rootNode, clientSideRowModel.hierarchical, changedPath, (rowNode) => {
+      _forEachChangedGroupDepthFirst6(rootNode, clientSideRowModel.hierarchical, changedPath, (rowNode) => {
         nodesToRefresh.push(rowNode);
       });
     }
@@ -35460,7 +37144,7 @@ var ClipboardService = class extends BeanStub46 {
             if (!column.isCellEditable(rowNode) || column.isSuppressPaste(rowNode)) {
               return;
             }
-            const isFormula = column.isAllowFormula() && formula?.isFormula(firstRowValues[index]);
+            const isFormula = column.colDef.allowFormula && formula?.isFormula(firstRowValues[index]);
             if (isFormula) {
               firstRowValues[index] = formula?.updateFormulaByOffset({
                 value: firstRowValues[index],
@@ -35489,7 +37173,7 @@ var ClipboardService = class extends BeanStub46 {
   }
   removeLastLineIfBlank(parsedData) {
     const lastLine = _last11(parsedData);
-    const lastLineIsBlank = lastLine && lastLine.length === 1 && lastLine[0] === "";
+    const lastLineIsBlank = lastLine?.length === 1 && lastLine[0] === "";
     if (lastLineIsBlank) {
       if (parsedData.length === 1) {
         return;
@@ -35889,7 +37573,6 @@ var ClipboardService = class extends BeanStub46 {
     };
     return csvCreator.getDataAsCsv(exportParams, true);
   }
-  // eslint-disable-next-line @typescript-eslint/ban-types
   dispatchFlashCells(cellsToFlash) {
     window.setTimeout(() => {
       this.eventSvc.dispatchEvent({
@@ -35916,10 +37599,10 @@ var ClipboardService = class extends BeanStub46 {
       };
       return func(params);
     }
-    if (canParse && column.getColDef().useValueParserForImport !== false) {
+    if (canParse && column.colDef.useValueParserForImport !== false) {
       return valueSvc.parseValue(column, rowNode ?? null, value, valueSvc.getValue(column, rowNode, "edit"));
     }
-    if (canFormat && column.getColDef().useValueFormatterForExport !== false) {
+    if (canFormat && column.colDef.useValueFormatterForExport !== false) {
       if (formula?.isFormula(value)) {
         return value;
       }
@@ -35936,7 +37619,7 @@ var ClipboardService = class extends BeanStub46 {
     const allowNavigator = !this.gos.get("suppressClipboardApi");
     if (allowNavigator && navigator.clipboard) {
       navigator.clipboard.writeText(data).catch((e) => {
-        _warn34(40, { e, method: "writeText" });
+        _warn35(40, { e, method: "writeText" });
         this.copyDataToClipboardLegacy(data);
       });
       return;
@@ -35946,13 +37629,13 @@ var ClipboardService = class extends BeanStub46 {
   copyDataToClipboardLegacy(data) {
     this.executeOnTempElement((element) => {
       const eDocument = _getDocument4(this.beans);
-      const focusedElementBefore = _getActiveDomElement12(this.beans);
+      const focusedElementBefore = _getActiveDomElement13(this.beans);
       element.value = data || " ";
       element.select();
       element.focus({ preventScroll: true });
       const result = eDocument.execCommand("copy");
       if (!result) {
-        _warn34(41);
+        _warn35(41);
       }
       if (focusedElementBefore?.focus != null) {
         focusedElementBefore.focus({ preventScroll: true });
@@ -35977,8 +37660,8 @@ var ClipboardService = class extends BeanStub46 {
     guiRoot.appendChild(eTempInput);
     try {
       callbackNow(eTempInput);
-    } catch (err) {
-      _warn34(42);
+    } catch {
+      _warn35(42);
     }
     if (callbackAfter) {
       window.setTimeout(() => {
@@ -36014,12 +37697,12 @@ import { CellStyleModule, _SharedDragAndDropModule as _SharedDragAndDropModule4 
 var rowNumbers_default = '.ag-row-number-cell{background-color:var(--ag-header-background-color);border:none;color:var(--ag-header-text-color);font-family:var(--ag-header-font-family);font-size:var(--ag-header-font-size);font-weight:var(--ag-header-font-weight);overflow:hidden;-webkit-user-select:none;-moz-user-select:none;user-select:none;white-space:nowrap;width:100%}:where(.ag-ltr) .ag-row-number-cell{text-align:right}:where(.ag-rtl) .ag-row-number-cell{text-align:left}.ag-row-numbers-resizer{bottom:-2px;cursor:ns-resize;height:4px;position:absolute;width:100%}:where(.ag-ltr) .ag-row-numbers-resizer{left:0}:where(.ag-rtl) .ag-row-numbers-resizer{right:0}.ag-floating-bottom .ag-row-numbers-resizer{bottom:unset;top:-2px}:where(.ag-row-number-header.ag-row-number-selection-enabled){cursor:cell}.ag-row-number-range-highlight{background-color:var(--ag-range-header-highlight-color)}.ag-row-number-range-selected{background-color:var(--ag-row-numbers-selected-color)}:where(.ag-ltr){.ag-row-number-header,:where(.ag-cell.ag-row-number-cell):not(.ag-cell-last-left-pinned){border-right:var(--ag-pinned-column-border)}:where(.ag-cell.ag-row-number-cell.ag-row-number-selection-enabled){cursor:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbDpzcGFjZT0icHJlc2VydmUiIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgc3R5bGU9ImZpbGwtcnVsZTpldmVub2RkO2NsaXAtcnVsZTpldmVub2RkO3N0cm9rZS1saW5lY2FwOnJvdW5kO3N0cm9rZS1saW5lam9pbjpyb3VuZDtzdHJva2UtbWl0ZXJsaW1pdDoxLjUiPjxwYXRoIGQ9Ik0zLjQ0NSA4LjkxMVY3LjQwOUg5Ljc1VjYuMDE0bDIuNTM1IDIuMTQ2LTIuNTM1IDIuMTQ2VjguOTExeiIgc3R5bGU9InN0cm9rZTojZmZmO3N0cm9rZS13aWR0aDouNDFweCIgdHJhbnNmb3JtPSJtYXRyaXgoMS41Nzg0IDAgMCAxLjg2NDI5IC00LjQxMyAtNy4yMTIpIi8+PC9zdmc+"),auto}}:where(.ag-rtl){.ag-row-number-header,:where(.ag-cell.ag-row-number-cell):not(.ag-cell-first-right-pinned){border-left:var(--ag-pinned-column-border)}:where(.ag-cell.ag-row-number-cell.ag-row-number-selection-enabled){cursor:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbDpzcGFjZT0icHJlc2VydmUiIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgc3R5bGU9ImZpbGwtcnVsZTpldmVub2RkO2NsaXAtcnVsZTpldmVub2RkO3N0cm9rZS1saW5lY2FwOnJvdW5kO3N0cm9rZS1saW5lam9pbjpyb3VuZDtzdHJva2UtbWl0ZXJsaW1pdDoxLjUiPjxwYXRoIGQ9Ik01Ljk3OSA4LjkxMXYxLjM5NUwzLjQ0NSA4LjE2bDIuNTM0LTIuMTQ2djEuMzk1aDYuMzA2djEuNTAyeiIgc3R5bGU9InN0cm9rZTojZmZmO3N0cm9rZS13aWR0aDouNDFweCIgdHJhbnNmb3JtPSJtYXRyaXgoMS41Nzg0IDAgMCAxLjg2NDI5IC00LjQxMyAtNy4yMTIpIi8+PC9zdmc+"),auto}}';
 
 // packages/ag-grid-enterprise/src/rowNumbers/rowNumbersRowResizer.ts
-import { Component as Component40, Direction, _getRowNode as _getRowNode4 } from "ag-grid-community";
+import { Component as Component47, Direction, _getRowNode as _getRowNode4 } from "ag-grid-community";
 var RowNumbersRowResizerElement = {
   tag: "div",
   cls: "ag-row-numbers-resizer"
 };
-var AgRowNumbersRowResizer = class extends Component40 {
+var AgRowNumbersRowResizer = class extends Component47 {
   constructor(cellCtrl) {
     super(RowNumbersRowResizerElement);
     this.cellCtrl = cellCtrl;
@@ -36120,15 +37803,15 @@ var AgRowNumbersRowResizer = class extends Component40 {
 // packages/ag-grid-enterprise/src/rowNumbers/rowNumbersService.ts
 import {
   AgColumn as AgColumn3,
-  BeanStub as BeanStub47,
-  KeyCode as KeyCode29,
+  BeanStub as BeanStub52,
+  KeyCode as KeyCode30,
   ROW_NUMBERS_COLUMN_ID,
-  _addGridCommonParams as _addGridCommonParams20,
+  _addGridCommonParams as _addGridCommonParams22,
   _applyColumnState as _applyColumnState3,
   _areColIdsEqual as _areColIdsEqual3,
   _convertColumnEventSourceType as _convertColumnEventSourceType2,
-  _createElement as _createElement13,
-  _debounce as _debounce4,
+  _createElement as _createElement17,
+  _debounce as _debounce6,
   _destroyColumnTree as _destroyColumnTree3,
   _getColumnStateFromColDef as _getColumnStateFromColDef2,
   _getFirstRow,
@@ -36136,13 +37819,13 @@ import {
   _interpretAsRightClick,
   _isRowNumbers as _isRowNumbers2,
   _selectAllCells,
-  _setAriaLabel as _setAriaLabel15,
+  _setAriaLabel as _setAriaLabel16,
   _updateColsMap as _updateColsMap3,
   isRowNumberCol
 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/rowNumbers/rowNumbersRowResizeFeature.ts
-import { _isRowNumbers, _warn as _warn35 } from "ag-grid-community";
+import { _isRowNumbers, _warn as _warn36 } from "ag-grid-community";
 function _isRowNumbersResizerEnabled(beans) {
   const rowNumbers = _isRowNumbers(beans);
   return !(!rowNumbers || typeof rowNumbers !== "object" || !rowNumbers.enableRowResizer);
@@ -36163,7 +37846,7 @@ var RowNumbersRowResizeFeature = class {
     const { pinnedRowModel, rowModel, visibleCols } = this.beans;
     const rowModelModelHasOnRowHeightChanged = !!rowModel.onRowHeightChanged;
     if (visibleCols.autoHeightCols.length) {
-      _warn35(276);
+      _warn36(276);
       return false;
     }
     if (node.rowPinned != null) {
@@ -36205,7 +37888,7 @@ var RowNumbersRowResizeFeature = class {
 };
 
 // packages/ag-grid-enterprise/src/rowNumbers/rowNumbersService.ts
-var RowNumbersService = class extends BeanStub47 {
+var RowNumbersService = class extends BeanStub52 {
   constructor() {
     super(...arguments);
     this.beanName = "rowNumbersSvc";
@@ -36213,7 +37896,7 @@ var RowNumbersService = class extends BeanStub47 {
     this.lastColumnResized = 0;
   }
   postConstruct() {
-    const refreshCells_debounced = _debounce4(this, this.refreshCells.bind(this), 10);
+    const refreshCells_debounced = _debounce6(this, this.refreshCells.bind(this), 10);
     this.addManagedEventListeners({
       columnResized: () => {
         this.lastColumnResized = Date.now();
@@ -36313,7 +37996,7 @@ var RowNumbersService = class extends BeanStub47 {
     if (!this.isIntegratedWithSelection) {
       return false;
     }
-    if (event.key === KeyCode29.ENTER) {
+    if (event.key === KeyCode30.ENTER) {
       this.selectRowCells(cellPosition, event);
       event.preventDefault();
       return true;
@@ -36333,7 +38016,7 @@ var RowNumbersService = class extends BeanStub47 {
     for (const col of this.columns?.list ?? []) {
       const colDef = this.createRowNumbersColDef();
       col.setColDef(colDef, null, source);
-      _applyColumnState3(this.beans, { state: [_getColumnStateFromColDef2(colDef, col.getColId())] }, source);
+      _applyColumnState3(this.beans, { state: [_getColumnStateFromColDef2(colDef, col.colId)] }, source);
     }
   }
   getColumn() {
@@ -36347,7 +38030,7 @@ var RowNumbersService = class extends BeanStub47 {
     if (!isRowNumberCol(column)) {
       return;
     }
-    _setAriaLabel15(eGridHeader, "Row Number");
+    _setAriaLabel16(eGridHeader, "Row Number");
     this.addManagedElementListeners(eGridHeader, {
       click: this.onHeaderClick.bind(this),
       keydown: this.onHeaderKeyDown.bind(this),
@@ -36427,7 +38110,7 @@ var RowNumbersService = class extends BeanStub47 {
     this.beans.ariaAnnounce?.announceValue(message, "ariaSelectAllCells");
   }
   onHeaderKeyDown(e) {
-    if (!this.isIntegratedWithSelection || e.key !== KeyCode29.SPACE && e.key !== KeyCode29.ENTER) {
+    if (!this.isIntegratedWithSelection || e.key !== KeyCode30.SPACE && e.key !== KeyCode30.ENTER) {
       return;
     }
     e.preventDefault();
@@ -36468,10 +38151,10 @@ var RowNumbersService = class extends BeanStub47 {
     });
   }
   createDummyElement(column) {
-    const div = _createElement13({ tag: "div", cls: "ag-cell-value ag-cell" });
+    const div = _createElement17({ tag: "div", cls: "ag-cell-value ag-cell" });
     let value = String(this.beans.rowModel.getRowCount() + 1);
     if (typeof this.rowNumberOverrides.valueFormatter === "function") {
-      const valueFormatterParams = _addGridCommonParams20(this.beans.gos, {
+      const valueFormatterParams = _addGridCommonParams22(this.beans.gos, {
         data: void 0,
         value,
         node: null,
@@ -36633,16 +38316,16 @@ var RowNumbersModule = {
 import { _ColumnFilterModule as _ColumnFilterModule4 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/filterToolPanel/filtersToolPanel.ts
-import { Component as Component45, RefPlaceholder as RefPlaceholder41 } from "ag-grid-community";
+import { Component as Component52, RefPlaceholder as RefPlaceholder43 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/filterToolPanel/agFiltersToolPanelHeader.ts
 import {
   AgInputTextFieldSelector as AgInputTextFieldSelector8,
-  Component as Component41,
-  RefPlaceholder as RefPlaceholder38,
-  _createIconNoSpan as _createIconNoSpan20,
-  _debounce as _debounce5,
-  _setDisplayed as _setDisplayed20
+  Component as Component48,
+  RefPlaceholder as RefPlaceholder40,
+  _createIconNoSpan as _createIconNoSpan22,
+  _debounce as _debounce7,
+  _setDisplayed as _setDisplayed22
 } from "ag-grid-community";
 var AgFiltersToolPanelHeaderElement = {
   tag: "div",
@@ -36661,11 +38344,11 @@ var AgFiltersToolPanelHeaderElement = {
     }
   ]
 };
-var AgFiltersToolPanelHeader = class extends Component41 {
+var AgFiltersToolPanelHeader = class extends Component48 {
   constructor() {
     super(...arguments);
-    this.eExpand = RefPlaceholder38;
-    this.eFilterTextField = RefPlaceholder38;
+    this.eExpand = RefPlaceholder40;
+    this.eFilterTextField = RefPlaceholder40;
   }
   postConstruct() {
     this.setTemplate(AgFiltersToolPanelHeaderElement, [AgInputTextFieldSelector8]);
@@ -36684,9 +38367,9 @@ var AgFiltersToolPanelHeader = class extends Component41 {
   }
   createExpandIcons() {
     const { eExpand, beans } = this;
-    eExpand.appendChild(this.eExpandChecked = _createIconNoSpan20("accordionOpen", beans));
-    eExpand.appendChild(this.eExpandUnchecked = _createIconNoSpan20("accordionClosed", beans));
-    eExpand.appendChild(this.eExpandIndeterminate = _createIconNoSpan20("accordionIndeterminate", beans));
+    eExpand.appendChild(this.eExpandChecked = _createIconNoSpan22("accordionOpen", beans));
+    eExpand.appendChild(this.eExpandUnchecked = _createIconNoSpan22("accordionClosed", beans));
+    eExpand.appendChild(this.eExpandIndeterminate = _createIconNoSpan22("accordionIndeterminate", beans));
   }
   // we only show expand / collapse if we are showing filters
   showOrHideOptions() {
@@ -36697,12 +38380,12 @@ var AgFiltersToolPanelHeader = class extends Component41 {
     eFilterTextField.setInputPlaceholder(translate("searchOoo", "Search..."));
     const isFilterGroupPresent = (col) => col.getOriginalParent() && col.isFilterAllowed();
     const filterGroupsPresent = this.beans.colModel.getCols().some(isFilterGroupPresent);
-    _setDisplayed20(eFilterTextField.getGui(), showFilterSearch);
-    _setDisplayed20(this.eExpand, showExpand && filterGroupsPresent);
+    _setDisplayed22(eFilterTextField.getGui(), showFilterSearch);
+    _setDisplayed22(this.eExpand, showExpand && filterGroupsPresent);
   }
   onSearchTextChanged() {
     if (!this.onSearchTextChangedDebounced) {
-      this.onSearchTextChangedDebounced = _debounce5(
+      this.onSearchTextChangedDebounced = _debounce7(
         this,
         () => this.dispatchLocalEvent({ type: "searchChanged", searchText: this.eFilterTextField.getValue() }),
         300
@@ -36716,9 +38399,9 @@ var AgFiltersToolPanelHeader = class extends Component41 {
   }
   setExpandState(state) {
     this.currentExpandState = state;
-    _setDisplayed20(this.eExpandChecked, state === 0 /* EXPANDED */);
-    _setDisplayed20(this.eExpandUnchecked, state === 1 /* COLLAPSED */);
-    _setDisplayed20(this.eExpandIndeterminate, state === 2 /* INDETERMINATE */);
+    _setDisplayed22(this.eExpandChecked, state === 0 /* EXPANDED */);
+    _setDisplayed22(this.eExpandUnchecked, state === 1 /* COLLAPSED */);
+    _setDisplayed22(this.eExpandIndeterminate, state === 2 /* INDETERMINATE */);
   }
 };
 var AgFiltersToolPanelHeaderSelector = {
@@ -36728,30 +38411,30 @@ var AgFiltersToolPanelHeaderSelector = {
 
 // packages/ag-grid-enterprise/src/filterToolPanel/agFiltersToolPanelList.ts
 import {
-  Component as Component44,
-  _addGridCommonParams as _addGridCommonParams21,
-  _clearElement as _clearElement16,
+  Component as Component51,
+  _addGridCommonParams as _addGridCommonParams23,
+  _clearElement as _clearElement18,
   _exists as _exists22,
-  _getActiveDomElement as _getActiveDomElement13,
+  _getActiveDomElement as _getActiveDomElement14,
   _mergeDeep as _mergeDeep4,
-  _setAriaLabel as _setAriaLabel18,
-  _warn as _warn36,
+  _setAriaLabel as _setAriaLabel19,
+  _warn as _warn37,
   isProvidedColumnGroup as isProvidedColumnGroup6
 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/filterToolPanel/toolPanelFilterComp.ts
 import {
-  Component as Component42,
+  Component as Component49,
   FilterComp as FilterComp3,
-  KeyCode as KeyCode30,
-  RefPlaceholder as RefPlaceholder39,
-  _clearElement as _clearElement14,
-  _createElement as _createElement14,
-  _createIconNoSpan as _createIconNoSpan21,
-  _setAriaExpanded as _setAriaExpanded10,
-  _setAriaLabel as _setAriaLabel16,
+  KeyCode as KeyCode31,
+  RefPlaceholder as RefPlaceholder41,
+  _clearElement as _clearElement16,
+  _createElement as _createElement18,
+  _createIconNoSpan as _createIconNoSpan23,
+  _setAriaExpanded as _setAriaExpanded11,
+  _setAriaLabel as _setAriaLabel17,
   _setAriaRole as _setAriaRole10,
-  _setDisplayed as _setDisplayed21
+  _setDisplayed as _setDisplayed23
 } from "ag-grid-community";
 var ToolPanelFilterElement = {
   tag: "div",
@@ -36776,28 +38459,28 @@ var ToolPanelFilterElement = {
     { tag: "div", ref: "agFilterToolPanelBody", cls: "ag-filter-toolpanel-instance-body ag-filter" }
   ]
 };
-var ToolPanelFilterComp = class extends Component42 {
+var ToolPanelFilterComp = class extends Component49 {
   constructor(hideHeader, expandedCallback) {
     super(ToolPanelFilterElement);
     this.hideHeader = hideHeader;
     this.expandedCallback = expandedCallback;
-    this.eFilterToolPanelHeader = RefPlaceholder39;
-    this.eFilterName = RefPlaceholder39;
-    this.agFilterToolPanelBody = RefPlaceholder39;
-    this.eFilterIcon = RefPlaceholder39;
-    this.eExpand = RefPlaceholder39;
+    this.eFilterToolPanelHeader = RefPlaceholder41;
+    this.eFilterName = RefPlaceholder41;
+    this.agFilterToolPanelBody = RefPlaceholder41;
+    this.eFilterIcon = RefPlaceholder41;
+    this.eExpand = RefPlaceholder41;
     this.expanded = false;
   }
   postConstruct() {
     const { beans, eExpand, eFilterIcon } = this;
-    const eExpandChecked = _createIconNoSpan21("accordionOpen", beans);
+    const eExpandChecked = _createIconNoSpan23("accordionOpen", beans);
     this.eExpandChecked = eExpandChecked;
-    const eExpandUnchecked = _createIconNoSpan21("accordionClosed", beans);
+    const eExpandUnchecked = _createIconNoSpan23("accordionClosed", beans);
     this.eExpandUnchecked = eExpandUnchecked;
     eExpand.appendChild(eExpandChecked);
     eExpand.appendChild(eExpandUnchecked);
     const translate = this.getLocaleTextFunc();
-    _setAriaLabel16(eFilterIcon, translate("ariaFilterActive", "Filter Active"));
+    _setAriaLabel17(eFilterIcon, translate("ariaFilterActive", "Filter Active"));
     _setAriaRole10(eFilterIcon, "img");
   }
   setColumn(column) {
@@ -36810,10 +38493,10 @@ var ToolPanelFilterComp = class extends Component42 {
     });
     this.addManagedEventListeners({ filterOpened: this.onFilterOpened.bind(this) });
     this.addInIcon("filterActive", eFilterIcon, column);
-    _setDisplayed21(eFilterIcon, this.isFilterActive());
-    _setDisplayed21(eExpandChecked, false);
+    _setDisplayed23(eFilterIcon, this.isFilterActive());
+    _setDisplayed23(eExpandChecked, false);
     if (hideHeader) {
-      _setDisplayed21(eFilterToolPanelHeader, false);
+      _setDisplayed23(eFilterToolPanelHeader, false);
       eFilterToolPanelHeader.removeAttribute("tabindex");
     } else {
       eFilterToolPanelHeader.setAttribute("tabindex", "0");
@@ -36822,14 +38505,14 @@ var ToolPanelFilterComp = class extends Component42 {
   }
   onKeyDown(e) {
     const { key } = e;
-    const { ENTER, SPACE, LEFT, RIGHT } = KeyCode30;
+    const { ENTER, SPACE, LEFT, RIGHT } = KeyCode31;
     if (key !== ENTER && key !== SPACE && key !== LEFT && key !== RIGHT) {
       return;
     }
     e.preventDefault();
     if (key === ENTER || key === SPACE) {
       this.toggleExpanded();
-    } else if (key === KeyCode30.LEFT) {
+    } else if (key === KeyCode31.LEFT) {
       this.collapse();
     } else {
       this.expand();
@@ -36848,14 +38531,14 @@ var ToolPanelFilterComp = class extends Component42 {
     if (eParent == null) {
       return;
     }
-    const eIcon = _createIconNoSpan21(iconName, this.beans, column);
+    const eIcon = _createIconNoSpan23(iconName, this.beans, column);
     eParent.appendChild(eIcon);
   }
   isFilterActive() {
     return !!this.beans.colFilter?.isFilterActive(this.column);
   }
   onFilterChanged() {
-    _setDisplayed21(this.eFilterIcon, this.isFilterActive());
+    _setDisplayed23(this.eFilterIcon, this.isFilterActive());
     this.dispatchLocalEvent({ type: "filterChanged" });
   }
   toggleExpanded() {
@@ -36870,14 +38553,14 @@ var ToolPanelFilterComp = class extends Component42 {
       return;
     }
     this.expanded = true;
-    _setAriaExpanded10(this.eFilterToolPanelHeader, true);
-    _setDisplayed21(this.eExpandChecked, true);
-    _setDisplayed21(this.eExpandUnchecked, false);
+    _setAriaExpanded11(this.eFilterToolPanelHeader, true);
+    _setDisplayed23(this.eExpandChecked, true);
+    _setDisplayed23(this.eExpandUnchecked, false);
     this.addFilterElement();
     this.expandedCallback();
   }
   addFilterElement(suppressFocus) {
-    const filterPanelWrapper = _createElement14({ tag: "div", cls: "ag-filter-toolpanel-instance-filter" });
+    const filterPanelWrapper = _createElement18({ tag: "div", cls: "ag-filter-toolpanel-instance-filter" });
     const comp = this.createManagedBean(new FilterComp3(this.column, "TOOLBAR"));
     this.filterComp = comp;
     if (!comp.hasFilter()) {
@@ -36898,17 +38581,17 @@ var ToolPanelFilterComp = class extends Component42 {
       return;
     }
     this.expanded = false;
-    _setAriaExpanded10(this.eFilterToolPanelHeader, false);
+    _setAriaExpanded11(this.eFilterToolPanelHeader, false);
     this.removeFilterElement();
-    _setDisplayed21(this.eExpandChecked, false);
-    _setDisplayed21(this.eExpandUnchecked, true);
+    _setDisplayed23(this.eExpandChecked, false);
+    _setDisplayed23(this.eExpandUnchecked, true);
     const filterComp = this.filterComp;
     filterComp?.afterGuiDetached();
     this.destroyBean(filterComp);
     this.expandedCallback();
   }
   removeFilterElement() {
-    _clearElement14(this.agFilterToolPanelBody);
+    _clearElement16(this.agFilterToolPanelBody);
   }
   isExpanded() {
     return this.expanded;
@@ -36939,16 +38622,16 @@ var ToolPanelFilterComp = class extends Component42 {
 
 // packages/ag-grid-enterprise/src/filterToolPanel/toolPanelFilterGroupComp.ts
 import {
-  Component as Component43,
-  RefPlaceholder as RefPlaceholder40,
-  _clearElement as _clearElement15,
-  _createIconNoSpan as _createIconNoSpan22,
+  Component as Component50,
+  RefPlaceholder as RefPlaceholder42,
+  _clearElement as _clearElement17,
+  _createIconNoSpan as _createIconNoSpan24,
   _getShouldDisplayTooltip as _getShouldDisplayTooltip4,
-  _setAriaLabel as _setAriaLabel17,
+  _setAriaLabel as _setAriaLabel18,
   _setAriaRole as _setAriaRole11,
   isProvidedColumnGroup as isProvidedColumnGroup5
 } from "ag-grid-community";
-var ToolPanelFilterGroupComp = class extends Component43 {
+var ToolPanelFilterGroupComp = class extends Component50 {
   constructor(columnGroup, childFilterComps, expandedCallback, depth, showingColumn) {
     super();
     this.columnGroup = columnGroup;
@@ -36956,7 +38639,7 @@ var ToolPanelFilterGroupComp = class extends Component43 {
     this.expandedCallback = expandedCallback;
     this.depth = depth;
     this.showingColumn = showingColumn;
-    this.filterGroupComp = RefPlaceholder40;
+    this.filterGroupComp = RefPlaceholder42;
   }
   postConstruct() {
     const groupParams = {
@@ -36993,7 +38676,7 @@ var ToolPanelFilterGroupComp = class extends Component43 {
           () => filterGroupComp.getGui().querySelector(".ag-group-title")
         ),
         getAdditionalParams: () => ({
-          colDef: column?.getColDef(),
+          colDef: column?.colDef,
           column
         })
       })
@@ -37009,7 +38692,7 @@ var ToolPanelFilterGroupComp = class extends Component43 {
       return;
     }
     const refresh = () => {
-      this.tooltipFeature?.setTooltipAndRefresh(this.columnGroup.getColDef().headerTooltip);
+      this.tooltipFeature?.setTooltipAndRefresh(this.columnGroup.colDef.headerTooltip);
     };
     refresh();
     this.addManagedEventListeners({ newColumnsLoaded: refresh });
@@ -37044,11 +38727,11 @@ var ToolPanelFilterGroupComp = class extends Component43 {
     this.setDisplayed(!hide);
   }
   addInIcon(iconName) {
-    const eIcon = _createIconNoSpan22(iconName, this.beans);
+    const eIcon = _createIconNoSpan24(iconName, this.beans);
     if (eIcon) {
       eIcon.classList.add("ag-filter-toolpanel-group-instance-header-icon");
       const translate = this.getLocaleTextFunc();
-      _setAriaLabel17(eIcon, translate("ariaFilterActive", "Filter Active"));
+      _setAriaLabel18(eIcon, translate("ariaFilterActive", "Filter Active"));
       _setAriaRole11(eIcon, "img");
     }
     this.filterGroupComp.addTitleBarWidget(eIcon);
@@ -37119,7 +38802,7 @@ var ToolPanelFilterGroupComp = class extends Component43 {
   }
   destroyFilters() {
     this.childFilterComps = this.destroyBeans(this.childFilterComps);
-    _clearElement15(this.getGui());
+    _clearElement17(this.getGui());
   }
   destroy() {
     this.destroyFilters();
@@ -37128,7 +38811,7 @@ var ToolPanelFilterGroupComp = class extends Component43 {
 };
 
 // packages/ag-grid-enterprise/src/filterToolPanel/agFiltersToolPanelList.ts
-var AgFiltersToolPanelList = class extends Component44 {
+var AgFiltersToolPanelList = class extends Component51 {
   constructor() {
     super({ tag: "div", cls: "ag-filter-list-panel" });
     this.initialised = false;
@@ -37144,7 +38827,7 @@ var AgFiltersToolPanelList = class extends Component44 {
   }
   init(params) {
     this.initialised = true;
-    const defaultParams = _addGridCommonParams21(this.gos, {
+    const defaultParams = _addGridCommonParams23(this.gos, {
       suppressExpandAll: false,
       suppressFilterSearch: false,
       suppressSyncLayoutWithGrid: false
@@ -37181,7 +38864,7 @@ var AgFiltersToolPanelList = class extends Component44 {
       this.onColumnsChangedPending = true;
       return;
     }
-    const pivotModeActive = this.colModel.isPivotMode();
+    const pivotModeActive = this.colModel.pivotMode;
     const shouldSyncColumnLayoutWithGrid = !this.params.suppressSyncLayoutWithGrid && !pivotModeActive;
     if (shouldSyncColumnLayoutWithGrid) {
       this.syncFilterLayout();
@@ -37203,7 +38886,7 @@ var AgFiltersToolPanelList = class extends Component44 {
     this.recreateFilters(columnTree);
   }
   recreateFilters(columnTree) {
-    const activeElement = _getActiveDomElement13(this.beans);
+    const activeElement = _getActiveDomElement14(this.beans);
     if (!this.hasLoadedInitialState) {
       this.hasLoadedInitialState = true;
       this.isInitialState = !!this.params.initialState;
@@ -37269,7 +38952,7 @@ var AgFiltersToolPanelList = class extends Component44 {
     const hiddenSelector = ".ag-hidden";
     const visibleItems = eGui.querySelectorAll(`${itemSelector}:not(${groupSelector}, ${hiddenSelector})`);
     const totalVisibleItems = visibleItems.length;
-    _setAriaLabel18(this.getAriaElement(), `${filterListName} ${totalVisibleItems} ${localeFilters}`);
+    _setAriaLabel19(this.getAriaElement(), `${filterListName} ${totalVisibleItems} ${localeFilters}`);
   }
   recursivelyAddFilterGroupComps(columnGroup, depth, expansionState) {
     if (!this.filtersExistInChildren(columnGroup.getChildren())) {
@@ -37310,7 +38993,7 @@ var AgFiltersToolPanelList = class extends Component44 {
     });
   }
   shouldDisplayFilter(column) {
-    const suppressFiltersToolPanel = column.getColDef()?.suppressFiltersToolPanel;
+    const suppressFiltersToolPanel = column.colDef?.suppressFiltersToolPanel;
     return column.isFilterAllowed() && !suppressFiltersToolPanel;
   }
   getExpansionState() {
@@ -37371,7 +39054,7 @@ var AgFiltersToolPanelList = class extends Component44 {
     if (groupIds) {
       const unrecognisedGroupIds = groupIds.filter((groupId) => updatedGroupIds.indexOf(groupId) < 0);
       if (unrecognisedGroupIds.length > 0) {
-        _warn36(166, { unrecognisedGroupIds });
+        _warn37(166, { unrecognisedGroupIds });
       }
     }
   }
@@ -37393,7 +39076,7 @@ var AgFiltersToolPanelList = class extends Component44 {
         }
         return anyChildrenChanged;
       }
-      const colId = filterComp.getColumn().getColId();
+      const colId = filterComp.getColumn().colId;
       const updateFilterExpandState = !colIds || colIds.includes(colId);
       if (updateFilterExpandState) {
         if (expand) {
@@ -37410,7 +39093,7 @@ var AgFiltersToolPanelList = class extends Component44 {
     if (colIds) {
       const unrecognisedColIds = colIds.filter((colId) => updatedColIds.indexOf(colId) < 0);
       if (unrecognisedColIds.length > 0) {
-        _warn36(167, { unrecognisedColIds });
+        _warn37(167, { unrecognisedColIds });
       }
     }
   }
@@ -37454,15 +39137,15 @@ var AgFiltersToolPanelList = class extends Component44 {
     this.searchFilters(this.searchFilterText);
   }
   searchFilters(searchFilter) {
-    const passesFilter = (groupName) => {
+    const passesFilter2 = (groupName) => {
       return !_exists22(searchFilter) || groupName.toLowerCase().indexOf(searchFilter) !== -1;
     };
     const recursivelySearch = (filterItem, parentPasses) => {
       if (!(filterItem instanceof ToolPanelFilterGroupComp)) {
-        return passesFilter(filterItem.getColumnFilterName() || "");
+        return passesFilter2(filterItem.getColumnFilterName() || "");
       }
       const children = filterItem.getChildren();
-      const groupNamePasses = passesFilter(filterItem.getFilterGroupName());
+      const groupNamePasses = passesFilter2(filterItem.getFilterGroupName());
       const alreadyPassed = parentPasses || groupNamePasses;
       if (alreadyPassed) {
         filterItem.hideGroup(false);
@@ -37530,7 +39213,7 @@ var AgFiltersToolPanelList = class extends Component44 {
           expandedGroupIds.push(groupId);
         }
       } else if (filterComp.isExpanded()) {
-        expandedColIds.add(filterComp.getColumn().getColId());
+        expandedColIds.add(filterComp.getColumn().colId);
       }
     };
     this.filterGroupComps.forEach(getExpandedFiltersAndGroups);
@@ -37538,7 +39221,7 @@ var AgFiltersToolPanelList = class extends Component44 {
   }
   destroyFilters() {
     this.filterGroupComps = this.destroyBeans(this.filterGroupComps);
-    _clearElement16(this.getGui());
+    _clearElement18(this.getGui());
   }
   destroy() {
     this.destroyFilters();
@@ -37562,11 +39245,11 @@ var FiltersToolPanelElement = {
     { tag: "ag-filters-tool-panel-list", ref: "filtersToolPanelListPanel" }
   ]
 };
-var FiltersToolPanel = class extends Component45 {
+var FiltersToolPanel = class extends Component52 {
   constructor() {
     super(FiltersToolPanelElement, [AgFiltersToolPanelHeaderSelector, AgFiltersToolPanelListSelector]);
-    this.filtersToolPanelHeaderPanel = RefPlaceholder41;
-    this.filtersToolPanelListPanel = RefPlaceholder41;
+    this.filtersToolPanelHeaderPanel = RefPlaceholder43;
+    this.filtersToolPanelListPanel = RefPlaceholder43;
     this.initialised = false;
     this.listenerDestroyFuncs = [];
     this.registerCSS(filtersToolPanel_default);
@@ -37646,8 +39329,8 @@ var FiltersToolPanel = class extends Component45 {
 };
 
 // packages/ag-grid-enterprise/src/filterToolPanel/newFilterToolPanel/filterPanelService.ts
-import { BeanStub as BeanStub48, FilterComp as FilterComp4 } from "ag-grid-community";
-var FilterPanelService = class extends BeanStub48 {
+import { BeanStub as BeanStub53, FilterComp as FilterComp4 } from "ag-grid-community";
+var FilterPanelService = class extends BeanStub53 {
   constructor() {
     super(...arguments);
     this.beanName = "filterPanelSvc";
@@ -37680,7 +39363,7 @@ var FilterPanelService = class extends BeanStub48 {
       filterClosed: updateApplyButton
     });
     const refreshForColumn = ({ column }) => {
-      this.states.get(column.getColId())?.refresh?.();
+      this.states.get(column.colId)?.refresh?.();
       updateApplyButton();
     };
     this.addManagedListeners(this.beans.colFilter, {
@@ -37718,7 +39401,7 @@ var FilterPanelService = class extends BeanStub48 {
     const beans = this.beans;
     const availableFilters = [];
     for (const column of beans.colModel.getColDefCols() ?? []) {
-      const id = column.getColId();
+      const id = column.colId;
       if (column.isFilterAllowed() && !column.colDef.suppressFiltersToolPanel && !this.states.get(id)) {
         availableFilters.push({
           id,
@@ -37890,7 +39573,7 @@ var FilterPanelService = class extends BeanStub48 {
     const beans = this.beans;
     const { colFilter, selectableFilter } = beans;
     const name = getDisplayName(beans, column);
-    const colId = column.getColId();
+    const colId = column.colId;
     const getIsEditing = () => !!this.params?.buttons && colFilter.hasUnappliedModel(colId);
     const isEditing = getIsEditing();
     if (expanded) {
@@ -37916,7 +39599,7 @@ var FilterPanelService = class extends BeanStub48 {
         destroy: () => this.destroyBean(filterComp)
       };
     } else {
-      const colId2 = column.getColId();
+      const colId2 = column.colId;
       const getSummary = () => handler.getModelAsString?.(colFilter.getStateForColumn(colId2).model, "filterToolPanel") ?? "";
       return {
         state: {
@@ -37984,21 +39667,21 @@ var FilterPanelService = class extends BeanStub48 {
   }
 };
 function getDisplayName(beans, column) {
-  return beans.colNames.getDisplayNameForColumn(column, "filterToolPanel") ?? column.getColId();
+  return beans.colNames.getDisplayNameForColumn(column, "filterToolPanel") ?? column.colId;
 }
 
 // packages/ag-grid-enterprise/src/filterToolPanel/newFilterToolPanel/selectableFilterService.ts
 import {
-  BeanStub as BeanStub49,
-  _addGridCommonParams as _addGridCommonParams22,
+  BeanStub as BeanStub54,
+  _addGridCommonParams as _addGridCommonParams24,
   _getDefaultSimpleFilter as _getDefaultSimpleFilter2,
   _getFilterParamsForDataType as _getFilterParamsForDataType2,
   _isSetFilterByDefault,
-  _warn as _warn37
+  _warn as _warn38
 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/filterToolPanel/newFilterToolPanel/filterPanelUtils.ts
-import { _removeFromParent as _removeFromParent7, _translate as _translate2 } from "ag-grid-community";
+import { _removeFromParent as _removeFromParent8, _translate as _translate2 } from "ag-grid-community";
 var DEFAULT_LOCALE_TEXT2 = {
   addFilterCard: "Add Filter",
   ariaLabelAddFilterField: "Add Filter Field",
@@ -38021,7 +39704,7 @@ function compareAndUpdateListsInDom(eContainer, eNewItems, ePrevItems) {
     if (ePrevItem === eNewItems[newIndex]) {
       newIndex++;
     } else {
-      _removeFromParent7(ePrevItem);
+      _removeFromParent8(ePrevItem);
     }
   }
   while (newIndex < eNewItems.length) {
@@ -38030,7 +39713,7 @@ function compareAndUpdateListsInDom(eContainer, eNewItems, ePrevItems) {
 }
 
 // packages/ag-grid-enterprise/src/filterToolPanel/newFilterToolPanel/selectableFilterService.ts
-var SelectableFilterService = class extends BeanStub49 {
+var SelectableFilterService = class extends BeanStub54 {
   constructor() {
     super(...arguments);
     this.beanName = "selectableFilter";
@@ -38063,7 +39746,7 @@ var SelectableFilterService = class extends BeanStub49 {
     const colDef = column.colDef;
     if (typeof filterParams === "function") {
       filterParams = filterParams(
-        _addGridCommonParams22(gos, {
+        _addGridCommonParams24(gos, {
           column,
           colDef
         })
@@ -38106,7 +39789,7 @@ var SelectableFilterService = class extends BeanStub49 {
         if (typeof filterString === "string") {
           updatedName = translateForFilterPanel(this, `${filterString}DisplayName`);
         } else {
-          _warn37(280, { colId: column.getColId() });
+          _warn38(280, { colId: column.colId });
           updatedName = "";
         }
       }
@@ -38122,7 +39805,7 @@ var SelectableFilterService = class extends BeanStub49 {
     };
     const filterDefs = (filters ?? this.getDefaultFilters(column)).map(updateDef);
     let index = overrideIndex ?? // provided override
-    this.selectedFilters.get(column.getColId()) ?? // UI selected value
+    this.selectedFilters.get(column.colId) ?? // UI selected value
     defaultFilterIndex ?? // col def value
     (!filters && _isSetFilterByDefault(gos) ? 1 : 0);
     if (index >= filterDefs.length) {
@@ -38203,27 +39886,27 @@ var SelectableFilterService = class extends BeanStub49 {
 };
 
 // packages/ag-grid-enterprise/src/filterToolPanel/newFilterToolPanel/wrapperToolPanel.ts
-import { Component as Component51, _warn as _warn38 } from "ag-grid-community";
+import { Component as Component58, _warn as _warn39 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/filterToolPanel/newFilterToolPanel/filterPanel.ts
 import {
-  Component as Component50,
+  Component as Component57,
   FilterButtonComp as FilterButtonComp3,
-  RefPlaceholder as RefPlaceholder44,
-  _focusInto as _focusInto8,
-  _getActiveDomElement as _getActiveDomElement14,
+  RefPlaceholder as RefPlaceholder46,
+  _focusInto as _focusInto9,
+  _getActiveDomElement as _getActiveDomElement15,
   _isNothingFocused as _isNothingFocused4,
-  _removeFromParent as _removeFromParent10,
+  _removeFromParent as _removeFromParent11,
   _translateForFilter
 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/filterToolPanel/newFilterToolPanel/addFilterComp.ts
-import { Component as Component46, _clearElement as _clearElement17, _createElement as _createElement15, _createIconNoSpan as _createIconNoSpan23 } from "ag-grid-community";
+import { Component as Component53, _clearElement as _clearElement19, _createElement as _createElement19, _createIconNoSpan as _createIconNoSpan25 } from "ag-grid-community";
 var AddFilterElement = {
   tag: "div",
   cls: "ag-filter-card ag-filter-card-add"
 };
-var AddFilterComp = class extends Component46 {
+var AddFilterComp = class extends Component53 {
   constructor(options) {
     super(AddFilterElement);
     this.options = /* @__PURE__ */ new Map();
@@ -38240,13 +39923,13 @@ var AddFilterComp = class extends Component46 {
     }
   }
   showButton() {
-    _clearElement17(this.getGui());
+    _clearElement19(this.getGui());
     this.destroySelect();
-    const eButton = _createElement15({
+    const eButton = _createElement19({
       tag: "button",
       cls: "ag-button ag-standard-button ag-filter-add-button",
       children: [
-        { tag: "span", children: [() => _createIconNoSpan23("filterAdd", this.beans)] },
+        { tag: "span", children: [() => _createIconNoSpan25("filterAdd", this.beans)] },
         {
           tag: "span",
           cls: "ag-filter-add-button-label",
@@ -38264,7 +39947,7 @@ var AddFilterComp = class extends Component46 {
     eButton.focus();
   }
   showSelect() {
-    _clearElement17(this.getGui());
+    _clearElement19(this.getGui());
     this.destroyButton();
     const pickerAriaLabelKey = "ariaLabelAddFilterField";
     const selectParams = {
@@ -38318,28 +40001,28 @@ var AddFilterComp = class extends Component46 {
 
 // packages/ag-grid-enterprise/src/filterToolPanel/newFilterToolPanel/filterCardComp.ts
 import {
-  Component as Component49,
-  RefPlaceholder as RefPlaceholder43,
-  _clearElement as _clearElement18,
+  Component as Component56,
+  RefPlaceholder as RefPlaceholder45,
+  _clearElement as _clearElement20,
   _createIcon as _createIcon3,
-  _removeFromParent as _removeFromParent9,
+  _removeFromParent as _removeFromParent10,
   _setAriaControls,
-  _setAriaExpanded as _setAriaExpanded11,
-  _setAriaLabel as _setAriaLabel19,
-  _setDisplayed as _setDisplayed22
+  _setAriaExpanded as _setAriaExpanded12,
+  _setAriaLabel as _setAriaLabel20,
+  _setDisplayed as _setDisplayed24
 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/filterToolPanel/newFilterToolPanel/filterDetailComp.ts
-import { AgSelectSelector, Component as Component47, RefPlaceholder as RefPlaceholder42, _removeFromParent as _removeFromParent8 } from "ag-grid-community";
+import { AgSelectSelector, Component as Component54, RefPlaceholder as RefPlaceholder44, _removeFromParent as _removeFromParent9 } from "ag-grid-community";
 var FilterDetailElement = {
   tag: "div",
   cls: "ag-filter-card-body",
   children: [{ tag: "ag-select", cls: "ag-filter-type-select", ref: "eFilterType" }]
 };
-var FilterDetailComp = class extends Component47 {
+var FilterDetailComp = class extends Component54 {
   constructor() {
     super(...arguments);
-    this.eFilterType = RefPlaceholder42;
+    this.eFilterType = RefPlaceholder44;
   }
   postConstruct() {
     const eFilterTypeParams = {
@@ -38372,7 +40055,7 @@ var FilterDetailComp = class extends Component47 {
     }
     if (newDetail !== oldDetail) {
       if (oldDetail) {
-        _removeFromParent8(oldDetail);
+        _removeFromParent9(oldDetail);
         afterGuiDetached();
       }
       this.appendChild(newDetail);
@@ -38385,7 +40068,7 @@ var FilterDetailComp = class extends Component47 {
 };
 
 // packages/ag-grid-enterprise/src/filterToolPanel/newFilterToolPanel/filterSummaryComp.ts
-import { Component as Component48 } from "ag-grid-community";
+import { Component as Component55 } from "ag-grid-community";
 var FilterSummaryElement = {
   tag: "div",
   cls: "ag-filter-card-summary",
@@ -38393,7 +40076,7 @@ var FilterSummaryElement = {
     "aria-hidden": "true"
   }
 };
-var FilterSummaryComp = class extends Component48 {
+var FilterSummaryComp = class extends Component55 {
   constructor() {
     super(FilterSummaryElement);
   }
@@ -38442,21 +40125,21 @@ var FilterCardElement = {
     }
   ]
 };
-var FilterCardComp = class extends Component49 {
+var FilterCardComp = class extends Component56 {
   constructor(id) {
     super(FilterCardElement);
     this.id = id;
-    this.eTitle = RefPlaceholder43;
-    this.eExpand = RefPlaceholder43;
-    this.eDelete = RefPlaceholder43;
-    this.eExpandIcon = RefPlaceholder43;
-    this.eDeleteIcon = RefPlaceholder43;
-    this.eEditing = RefPlaceholder43;
+    this.eTitle = RefPlaceholder45;
+    this.eExpand = RefPlaceholder45;
+    this.eDelete = RefPlaceholder45;
+    this.eExpandIcon = RefPlaceholder45;
+    this.eDeleteIcon = RefPlaceholder45;
+    this.eEditing = RefPlaceholder45;
   }
   postConstruct() {
     const { beans, eDelete, eExpand, eDeleteIcon, eEditing, id } = this;
     const filterPanelService = beans.filterPanelSvc;
-    _setAriaLabel19(eDelete, translateForFilterPanel(this, "ariaLabelFilterCardDelete"));
+    _setAriaLabel20(eDelete, translateForFilterPanel(this, "ariaLabelFilterCardDelete"));
     eDeleteIcon.appendChild(_createIcon3("close", beans, null));
     this.activateTabIndex([eExpand, eDelete]);
     this.addManagedElementListeners(eExpand, {
@@ -38473,20 +40156,20 @@ var FilterCardComp = class extends Component49 {
     this.state = newState;
     const { name, expanded, isEditing } = newState;
     this.eTitle.textContent = name;
-    _setDisplayed22(eEditing, isEditing);
-    if (!oldState || expanded !== oldState.expanded) {
+    _setDisplayed24(eEditing, isEditing);
+    if (expanded !== oldState?.expanded) {
       this.toggleExpand(newState);
     }
     let ariaLabel = expanded ? null : `${name} ${newState.summary}`;
     if (isEditing) {
       ariaLabel = `${ariaLabel ?? name}. ${translateForFilterPanel(this, "ariaLabelFilterCardHasEdits")}`;
     }
-    _setAriaLabel19(eExpand, ariaLabel);
+    _setAriaLabel20(eExpand, ariaLabel);
     const removeComp = (comp) => {
       if (!comp) {
         return;
       }
-      _removeFromParent9(comp.getGui());
+      _removeFromParent10(comp.getGui());
       return this.destroyBean(comp);
     };
     const createOrRefreshComp = (comp, FilterComp5, postCreateFunc) => {
@@ -38520,9 +40203,9 @@ var FilterCardComp = class extends Component49 {
   toggleExpand(state) {
     const expanded = !!state.expanded;
     const { eExpandIcon, eExpand, beans } = this;
-    _clearElement18(eExpandIcon);
+    _clearElement20(eExpandIcon);
     eExpandIcon.appendChild(_createIcon3(expanded ? "filterCardCollapse" : "filterCardExpand", beans, null));
-    _setAriaExpanded11(eExpand, expanded);
+    _setAriaExpanded12(eExpand, expanded);
   }
   onFilterOpened(event) {
     const { state, beans, id } = this;
@@ -38550,10 +40233,10 @@ var FilterPanelElement = {
   cls: "ag-filter-panel",
   children: [{ tag: "div", cls: "ag-filter-panel-container", ref: "eContainer" }]
 };
-var FilterPanel = class extends Component50 {
+var FilterPanel = class extends Component57 {
   constructor() {
     super(FilterPanelElement);
-    this.eContainer = RefPlaceholder44;
+    this.eContainer = RefPlaceholder46;
     this.filters = /* @__PURE__ */ new Map();
   }
   refresh(params) {
@@ -38570,7 +40253,7 @@ var FilterPanel = class extends Component50 {
     const filterIds = filterPanelSvc.getIds();
     const newFilters = /* @__PURE__ */ new Map();
     const somethingIsFocused = !_isNothingFocused4(beans);
-    const activeElement = somethingIsFocused ? _getActiveDomElement14(beans) : void 0;
+    const activeElement = somethingIsFocused ? _getActiveDomElement15(beans) : void 0;
     const containerHasFocus = somethingIsFocused && eContainer.contains(activeElement);
     const ePrevItems = [];
     const eNewItems = [];
@@ -38613,9 +40296,9 @@ var FilterPanel = class extends Component50 {
     const activeId = params?.activeId;
     const activeItemToFocus = activeId && newFilters.get(activeId)?.getGui();
     if (activeItemToFocus) {
-      _focusInto8(activeItemToFocus);
+      _focusInto9(activeItemToFocus);
     } else if (containerHasFocus && _isNothingFocused4(beans)) {
-      _focusInto8(eNewItems[eNewItems.length - 1] ?? eContainer);
+      _focusInto9(eNewItems[eNewItems.length - 1] ?? eContainer);
     }
     this.refreshActions();
   }
@@ -38640,7 +40323,7 @@ var FilterPanel = class extends Component50 {
       buttonComp.updateButtons(buttons);
       buttonComp.updateValidity(canApply !== false);
     } else if (buttonComp) {
-      _removeFromParent10(buttonComp.getGui());
+      _removeFromParent11(buttonComp.getGui());
       buttonComp = this.destroyBean(buttonComp);
     }
     this.buttonComp = buttonComp;
@@ -38660,14 +40343,14 @@ var FilterPanel = class extends Component50 {
 var newFiltersToolPanel_default = ".ag-filter-panel{display:flex;flex-direction:column;width:100%;:where(.ag-standard-button){transition:background-color .25s ease-in-out,color .25s ease-in-out}}.ag-filter-panel .ag-simple-filter-body-wrapper{padding:var(--ag-widget-vertical-spacing) var(--ag-widget-container-horizontal-padding) 0}.ag-filter-panel .ag-mini-filter{margin-left:var(--ag-widget-container-horizontal-padding);margin-right:var(--ag-widget-container-horizontal-padding);margin-top:var(--ag-widget-vertical-spacing)}.ag-filter-panel-container{display:flex;flex:1;flex-direction:column;gap:var(--ag-widget-container-vertical-padding);overflow:auto;padding:var(--ag-widget-container-vertical-padding) var(--ag-widget-container-horizontal-padding) 0}.ag-filter-card{background-color:var(--ag-background-color);border:solid var(--ag-border-width) var(--ag-border-color);border-radius:var(--ag-border-radius)}.ag-filter-card-header{align-items:center;display:flex;flex-direction:row;gap:var(--ag-spacing);padding-top:var(--ag-widget-vertical-spacing)}.ag-filter-card-heading{flex:1;overflow:hidden;padding-bottom:calc(var(--ag-widget-container-vertical-padding) - var(--ag-widget-vertical-spacing));padding-top:calc(var(--ag-widget-container-vertical-padding) - var(--ag-widget-vertical-spacing))}:where(.ag-ltr) .ag-filter-card-heading{padding-left:var(--ag-widget-horizontal-spacing)}:where(.ag-rtl) .ag-filter-card-heading{padding-right:var(--ag-widget-horizontal-spacing)}.ag-filter-card-expand{align-items:center;display:flex;flex-direction:row;width:100%}.ag-filter-card-title{font-weight:var(--ag-header-font-weight);overflow:hidden;text-overflow:ellipsis}.ag-filter-card-expand-icon{display:flex;flex:1;justify-content:end}.ag-filter-card-editing-icon{margin:0 var(--ag-spacing)}.ag-filter-card-delete-icon,.ag-filter-card-editing-icon,.ag-filter-card-expand-icon,.ag-filter-card-summary{color:var(--ag-filter-panel-card-subtle-color)}.ag-filter-card-delete-icon,.ag-filter-card-expand-icon{transition:color .25s ease-in-out}.ag-filter-card-delete-icon:hover,.ag-filter-card-expand-icon:hover,.ag-filter-card-heading:hover .ag-filter-card-expand-icon{color:var(--ag-filter-panel-card-subtle-hover-color)}.ag-filter-add-button,.ag-filter-card-delete,.ag-filter-card-expand{border-radius:var(--ag-button-border-radius)}.ag-filter-card-summary,.ag-filter-type-select{margin-left:var(--ag-widget-container-horizontal-padding);margin-right:var(--ag-widget-container-horizontal-padding)}:where(.ag-ltr) .ag-filter-card-delete{margin-right:var(--ag-widget-horizontal-spacing)}:where(.ag-rtl) .ag-filter-card-delete{margin-left:var(--ag-widget-horizontal-spacing)}.ag-filter-card-summary{margin-bottom:var(--ag-widget-container-vertical-padding)}.ag-filter-type-select{padding-top:var(--ag-widget-vertical-spacing)}.ag-filter-card-add{border:0;padding:0}.ag-filter-add-button{align-items:center;display:flex;flex-direction:row;line-height:1.5;width:100%}:where(.ag-ltr) .ag-filter-add-button-label{margin-left:var(--ag-spacing)}:where(.ag-rtl) .ag-filter-add-button-label{margin-right:var(--ag-spacing)}.ag-filter-add-select{border:0;.ag-rich-select-value{border:0;padding:calc(((1.5*var(--ag-font-size) + 2*var(--ag-button-vertical-padding)) - var(--ag-input-height))/2) var(--ag-spacing)}}:where(.ag-ltr) .ag-filter-add-select{.ag-text-field-input{padding-left:calc(var(--ag-spacing)*1.5 + 12px)!important}}:where(.ag-rtl) .ag-filter-add-select{.ag-text-field-input{padding-right:calc(var(--ag-spacing)*1.5 + 12px)!important}}.ag-filter-panel-buttons{display:flex;flex-wrap:wrap;gap:var(--ag-widget-vertical-spacing) var(--ag-widget-horizontal-spacing);justify-content:flex-end;overflow:hidden;padding:var(--ag-widget-container-vertical-padding) var(--ag-widget-container-horizontal-padding) 0}.ag-filter-panel-buttons-button{line-height:1.5}.ag-filter-panel .ag-filter-panel-buttons-apply-button{background-color:var(--ag-filter-panel-apply-button-background-color);color:var(--ag-filter-panel-apply-button-color)}.ag-filter-panel-buttons:where(:last-child),.ag-filter-panel-container:where(:last-child){padding-bottom:var(--ag-widget-container-vertical-padding)}.ag-filter-panel .ag-set-filter-body-wrapper,.ag-filter-panel .ag-simple-filter-body-wrapper{padding-bottom:var(--ag-widget-container-vertical-padding)}";
 
 // packages/ag-grid-enterprise/src/filterToolPanel/newFilterToolPanel/wrapperToolPanel.ts
-var WrapperToolPanel = class extends Component51 {
+var WrapperToolPanel = class extends Component58 {
   constructor() {
     super();
     this.registerCSS(newFiltersToolPanel_default);
   }
   init(params) {
     if (!this.gos.get("enableFilterHandlers")) {
-      _warn38(282);
+      _warn39(282);
       return;
     }
     const filterPanelSvc = this.beans.filterPanelSvc;
@@ -38744,11 +40427,11 @@ var NewFiltersToolPanelModule = {
 import { EventApiModule } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/masterDetail/detailCellRenderer.ts
-import { Component as Component52, RefPlaceholder as RefPlaceholder45, _getGridRegisteredModules, _missing as _missing5, _warn as _warn40, createGrid } from "ag-grid-community";
+import { Component as Component59, RefPlaceholder as RefPlaceholder47, _getGridRegisteredModules, _missing as _missing5, _warn as _warn41, createGrid } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/masterDetail/detailCellRendererCtrl.ts
-import { BeanStub as BeanStub50, _addGridCommonParams as _addGridCommonParams23, _focusInto as _focusInto9, _isSameRow as _isSameRow2, _missing as _missing4, _warn as _warn39 } from "ag-grid-community";
-var DetailCellRendererCtrl = class extends BeanStub50 {
+import { BeanStub as BeanStub55, _addGridCommonParams as _addGridCommonParams25, _focusInto as _focusInto10, _isSameRow as _isSameRow2, _missing as _missing4, _warn as _warn40 } from "ag-grid-community";
+var DetailCellRendererCtrl = class extends BeanStub55 {
   constructor() {
     super(...arguments);
     this.loadRowDataVersion = 0;
@@ -38777,7 +40460,7 @@ var DetailCellRendererCtrl = class extends BeanStub50 {
     if (!isSameRow) {
       return;
     }
-    _focusInto9(this.comp.getGui(), e.fromBelow);
+    _focusInto10(this.comp.getGui(), e.fromBelow);
   }
   setAutoHeightClasses() {
     const autoHeight = this.gos.get("detailRowAutoHeight");
@@ -38795,20 +40478,20 @@ var DetailCellRendererCtrl = class extends BeanStub50 {
       return;
     }
     if (providedStrategy != null) {
-      _warn39(170, { providedStrategy });
+      _warn40(170, { providedStrategy });
     }
     this.refreshStrategy = "rows";
   }
   createDetailGrid() {
     const { params, gos } = this;
     if (_missing4(params.detailGridOptions)) {
-      _warn39(171);
+      _warn40(171);
       return;
     }
     const masterTheme = gos.get("theme");
     const detailTheme = params.detailGridOptions.theme;
     if (detailTheme && detailTheme !== masterTheme) {
-      _warn39(267);
+      _warn40(267);
     }
     const gridOptions = {
       themeStyleContainer: this.environment.eStyleContainer,
@@ -38905,7 +40588,7 @@ var DetailCellRendererCtrl = class extends BeanStub50 {
     }
     const userFunc = params.getDetailRowData;
     if (!userFunc) {
-      _warn39(172);
+      _warn40(172);
       return;
     }
     const successCallback = (rowData) => {
@@ -38920,7 +40603,7 @@ var DetailCellRendererCtrl = class extends BeanStub50 {
       // as the data could have been updated with new instance
       data: params.node.data,
       successCallback,
-      context: _addGridCommonParams23(this.gos, {}).context
+      context: _addGridCommonParams25(this.gos, {}).context
     };
     userFunc(funcParams);
   }
@@ -38928,8 +40611,10 @@ var DetailCellRendererCtrl = class extends BeanStub50 {
     const GET_GRID_TO_REFRESH = false;
     const GET_GRID_TO_DO_NOTHING = true;
     switch (this.refreshStrategy) {
+      // ignore this refresh, make grid think we've refreshed but do nothing
       case "nothing":
         return GET_GRID_TO_DO_NOTHING;
+      // grid will destroy and recreate the cell
       case "everything":
         return GET_GRID_TO_REFRESH;
     }
@@ -38956,10 +40641,10 @@ var DetailCellRendererElement = {
   role: "gridcell",
   children: [{ tag: "div", ref: "eDetailGrid", cls: "ag-details-grid", role: "presentation" }]
 };
-var DetailCellRenderer = class extends Component52 {
+var DetailCellRenderer = class extends Component59 {
   constructor() {
     super(...arguments);
-    this.eDetailGrid = RefPlaceholder45;
+    this.eDetailGrid = RefPlaceholder47;
   }
   wireBeans(beans) {
     this.context = beans.context;
@@ -38998,11 +40683,11 @@ var DetailCellRenderer = class extends Component52 {
       const template = templateFunc(params);
       this.setTemplate(template, []);
     } else {
-      _warn40(168);
+      _warn41(168);
       setDefaultTemplate();
     }
     if (this.eDetailGrid == null) {
-      _warn40(169);
+      _warn41(169);
     }
   }
   setDetailGrid(gridOptions) {
@@ -39062,7 +40747,8 @@ var masterDetailModule_default = ".ag-details-row{width:100%}.ag-details-row-fix
 
 // packages/ag-grid-enterprise/src/masterDetail/masterDetailService.ts
 import {
-  BeanStub as BeanStub51,
+  BeanStub as BeanStub56,
+  DETAIL_ROW_ID_PREFIX,
   RowNode as RowNode3,
   _exists as _exists23,
   _getClientSideRowModel,
@@ -39070,7 +40756,7 @@ import {
   _isServerSideRowModel as _isServerSideRowModel3,
   _observeResize as _observeResize2
 } from "ag-grid-community";
-var MasterDetailService = class extends BeanStub51 {
+var MasterDetailService = class extends BeanStub56 {
   constructor() {
     super(...arguments);
     this.beanName = "masterDetailSvc";
@@ -39179,7 +40865,7 @@ var MasterDetailService = class extends BeanStub51 {
     detailNode.selectable = false;
     detailNode.parent = masterNode;
     if (_exists23(masterNode.id)) {
-      detailNode.id = "detail_" + masterNode.id;
+      detailNode.id = DETAIL_ROW_ID_PREFIX + masterNode.id;
     }
     detailNode.data = masterNode.data;
     detailNode.level = masterNode.level + 1;
@@ -39234,7 +40920,7 @@ var SharedMasterDetailModule = {
 var MasterDetailModule = {
   moduleName: "MasterDetail",
   version: VERSION,
-  dependsOn: [SharedMasterDetailModule, ClientSideRowModelHierarchyModule, EventApiModule]
+  dependsOn: [SharedMasterDetailModule, CsrmHierarchyModule, EventApiModule]
 };
 
 // packages/ag-grid-enterprise/src/rangeSelection/rangeSelectionModule.ts
@@ -39242,7 +40928,7 @@ import { _DragModule, _KeyboardNavigationModule as _KeyboardNavigationModule3 } 
 
 // packages/ag-grid-enterprise/src/rangeSelection/agFillHandle.ts
 import {
-  _addGridCommonParams as _addGridCommonParams24,
+  _addGridCommonParams as _addGridCommonParams26,
   _getCellByPosition as _getCellByPosition2,
   _getFillHandle,
   _getLastRow,
@@ -39255,22 +40941,22 @@ import {
   _last as _last13,
   _stopPropagationForAgGrid as _stopPropagationForAgGrid9,
   _toStringOrNull as _toStringOrNull6,
-  _warn as _warn41,
+  _warn as _warn42,
   isRowNumberCol as isRowNumberCol2
 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/rangeSelection/abstractSelectionHandle.ts
 import {
-  Component as Component53,
+  Component as Component60,
   _areCellsEqual,
   _getCellPositionForEvent,
   _getPageBody as _getPageBody2,
   _isRowBefore as _isRowBefore2,
   _isVisible as _isVisible7,
   _last as _last12,
-  _setDisplayed as _setDisplayed23
+  _setDisplayed as _setDisplayed25
 } from "ag-grid-community";
-var AbstractSelectionHandle = class extends Component53 {
+var AbstractSelectionHandle = class extends Component60 {
   constructor() {
     super(...arguments);
     this.changedCalculatedValues = false;
@@ -39375,7 +41061,7 @@ var AbstractSelectionHandle = class extends Component53 {
   }
   destroy() {
     if (!this.shouldDestroyOnEndDragging && this.dragging) {
-      _setDisplayed23(this.getGui(), false);
+      _setDisplayed25(this.getGui(), false);
       this.shouldDestroyOnEndDragging = true;
       return;
     }
@@ -39424,9 +41110,8 @@ function findLineByLeastSquares(values) {
   let sum_y = 0;
   let sum_xy = 0;
   let sum_xx = 0;
-  let y = 0;
   for (let x = 0; x < len; x++) {
-    y = values[x];
+    const y = values[x];
     sum_x += x;
     sum_y += y;
     sum_xx += x * x;
@@ -39602,7 +41287,7 @@ var AgFillHandle = class extends AbstractSelectionHandle {
       return "xy";
     }
     if (direction !== "x" && direction !== "y" && direction !== "xy") {
-      _warn41(177);
+      _warn42(177);
       return "xy";
     }
     return direction;
@@ -39698,7 +41383,7 @@ var AgFillHandle = class extends AbstractSelectionHandle {
           const cellValue = valueSvc.getValue(col, rowNode, "edit");
           if (!fromUserFunction) {
             if (sourceCol) {
-              const sourceColDef = sourceCol.getColDef();
+              const sourceColDef = sourceCol.colDef;
               if (sourceColDef.useValueFormatterForExport !== false && sourceColDef.valueFormatter) {
                 const formattedValue = valueSvc.getValueForDisplay({
                   column: sourceCol,
@@ -39711,7 +41396,7 @@ var AgFillHandle = class extends AbstractSelectionHandle {
                 }
               }
             }
-            if (col.getColDef().useValueParserForImport !== false) {
+            if (col.colDef.useValueParserForImport !== false) {
               currentValue = valueSvc.parseValue(
                 col,
                 rowNode,
@@ -39773,7 +41458,7 @@ var AgFillHandle = class extends AbstractSelectionHandle {
       direction = this.isLeft ? "left" : "right";
     }
     if (userFillOperation) {
-      const params2 = _addGridCommonParams24(this.gos, {
+      const params2 = _addGridCommonParams26(this.gos, {
         event,
         values: values.map(({ value }) => value),
         initialValues,
@@ -39955,7 +41640,7 @@ var AgFillHandle = class extends AbstractSelectionHandle {
     const { rangeStartRow, rangeEndRow } = this;
     for (const column of colsToMark) {
       let row = rangeStartRow;
-      let isLastRow = false;
+      let isLastRow;
       do {
         isLastRow = _isSameRow3(row, rangeEndRow);
         const cell = _getCellByPosition2(beans, {
@@ -39989,7 +41674,7 @@ var AgFillHandle = class extends AbstractSelectionHandle {
     const { rangeStartRow, rangeEndRow } = this;
     for (const column of colsToMark) {
       let row = rangeStartRow;
-      let isLastRow = false;
+      let isLastRow;
       do {
         isLastRow = _isSameRow3(row, rangeEndRow);
         const cell = _getCellByPosition2(this.beans, {
@@ -40101,8 +41786,8 @@ function clearRangeSelection(beans) {
 // packages/ag-grid-enterprise/src/rangeSelection/rangeService.ts
 import {
   AutoScrollService as AutoScrollService2,
-  BeanStub as BeanStub55,
-  KeyCode as KeyCode31,
+  BeanStub as BeanStub60,
+  KeyCode as KeyCode32,
   _areCellsEqual as _areCellsEqual2,
   _areEqual as _areEqual5,
   _exists as _exists24,
@@ -40127,11 +41812,18 @@ import {
   _missing as _missing7,
   _removeAllFromArray as _removeAllFromArray2,
   _removeFromArray as _removeFromArray7,
-  _warn as _warn42
+  _warn as _warn43
 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/rangeSelection/cellRangeFeature.ts
-import { CellRangeType as CellRangeType2, _isSameRow as _isSameRow5, _last as _last15, _missing as _missing6, _setAriaSelected as _setAriaSelected2 } from "ag-grid-community";
+import {
+  CellRangeType as CellRangeType2,
+  _isSameRow as _isSameRow5,
+  _last as _last15,
+  _missing as _missing6,
+  _requestAnimationFrame as _requestAnimationFrame3,
+  _setAriaSelected as _setAriaSelected2
+} from "ag-grid-community";
 var CSS_CELL_RANGE_SELECTED = "ag-cell-range-selected";
 var CSS_CELL_RANGE_CHART = "ag-cell-range-chart";
 var CSS_CELL_RANGE_SINGLE_CELL = "ag-cell-range-single-cell";
@@ -40163,6 +41855,7 @@ var CellRangeFeature = class {
     this.cellCtrl = cellCtrl;
     this.rangeColorClass = null;
     this.handleColorClass = null;
+    this.refreshScheduled = false;
     this.rangeSvc = beans.rangeSvc;
   }
   setComp(cellComp) {
@@ -40294,6 +41987,16 @@ var CellRangeFeature = class {
     this.refreshHandleColor(rangeForHandle);
     this.cellComp.toggleCss(CSS_CELL_RANGE_HANDLE, !!this.selectionHandle);
   }
+  scheduleRefreshRangeStyleAndHandle() {
+    if (this.refreshScheduled) {
+      return;
+    }
+    this.refreshScheduled = true;
+    _requestAnimationFrame3(this.beans, () => {
+      this.refreshScheduled = false;
+      this.refreshRangeStyleAndHandle();
+    });
+  }
   styleCellForRangeType() {
     if (this.hasChartRange) {
       const { rangeSvc } = this;
@@ -40378,21 +42081,21 @@ var CellRangeFeature = class {
     return null;
   }
   addSelectionHandle(cellRange) {
-    const { beans } = this;
-    const isRangeSelectionEnabledWhileEditing = beans.editSvc?.isRangeSelectionEnabledWhileEditing();
+    const { editSvc, gos, context, registry } = this.beans;
+    const isRangeSelectionEnabledWhileEditing = editSvc?.isRangeSelectionEnabledWhileEditing();
     const cellRangeType = cellRange.type;
-    const selectionHandleFill = !isRangeSelectionEnabledWhileEditing && _isFillHandleEnabled(beans.gos) && _missing6(cellRangeType);
+    const selectionHandleFill = !isRangeSelectionEnabledWhileEditing && _isFillHandleEnabled(gos) && _missing6(cellRangeType);
     const type = selectionHandleFill ? 0 /* FILL */ : 1 /* RANGE */;
     if (this.selectionHandle && this.selectionHandle.getType() !== type) {
-      this.selectionHandle = beans.context.destroyBean(this.selectionHandle);
+      this.selectionHandle = context.destroyBean(this.selectionHandle);
     }
     if (!this.selectionHandle) {
-      const selectionHandle = beans.registry.createDynamicBean(
+      const selectionHandle = registry.createDynamicBean(
         type === 0 /* FILL */ ? "fillHandle" : "rangeHandle",
         false
       );
       if (selectionHandle) {
-        this.selectionHandle = beans.context.createBean(selectionHandle);
+        this.selectionHandle = context.createBean(selectionHandle);
       }
     }
     this.selectionHandle?.refresh(this.cellCtrl, cellRange);
@@ -40403,8 +42106,8 @@ var CellRangeFeature = class {
 };
 
 // packages/ag-grid-enterprise/src/rangeSelection/dragListenerFeature.ts
-import { BeanStub as BeanStub52, _isCellSelectionEnabled } from "ag-grid-community";
-var DragListenerFeature = class extends BeanStub52 {
+import { BeanStub as BeanStub57, _isCellSelectionEnabled } from "ag-grid-community";
+var DragListenerFeature = class extends BeanStub57 {
   constructor(eContainer) {
     super();
     this.eContainer = eContainer;
@@ -40436,8 +42139,8 @@ var DragListenerFeature = class extends BeanStub52 {
 };
 
 // packages/ag-grid-enterprise/src/rangeSelection/headerGroupCellMouseListenerFeature.ts
-import { BeanStub as BeanStub53 } from "ag-grid-community";
-var HeaderGroupCellMouseListenerFeature = class extends BeanStub53 {
+import { BeanStub as BeanStub58 } from "ag-grid-community";
+var HeaderGroupCellMouseListenerFeature = class extends BeanStub58 {
   constructor(column, eGui) {
     super();
     this.column = column;
@@ -40454,8 +42157,8 @@ var HeaderGroupCellMouseListenerFeature = class extends BeanStub53 {
 };
 
 // packages/ag-grid-enterprise/src/rangeSelection/rangeHeaderHighlightFeature.ts
-import { BeanStub as BeanStub54 } from "ag-grid-community";
-var RangeHeaderHighlightFeature = class extends BeanStub54 {
+import { BeanStub as BeanStub59 } from "ag-grid-community";
+var RangeHeaderHighlightFeature = class extends BeanStub59 {
   constructor(column, comp) {
     super();
     this.column = column;
@@ -40533,7 +42236,7 @@ var RangeHeaderHighlightFeature = class extends BeanStub54 {
 };
 
 // packages/ag-grid-enterprise/src/rangeSelection/rangeService.ts
-var RangeService = class extends BeanStub55 {
+var RangeService = class extends BeanStub60 {
   constructor() {
     super(...arguments);
     this.beanName = "rangeSvc";
@@ -40664,7 +42367,7 @@ var RangeService = class extends BeanStub55 {
     }
     this.updateValuesOnMove(mouseEvent.target);
     this.lastMouseEvent = mouseEvent;
-    const isMouseAndStartInPinned = (position) => lastCellHovered && lastCellHovered.rowPinned === position && newestRangeStartCell.rowPinned === position;
+    const isMouseAndStartInPinned = (position) => lastCellHovered?.rowPinned === position && newestRangeStartCell.rowPinned === position;
     const skipVerticalScroll = isMouseAndStartInPinned("top") || isMouseAndStartInPinned("bottom");
     autoScrollService.check(mouseEvent, skipVerticalScroll);
     if (!cellHasChanged || !lastCellHovered) {
@@ -41290,7 +42993,7 @@ var RangeService = class extends BeanStub55 {
     for (let i = ranges.length - 1; i >= 0; i--) {
       const range = ranges[i];
       const hasCols = columns.every((c) => range.columns.includes(c));
-      let condition = false;
+      let condition;
       if (matchOnly) {
         condition = _isSameRow6(range.startRow, startRow) && _isSameRow6(range.endRow, endRow);
       } else {
@@ -41442,7 +43145,7 @@ var RangeService = class extends BeanStub55 {
     const { suppressMultiRanges } = this.getMultiRangeContext();
     const invalid = _isUsingNewCellSelectionAPI(gos) && suppressMultiRanges && this.cellRanges.length > 1;
     if (invalid) {
-      _warn42(93);
+      _warn43(93);
     }
     return !invalid;
   }
@@ -41572,12 +43275,12 @@ var RangeService = class extends BeanStub55 {
     const isSameColumn = fromColumn === toColumn;
     const fromIndex = allColumns.indexOf(fromColumn);
     if (fromIndex < 0) {
-      _warn42(178, { colId: fromColumn.getId() });
+      _warn43(178, { colId: fromColumn.getId() });
       return;
     }
     const toIndex = isSameColumn ? fromIndex : allColumns.indexOf(toColumn);
     if (toIndex < 0) {
-      _warn42(178, { colId: toColumn.getId() });
+      _warn43(178, { colId: toColumn.getId() });
       return;
     }
     if (isSameColumn || this.selectionMode === 1 /* ALL_COLUMNS */) {
@@ -41644,7 +43347,7 @@ var RangeService = class extends BeanStub55 {
     if (!firstRow || !lastRow) {
       return;
     }
-    if (event.key === KeyCode31.ENTER) {
+    if (event.key === KeyCode32.ENTER) {
       event.preventDefault();
     }
     if (event.shiftKey) {
@@ -41780,7 +43483,7 @@ import {
 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/cellRenderers/loadingCellRenderer.ts
-import { Component as Component54, RefPlaceholder as RefPlaceholder46, _createIconNoSpan as _createIconNoSpan24 } from "ag-grid-community";
+import { Component as Component61, RefPlaceholder as RefPlaceholder48, _createIconNoSpan as _createIconNoSpan26 } from "ag-grid-community";
 var LoadingCellRendererElement = {
   tag: "div",
   cls: "ag-loading",
@@ -41789,11 +43492,11 @@ var LoadingCellRendererElement = {
     { tag: "span", ref: "eLoadingText", cls: "ag-loading-text" }
   ]
 };
-var LoadingCellRenderer = class extends Component54 {
+var LoadingCellRenderer = class extends Component61 {
   constructor() {
     super(LoadingCellRendererElement);
-    this.eLoadingIcon = RefPlaceholder46;
-    this.eLoadingText = RefPlaceholder46;
+    this.eLoadingIcon = RefPlaceholder48;
+    this.eLoadingText = RefPlaceholder48;
   }
   init(params) {
     if (params.node.failedLoad) {
@@ -41806,7 +43509,7 @@ var LoadingCellRenderer = class extends Component54 {
     this.eLoadingText.textContent = this.getLocaleTextFunc()("loadingError", "ERR");
   }
   setupLoading() {
-    const eLoadingIcon = _createIconNoSpan24("groupLoading", this.beans, null);
+    const eLoadingIcon = _createIconNoSpan26("groupLoading", this.beans, null);
     if (eLoadingIcon) {
       this.eLoadingIcon.appendChild(eLoadingIcon);
     }
@@ -41836,7 +43539,7 @@ import { _ColumnGroupModule } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/pivot/pivotApi.ts
 function isPivotMode(beans) {
-  return beans.colModel.isPivotMode();
+  return beans.colModel.pivotMode;
 }
 function getPivotResultColumn(beans, pivotKeys, valueColKey) {
   return beans.pivotResultCols?.lookupPivotResultCol(pivotKeys, valueColKey) ?? null;
@@ -41874,7 +43577,7 @@ function getPivotResultColumns(beans) {
 }
 
 // packages/ag-grid-enterprise/src/pivot/pivotColDefService.ts
-import { BeanStub as BeanStub56 } from "ag-grid-community";
+import { BeanStub as BeanStub61 } from "ag-grid-community";
 var PIVOT_ROW_TOTAL_PREFIX = "PivotRowTotal_";
 var headerNameComparator = ({ headerName: a }, { headerName: b }) => {
   if (a && !b) {
@@ -41893,7 +43596,7 @@ var headerNameComparator = ({ headerName: a }, { headerName: b }) => {
   }
 };
 var convertToHeaderNameComparator = (comparator) => (a, b) => comparator(a.headerName, b.headerName);
-var PivotColDefService = class extends BeanStub56 {
+var PivotColDefService = class extends BeanStub61 {
   constructor() {
     super(...arguments);
     this.beanName = "pivotColDefSvc";
@@ -41950,7 +43653,7 @@ var PivotColDefService = class extends BeanStub56 {
     if (index >= maxDepth) {
       return this.buildMeasureCols(pivotKeys);
     }
-    const { pivotComparator } = primaryPivotColumns[index].getColDef();
+    const { pivotComparator } = primaryPivotColumns[index].colDef;
     const comparator = pivotComparator ? convertToHeaderNameComparator(pivotComparator) : headerNameComparator;
     const measureColumns = this.valueColsSvc?.columns;
     if (measureColumns?.length === 1 && this.gos.get("removePivotHeaderRowWhenSingleValueColumn") && index === maxDepth - 1) {
@@ -42016,7 +43719,7 @@ var PivotColDefService = class extends BeanStub56 {
         for (const valueColumn of valueCols) {
           const columnName = this.colNames.getDisplayNameForColumn(valueColumn, "header");
           const totalColDef = this.createColDef(valueColumn, columnName, def.pivotKeys);
-          totalColDef.pivotTotalColumnIds = childAcc.get(valueColumn.getColId());
+          totalColDef.pivotTotalColumnIds = childAcc.get(valueColumn.colId);
           totalColDef.columnGroupShow = !isSuppressExpand ? "closed" : "open";
           totalColDef.aggFunc = valueColumn.getAggFunc();
           if (!leafGroup || hasCollapsedLeafGroup) {
@@ -42118,7 +43821,7 @@ var PivotColDefService = class extends BeanStub56 {
       const valueGroup = isCreateTotalGroups ? {
         children: [colDef],
         pivotKeys: [],
-        groupId: `${PIVOT_ROW_TOTAL_PREFIX}_pivotGroup_${valueCol.getColId()}`
+        groupId: `${PIVOT_ROW_TOTAL_PREFIX}_pivotGroup_${valueCol.colId}`
       } : colDef;
       pivotColumnDefs.push(colDef);
       if (insertAtEnd) {
@@ -42139,6 +43842,7 @@ var PivotColDefService = class extends BeanStub56 {
       pivotTotalColumnIds,
       columnGroupShow,
       colId,
+      field,
       valueGetter,
       aggFunc
     } = colDef;
@@ -42148,6 +43852,7 @@ var PivotColDefService = class extends BeanStub56 {
     const newColDef = this.createColDef(pivotValueColumn, headerName, pivotKeys, !!pivotTotalColumnIds);
     newColDef.columnGroupShow = columnGroupShow;
     newColDef.colId = colId;
+    newColDef.field = field;
     newColDef.valueGetter = valueGetter;
     newColDef.aggFunc = aggFunc;
     newColDef.pivotTotalColumnIds = pivotTotalColumnIds;
@@ -42157,15 +43862,12 @@ var PivotColDefService = class extends BeanStub56 {
   createColDef(valueColumn, headerName, pivotKeys, totalColumn = false) {
     const colDef = {};
     if (valueColumn) {
-      const colDefToCopy = valueColumn.getColDef();
+      const colDefToCopy = valueColumn.colDef;
       Object.assign(colDef, colDefToCopy);
       colDef.hide = false;
     }
     colDef.headerName = headerName;
-    colDef.colId = this.generateColumnId(
-      pivotKeys || [],
-      valueColumn && !totalColumn ? valueColumn.getColId() : ""
-    );
+    colDef.colId = this.generateColumnId(pivotKeys || [], valueColumn && !totalColumn ? valueColumn.colId : "");
     colDef.field = colDef.colId;
     colDef.valueGetter = (params) => params.data?.[params.colDef.field];
     colDef.pivotKeys = pivotKeys;
@@ -42194,11 +43896,11 @@ var PivotColDefService = class extends BeanStub56 {
     });
   }
   generateColumnGroupId(pivotKeys) {
-    const pivotCols = (this.pivotColsSvc?.columns ?? []).map((col) => col.getColId());
+    const pivotCols = (this.pivotColsSvc?.columns ?? []).map((col) => col.colId);
     return `pivotGroup_${pivotCols.join("-")}_${pivotKeys.join("-")}`;
   }
   generateColumnId(pivotKeys, measureColumnId) {
-    const pivotCols = (this.pivotColsSvc?.columns ?? []).map((col) => col.getColId());
+    const pivotCols = (this.pivotColsSvc?.columns ?? []).map((col) => col.colId);
     return `pivot_${pivotCols.join("-")}_${pivotKeys.join("-")}_${measureColumnId}`;
   }
   /**
@@ -42270,7 +43972,7 @@ var PivotColDefService = class extends BeanStub56 {
 
 // packages/ag-grid-enterprise/src/pivot/pivotResultColsService.ts
 import {
-  BeanStub as BeanStub57,
+  BeanStub as BeanStub62,
   _areEqual as _areEqual6,
   _createColumnTree,
   _createColumnTreeWithIds,
@@ -42278,7 +43980,7 @@ import {
   _exists as _exists25,
   _getColumnsFromTree
 } from "ag-grid-community";
-var PivotResultColsService = class extends BeanStub57 {
+var PivotResultColsService = class extends BeanStub62 {
   constructor() {
     super(...arguments);
     this.beanName = "pivotResultCols";
@@ -42301,8 +44003,9 @@ var PivotResultColsService = class extends BeanStub57 {
     const valueColumnToFind = this.colModel.getColDefCol(valueColKey);
     let foundColumn = null;
     for (const column of this.pivotResultCols.list) {
-      const thisPivotKeys = column.getColDef().pivotKeys;
-      const pivotValueColumn = column.getColDef().pivotValueColumn;
+      const colDef = column.colDef;
+      const thisPivotKeys = colDef.pivotKeys;
+      const pivotValueColumn = colDef.pivotValueColumn;
       const pivotKeyMatches = _areEqual6(thisPivotKeys, pivotKeys);
       const pivotValueMatches = pivotValueColumn === valueColumnToFind;
       if (pivotKeyMatches && pivotValueMatches) {
@@ -42332,7 +44035,8 @@ var PivotResultColsService = class extends BeanStub57 {
     }
     let hasAnyTotals = false;
     for (let i = 0; i < list.length; ++i) {
-      if (list[i].getColDef().pivotTotalColumnIds != null) {
+      const colDef = list[i].colDef;
+      if (colDef.pivotTotalColumnIds != null) {
         hasAnyTotals = true;
         break;
       }
@@ -42344,7 +44048,7 @@ var PivotResultColsService = class extends BeanStub57 {
       const totals = [];
       for (let i = 0; i < list.length; ++i) {
         const col = list[i];
-        if (col.getColDef().pivotTotalColumnIds != null) {
+        if (col.colDef.pivotTotalColumnIds != null) {
           totals.push(col);
         } else {
           regular.push(col);
@@ -42422,14 +44126,14 @@ var PivotResultColsService = class extends BeanStub57 {
 };
 
 // packages/ag-grid-enterprise/src/pivot/pivotStage.ts
-import { BeanStub as BeanStub58, _forEachChangedGroupDepthFirst as _forEachChangedGroupDepthFirst5, _jsonEquals, _missing as _missing8 } from "ag-grid-community";
+import { BeanStub as BeanStub63, _areEqual as _areEqual7, _forEachChangedGroupDepthFirst as _forEachChangedGroupDepthFirst7, _jsonEquals, _missing as _missing8 } from "ag-grid-community";
 var EXCEEDED_MAX_UNIQUE_VALUES = "Exceeded maximum allowed pivot column count.";
 var mapToObject = (map) => {
   const obj = {};
   map.forEach((value, key) => obj[key] = value instanceof Map ? mapToObject(value) : value);
   return obj;
 };
-var PivotStage = class extends BeanStub58 {
+var PivotStage = class extends BeanStub63 {
   constructor() {
     super(...arguments);
     this.beanName = "pivotStage";
@@ -42438,32 +44142,30 @@ var PivotStage = class extends BeanStub58 {
       "removePivotHeaderRowWhenSingleValueColumn",
       "pivotRowTotals",
       "pivotColumnGroupTotals",
-      "suppressExpandablePivotGroups"
+      "suppressExpandablePivotGroups",
+      "enableStrictPivotColumnOrder"
     ];
     this.uniqueValues = /* @__PURE__ */ new Map();
+    this.pivotOrderLastTime = [];
     this.lastTimeFailed = false;
     this.maxUniqueValues = -1;
     this.currentUniqueCount = 0;
   }
   wireBeans(beans) {
-    this.valueSvc = beans.valueSvc;
-    this.colModel = beans.colModel;
     this.pivotResultCols = beans.pivotResultCols;
-    this.rowGroupColsSvc = beans.rowGroupColsSvc;
-    this.valueColsSvc = beans.valueColsSvc;
-    this.pivotColsSvc = beans.pivotColsSvc;
     this.pivotColDefSvc = beans.pivotColDefSvc;
   }
   /** Returns `true` if the changedPath should be deactivated (e.g. pivot columns changed). */
-  execute(changedPath) {
-    if (this.colModel.isPivotActive()) {
-      return this.executePivotOn(changedPath);
+  execute(changedPath, changedProps) {
+    if (this.beans.colModel.isPivotActive()) {
+      return this.executePivotOn(changedPath, changedProps);
     } else {
       return this.executePivotOff();
     }
   }
   executePivotOff() {
     this.aggregationColumnsHashLastTime = null;
+    this.pivotOrderLastTime = [];
     this.uniqueValues = /* @__PURE__ */ new Map();
     if (this.pivotResultCols.isPivotResultColsPresent()) {
       this.pivotResultCols.setPivotResultCols(null, "rowModelUpdated");
@@ -42471,9 +44173,10 @@ var PivotStage = class extends BeanStub58 {
     }
     return false;
   }
-  executePivotOn(changedPath) {
-    const numberOfAggregationColumns = this.valueColsSvc?.columns.length ?? 1;
-    const configuredMaxCols = this.gos.get("pivotMaxGeneratedColumns");
+  executePivotOn(changedPath, changedProps) {
+    const { valueColsSvc, gos, rowGroupColsSvc, pivotColsSvc } = this.beans;
+    const numberOfAggregationColumns = valueColsSvc?.columns.length ?? 1;
+    const configuredMaxCols = gos.get("pivotMaxGeneratedColumns");
     this.maxUniqueValues = configuredMaxCols === -1 ? -1 : configuredMaxCols / numberOfAggregationColumns;
     let uniqueValues;
     try {
@@ -42491,26 +44194,23 @@ var PivotStage = class extends BeanStub58 {
       throw e;
     }
     const uniqueValuesChanged = this.setUniqueValues(uniqueValues);
-    const aggregationColumns = this.valueColsSvc?.columns ?? [];
-    const aggregationColumnsHash = aggregationColumns.map((column) => `${column.getId()}-${column.getColDef().headerName}`).join("#");
+    const aggregationColumns = valueColsSvc?.columns ?? [];
+    const aggregationColumnsHash = aggregationColumns.map((column) => `${column.getId()}-${column.colDef.headerName}`).join("#");
     const aggregationFuncsHash = aggregationColumns.map((column) => column.getAggFunc().toString()).join("#");
     const aggregationColumnsChanged = this.aggregationColumnsHashLastTime !== aggregationColumnsHash;
     const aggregationFuncsChanged = this.aggregationFuncsHashLastTime !== aggregationFuncsHash;
     this.aggregationColumnsHashLastTime = aggregationColumnsHash;
     this.aggregationFuncsHashLastTime = aggregationFuncsHash;
-    const groupColumnsHash = (this.rowGroupColsSvc?.columns ?? []).map((column) => column.getId()).join("#");
+    const groupColumnsHash = (rowGroupColsSvc?.columns ?? []).map((column) => column.getId()).join("#");
     const groupColumnsChanged2 = groupColumnsHash !== this.groupColumnsHashLastTime;
     this.groupColumnsHashLastTime = groupColumnsHash;
-    const pivotRowTotals = this.gos.get("pivotRowTotals");
-    const pivotColumnGroupTotals = this.gos.get("pivotColumnGroupTotals");
-    const suppressExpandablePivotGroups = this.gos.get("suppressExpandablePivotGroups");
-    const removePivotHeaderRowWhenSingleValueColumn = this.gos.get("removePivotHeaderRowWhenSingleValueColumn");
-    const anyGridOptionsChanged = pivotRowTotals !== this.pivotRowTotalsLastTime || pivotColumnGroupTotals !== this.pivotColumnGroupTotalsLastTime || suppressExpandablePivotGroups !== this.suppressExpandablePivotGroupsLastTime || removePivotHeaderRowWhenSingleValueColumn !== this.removePivotHeaderRowWhenSingleValueColumnLastTime;
-    this.pivotRowTotalsLastTime = pivotRowTotals;
-    this.pivotColumnGroupTotalsLastTime = pivotColumnGroupTotals;
-    this.suppressExpandablePivotGroupsLastTime = suppressExpandablePivotGroups;
-    this.removePivotHeaderRowWhenSingleValueColumnLastTime = removePivotHeaderRowWhenSingleValueColumn;
-    if (this.lastTimeFailed || uniqueValuesChanged || aggregationColumnsChanged || groupColumnsChanged2 || aggregationFuncsChanged || anyGridOptionsChanged) {
+    const pivotColumns = pivotColsSvc?.columns ?? [];
+    const shouldTrackPivotOrder = gos.get("enableStrictPivotColumnOrder") && pivotColumns.some((col) => col.colDef.pivotComparator);
+    const pivotOrder = shouldTrackPivotOrder ? computePivotOrder(this.uniqueValues, pivotColumns, 0) : [];
+    const pivotOrderChanged = !_areEqual7(pivotOrder, this.pivotOrderLastTime);
+    this.pivotOrderLastTime = pivotOrder;
+    const anyGridOptionsChanged = this.refreshProps.some((p) => changedProps?.has(p));
+    if (this.lastTimeFailed || uniqueValuesChanged || aggregationColumnsChanged || groupColumnsChanged2 || aggregationFuncsChanged || pivotOrderChanged || anyGridOptionsChanged) {
       const pivotColumnGroupDefs = this.pivotColDefSvc.createPivotColumnDefs(this.uniqueValues);
       this.pivotResultCols.setPivotResultCols(pivotColumnGroupDefs, "rowModelUpdated");
       this.lastTimeFailed = false;
@@ -42528,18 +44228,14 @@ var PivotStage = class extends BeanStub58 {
     return false;
   }
   bucketUpRowNodes(changedPath) {
+    const rowModel = this.beans.rowModel;
     this.currentUniqueCount = 0;
     const uniqueValues = /* @__PURE__ */ new Map();
-    _forEachChangedGroupDepthFirst5(
-      this.beans.rowModel.rootNode,
-      this.beans.rowModel.hierarchical,
-      changedPath,
-      (node) => {
-        if (node.leafGroup) {
-          node.childrenMapped = null;
-        }
+    _forEachChangedGroupDepthFirst7(rowModel.rootNode, rowModel.hierarchical, changedPath, (node) => {
+      if (node.leafGroup) {
+        node.childrenMapped = null;
       }
-    );
+    });
     const recursivelyBucketFilteredChildren = (node) => {
       if (node.leafGroup) {
         this.bucketRowNode(node, uniqueValues);
@@ -42552,11 +44248,11 @@ var PivotStage = class extends BeanStub58 {
         }
       }
     };
-    recursivelyBucketFilteredChildren(this.beans.rowModel.rootNode);
+    recursivelyBucketFilteredChildren(rowModel.rootNode);
     return uniqueValues;
   }
   bucketRowNode(rowNode, uniqueValues) {
-    const pivotColumns = this.pivotColsSvc?.columns;
+    const pivotColumns = this.beans.pivotColsSvc?.columns;
     if (pivotColumns?.length === 0) {
       rowNode.childrenMapped = null;
     } else {
@@ -42574,7 +44270,7 @@ var PivotStage = class extends BeanStub58 {
     const doesGeneratedColMaxExist = this.maxUniqueValues !== -1;
     for (let i = 0, len = children.length; i < len; ++i) {
       const child = children[i];
-      let key = this.valueSvc.getKeyForNode(pivotColumn, child);
+      let key = this.beans.valueSvc.getKeyForNode(pivotColumn, child);
       if (_missing8(key)) {
         key = "";
       }
@@ -42604,6 +44300,29 @@ var PivotStage = class extends BeanStub58 {
     return result;
   }
 };
+function computePivotOrder(values, pivotColumns, depth) {
+  const comparator = pivotColumns[depth]?.colDef.pivotComparator;
+  const keys = [...values.keys()];
+  if (comparator) {
+    keys.sort(comparator);
+  }
+  if (depth === pivotColumns.length - 1) {
+    return keys;
+  }
+  const result = [];
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    result.push(key);
+    const child = values.get(key);
+    if (child instanceof Map) {
+      const childKeys = computePivotOrder(child, pivotColumns, depth + 1);
+      for (let j = 0; j < childKeys.length; j++) {
+        result.push(childKeys[j]);
+      }
+    }
+  }
+  return result;
+}
 
 // packages/ag-grid-enterprise/src/pivot/pivotModule.ts
 var SharedPivotModule = {
@@ -42631,11 +44350,11 @@ var PivotModule = {
   version: VERSION,
   rowModels: ["clientSide"],
   beans: [PivotStage],
-  dependsOn: [SharedPivotModule, RowGroupingModule, ClientSideRowModelHierarchyModule]
+  dependsOn: [SharedPivotModule, RowGroupingModule, CsrmHierarchyModule]
 };
 
 // packages/ag-grid-enterprise/src/treeData/treeGroupStrategy.ts
-import { BeanStub as BeanStub59, RowNode as RowNode4, _removeFromArray as _removeFromArray8, _warn as _warn43 } from "ag-grid-community";
+import { BeanStub as BeanStub64, RowNode as RowNode4, _removeFromArray as _removeFromArray8, _warn as _warn44 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/treeData/fieldAccess.ts
 var fieldGetter = (path) => {
@@ -42666,7 +44385,7 @@ var FLAG_MARKED_FILLER = 536870912;
 var MASK_CHILDREN_LEN = 268435455;
 var PATH_KEY_SEPARATOR = String.fromCodePoint(31, 41150, 8291);
 var PATH_KEY_SEPARATOR_LEN = 3;
-var TreeGroupStrategy = class extends BeanStub59 {
+var TreeGroupStrategy = class extends BeanStub64 {
   constructor() {
     super(...arguments);
     this.nestedDataGetter = null;
@@ -42710,7 +44429,7 @@ var TreeGroupStrategy = class extends BeanStub59 {
     const fillers = this.nonLeafsById;
     if (fillers) {
       for (const node of fillers.values()) {
-        node._destroy(false);
+        node._destroy(null);
       }
       fillers.clear();
       this.nonLeafsById = null;
@@ -42730,7 +44449,7 @@ var TreeGroupStrategy = class extends BeanStub59 {
     const groupDisplayCols = this.beans.showRowGroupCols?.columns;
     if (groupDisplayCols) {
       for (let i = 0, len = groupDisplayCols.length; i < len; ++i) {
-        groupData[groupDisplayCols[i].getColId()] = key;
+        groupData[groupDisplayCols[i].colId] = key;
       }
     }
     return groupData;
@@ -43005,7 +44724,7 @@ var TreeGroupStrategy = class extends BeanStub59 {
           parent.childrenAfterGroup = null;
         }
         rootChildrenAfterGroup.push(row);
-        _warn43(270, { id: row.id, parentId: parent?.id ?? "" });
+        _warn44(270, { id: row.id, parentId: parent?.id ?? "" });
       } else if (parent === rootNode) {
         rootChildrenAfterGroup.push(row);
       }
@@ -43049,7 +44768,7 @@ var TreeGroupStrategy = class extends BeanStub59 {
         if (parentId !== null && parentId !== void 0) {
           newParent = rowModel.getRowNode(parentId);
           if (!newParent) {
-            _warn43(271, { id: row.id, parentId });
+            _warn44(271, { id: row.id, parentId });
           }
         }
         row.treeParent = newParent ?? rootNode;
@@ -43095,7 +44814,7 @@ var TreeGroupStrategy = class extends BeanStub59 {
       const path = getDataPath(node.data);
       const pathLen = path?.length;
       if (!pathLen) {
-        _warn43(185, { data: node.data });
+        _warn44(185, { data: node.data });
         continue;
       }
       const key = path[pathLen - 1];
@@ -43250,7 +44969,7 @@ var TreeGroupStrategy = class extends BeanStub59 {
         duplicateRowsData[i - 1] = node.data;
       }
       const first = duplicates[0];
-      _warn43(186, { rowId: first.id, rowData: first.data, duplicateRowsData });
+      _warn44(186, { rowId: first.id, rowData: first.data, duplicateRowsData });
     }
   }
   getOrCreateFiller(key, id) {
@@ -43374,22 +45093,22 @@ var TreeDataModule = {
   version: VERSION,
   dynamicBeans: { treeGroupStrategy: TreeGroupStrategy },
   rowModels: ["clientSide"],
-  dependsOn: [SharedTreeDataModule, AggregationModule, ClientSideRowModelHierarchyModule, GroupEditModule]
+  dependsOn: [SharedTreeDataModule, AggregationModule, CsrmHierarchyModule, CsrmGroupStagesModule, GroupEditModule]
 };
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/blocks/blockUtils.ts
 import {
-  BeanStub as BeanStub60,
+  BeanStub as BeanStub65,
   RowNode as RowNode5,
   _doOnce,
   _exists as _exists26,
   _getGroupTotalRowCallback as _getGroupTotalRowCallback3,
   _getRowHeightAsNumber as _getRowHeightAsNumber2,
   _getRowHeightForNode as _getRowHeightForNode2,
-  _warn as _warn44
+  _warn as _warn45
 } from "ag-grid-community";
 var GROUP_MISSING_KEY_ID = "ag-Grid-MissingKey";
-var BlockUtils = class extends BeanStub60 {
+var BlockUtils = class extends BeanStub65 {
   constructor() {
     super(...arguments);
     this.beanName = "ssrmBlockUtils";
@@ -43454,7 +45173,7 @@ var BlockUtils = class extends BeanStub60 {
     rowNode.key = this.valueSvc.getValue(rowNode.rowGroupColumn, rowNode, "data");
     if (rowNode.key === null || rowNode.key === void 0) {
       _doOnce(() => {
-        _warn44(190, { rowGroupId: rowNode.rowGroupColumn?.getId(), data: rowNode.data });
+        _warn45(190, { rowGroupId: rowNode.rowGroupColumn?.getId(), data: rowNode.data });
       }, "SSBlock-BadKey");
     }
     const isUnbalancedGroup = this.gos.get("groupAllowUnbalanced") && rowNode.key === "";
@@ -43465,10 +45184,8 @@ var BlockUtils = class extends BeanStub60 {
     const getGroupIncludeFooter = _getGroupTotalRowCallback3(this.beans.gos);
     const doesRowShowFooter = getGroupIncludeFooter({ node: rowNode });
     if (doesRowShowFooter) {
-      _createRowNodeFooter(rowNode, this.beans);
-      if (rowNode.sibling) {
-        rowNode.sibling.uiLevel = rowNode.uiLevel + 1;
-      }
+      const footerNode = _createRowNodeFooter(rowNode, this.beans);
+      footerNode.uiLevel = rowNode.uiLevel + 1;
     }
   }
   setMasterDetailInfo(rowNode) {
@@ -43555,10 +45272,10 @@ var BlockUtils = class extends BeanStub60 {
         rowNode._groupData = groupData;
       }
       if (usingTreeData) {
-        groupData[col.getColId()] = key;
+        groupData[col.colId] = key;
       } else if (col.isRowGroupDisplayed(rowNode.rowGroupColumn.getId())) {
         const groupValue = this.valueSvc.getValue(rowNode.rowGroupColumn, rowNode, "data");
-        groupData[col.getColId()] = groupValue;
+        groupData[col.colId] = groupValue;
       }
     }
   }
@@ -43678,8 +45395,8 @@ var BlockUtils = class extends BeanStub60 {
 };
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/listeners/expandListener.ts
-import { BeanStub as BeanStub61, _isServerSideRowModel as _isServerSideRowModel4 } from "ag-grid-community";
-var ExpandListener = class extends BeanStub61 {
+import { BeanStub as BeanStub66, _isServerSideRowModel as _isServerSideRowModel4 } from "ag-grid-community";
+var ExpandListener = class extends BeanStub66 {
   constructor() {
     super(...arguments);
     this.beanName = "ssrmExpandListener";
@@ -43701,8 +45418,8 @@ var ExpandListener = class extends BeanStub61 {
 };
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/listeners/filterListener.ts
-import { BeanStub as BeanStub62, _isServerSideRowModel as _isServerSideRowModel5, _jsonEquals as _jsonEquals2 } from "ag-grid-community";
-var FilterListener = class extends BeanStub62 {
+import { BeanStub as BeanStub67, _isServerSideRowModel as _isServerSideRowModel5, _jsonEquals as _jsonEquals2 } from "ag-grid-community";
+var FilterListener = class extends BeanStub67 {
   constructor() {
     super(...arguments);
     this.beanName = "ssrmFilterListener";
@@ -43795,8 +45512,8 @@ var FilterListener = class extends BeanStub62 {
 };
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/listeners/listenerUtils.ts
-import { BeanStub as BeanStub63 } from "ag-grid-community";
-var ListenerUtils = class extends BeanStub63 {
+import { BeanStub as BeanStub68 } from "ag-grid-community";
+var ListenerUtils = class extends BeanStub68 {
   constructor() {
     super(...arguments);
     this.beanName = "ssrmListenerUtils";
@@ -43806,7 +45523,7 @@ var ListenerUtils = class extends BeanStub63 {
     this.valueColsSvc = beans.valueColsSvc;
   }
   isSortingWithValueColumn(changedColumnsInSort) {
-    const valueColIds = (this.valueColsSvc?.columns ?? []).map((col) => col.getColId());
+    const valueColIds = (this.valueColsSvc?.columns ?? []).map((col) => col.colId);
     for (let i = 0; i < changedColumnsInSort.length; i++) {
       if (valueColIds.indexOf(changedColumnsInSort[i]) > -1) {
         return true;
@@ -43819,7 +45536,7 @@ var ListenerUtils = class extends BeanStub63 {
     if (!pivotResultCols) {
       return false;
     }
-    const secondaryColIds = pivotResultCols.list.map((col) => col.getColId());
+    const secondaryColIds = pivotResultCols.list.map((col) => col.colId);
     for (let i = 0; i < changedColumnsInSort.length; i++) {
       if (secondaryColIds.indexOf(changedColumnsInSort[i]) > -1) {
         return true;
@@ -43830,8 +45547,8 @@ var ListenerUtils = class extends BeanStub63 {
 };
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/listeners/sortListener.ts
-import { BeanStub as BeanStub64, _isServerSideRowModel as _isServerSideRowModel6 } from "ag-grid-community";
-var SortListener = class extends BeanStub64 {
+import { BeanStub as BeanStub69, _isServerSideRowModel as _isServerSideRowModel6 } from "ag-grid-community";
+var SortListener = class extends BeanStub69 {
   constructor() {
     super(...arguments);
     this.beanName = "ssrmSortSvc";
@@ -43895,8 +45612,8 @@ var SortListener = class extends BeanStub64 {
 };
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/nodeManager.ts
-import { BeanStub as BeanStub65, _warn as _warn45 } from "ag-grid-community";
-var NodeManager = class extends BeanStub65 {
+import { BeanStub as BeanStub70, _warn as _warn46 } from "ag-grid-community";
+var NodeManager = class extends BeanStub70 {
   constructor() {
     super(...arguments);
     this.beanName = "ssrmNodeManager";
@@ -43905,7 +45622,7 @@ var NodeManager = class extends BeanStub65 {
   addRowNode(rowNode) {
     const id = rowNode.id;
     if (this.rowNodes.has(id)) {
-      _warn45(187, {
+      _warn46(187, {
         rowId: id,
         firstData: this.rowNodes.get(id).data,
         secondData: rowNode.data
@@ -43929,24 +45646,27 @@ var NodeManager = class extends BeanStub65 {
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/serverSideRowModel.ts
 import {
-  BeanStub as BeanStub66,
+  BeanStub as BeanStub71,
+  GRAND_TOTAL_ROW_ID,
+  GROUP_TOTAL_ROW_ID_PREFIX as GROUP_TOTAL_ROW_ID_PREFIX2,
+  ROOT_NODE_ID,
   RowNode as RowNode6,
-  _debounce as _debounce6,
+  _debounce as _debounce8,
   _getRowHeightAsNumber as _getRowHeightAsNumber3,
   _getRowHeightForNode as _getRowHeightForNode3,
   _isGetRowHeightFunction,
   _isRowSelection as _isRowSelection2,
   _jsonEquals as _jsonEquals3,
-  _warn as _warn46
+  _warn as _warn47
 } from "ag-grid-community";
-var ServerSideRowModel = class extends BeanStub66 {
+var ServerSideRowModel = class extends BeanStub71 {
   constructor() {
     super(...arguments);
     this.beanName = "rowModel";
     this.hierarchical = true;
     this.started = false;
     this.managingPivotResultColumns = false;
-    this.onRowHeightChanged_debounced = _debounce6(this, this.onRowHeightChanged.bind(this), 100);
+    this.onRowHeightChanged_debounced = _debounce8(this, this.onRowHeightChanged.bind(this), 100);
   }
   wireBeans(beans) {
     this.colModel = beans.colModel;
@@ -44003,7 +45723,10 @@ var ServerSideRowModel = class extends BeanStub66 {
       ],
       resetListener
     );
-    this.addManagedPropertyListeners(["groupAllowUnbalanced", "groupTotalRow"], () => this.onStoreUpdated());
+    this.addManagedPropertyListeners(
+      ["groupAllowUnbalanced", "groupTotalRow", "grandTotalRow"],
+      () => this.onStoreUpdated()
+    );
     this.addManagedPropertyListener("rowHeight", () => this.resetRowHeights());
     this.verifyProps();
     this.addManagedPropertyListener("serverSideDatasource", () => this.updateDatasource());
@@ -44016,7 +45739,7 @@ var ServerSideRowModel = class extends BeanStub66 {
   }
   verifyProps() {
     if (_isRowSelection2(this.gos) && !this.gos.exists("getRowId")) {
-      _warn46(188, { feature: "selection" });
+      _warn47(188, { feature: "selection" });
     }
   }
   setDatasource(datasource) {
@@ -44171,7 +45894,7 @@ var ServerSideRowModel = class extends BeanStub66 {
         id: col.getId(),
         aggFunc: col.getAggFunc(),
         displayName: this.colNames.getDisplayNameForColumn(col, "model"),
-        field: col.getColDef().field
+        field: col.colDef.field
       })
     );
   }
@@ -44185,7 +45908,7 @@ var ServerSideRowModel = class extends BeanStub66 {
       valueCols: valueColumnVos,
       rowGroupCols: rowGroupColumnVos,
       pivotCols: pivotColumnVos,
-      pivotMode: this.colModel.isPivotMode(),
+      pivotMode: this.colModel.pivotMode,
       // sort and filter model
       filterModel: this.filterManager?.isAdvFilterEnabled() ? this.filterManager?.getAdvFilterModel() : this.filterManager?.getFilterModel() ?? {},
       sortModel: this.sortSvc?.getSortModel() ?? [],
@@ -44400,15 +46123,29 @@ var ServerSideRowModel = class extends BeanStub66 {
     return nodeRange;
   }
   getRowNode(id) {
+    if (typeof id !== "string") {
+      id = String(id);
+    }
+    if (id === GRAND_TOTAL_ROW_ID) {
+      return this.getRootStore()?.getGrandTotalNode();
+    }
     let result;
     this.forEachNode((rowNode) => {
       if (rowNode.id === id) {
         result = rowNode;
       }
-      if (rowNode.detailNode && rowNode.detailNode.id === id) {
+      if (rowNode.detailNode?.id === id) {
         result = rowNode.detailNode;
       }
     });
+    if (id === ROOT_NODE_ID) {
+      return this.rootNode;
+    }
+    if (!result && id.startsWith(GROUP_TOTAL_ROW_ID_PREFIX2)) {
+      const groupId = id.slice(GROUP_TOTAL_ROW_ID_PREFIX2.length);
+      const groupNode = this.getRowNode(groupId);
+      result = groupNode?.sibling?.footer ? groupNode.sibling : void 0;
+    }
     return result;
   }
   isRowPresent(rowNode) {
@@ -44436,7 +46173,7 @@ var ServerSideRowModel = class extends BeanStub66 {
 };
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/serverSideRowModelApi.ts
-import { _getServerSideRowModel, _warn as _warn47 } from "ag-grid-community";
+import { _getServerSideRowModel, _warn as _warn48 } from "ag-grid-community";
 function getServerSideSelectionState(beans) {
   return beans.selectionSvc?.getSelectionState() ?? null;
 }
@@ -44450,7 +46187,7 @@ function applyServerSideRowData(beans, params) {
   const startRow = params.startRow ?? 0;
   const route = params.route ?? [];
   if (startRow < 0) {
-    _warn47(189, { startRow });
+    _warn48(189, { startRow });
     return;
   }
   _getServerSideRowModel(beans)?.applyRowData(params.successParams, startRow, route);
@@ -44475,8 +46212,8 @@ function getServerSideGroupLevelState(beans) {
 import { RowNode as RowNode7, _exists as _exists27, _getRowHeightForNode as _getRowHeightForNode4 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/services/expansion/strategies/defaultStrategy.ts
-import { BeanStub as BeanStub67 } from "ag-grid-community";
-var ExpandStrategy = class extends BeanStub67 {
+import { BeanStub as BeanStub72 } from "ag-grid-community";
+var ExpandStrategy = class extends BeanStub72 {
   constructor() {
     super(...arguments);
     this.name = "expand";
@@ -44589,8 +46326,8 @@ var ExpandStrategy = class extends BeanStub67 {
 };
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/services/expansion/strategies/expandAllStrategy.ts
-import { BeanStub as BeanStub68 } from "ag-grid-community";
-var ExpandAllStrategy = class extends BeanStub68 {
+import { BeanStub as BeanStub73 } from "ag-grid-community";
+var ExpandAllStrategy = class extends BeanStub73 {
   constructor() {
     super(...arguments);
     this.name = "expandAll";
@@ -44778,18 +46515,18 @@ var ServerSideExpansionService = class extends BaseExpansionService {
 // packages/ag-grid-enterprise/src/serverSideRowModel/services/serverSideSelectionService.ts
 import {
   BaseSelectionService,
-  _error as _error8,
+  _error as _error13,
   _getGroupSelectsDescendants,
   _getRowSelectionMode,
   _isMultiRowSelection as _isMultiRowSelection3,
   _isRowSelection as _isRowSelection3,
   _isUsingNewRowSelectionAPI as _isUsingNewRowSelectionAPI2,
-  _warn as _warn50
+  _warn as _warn51
 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/services/selection/strategies/defaultStrategy.ts
-import { BeanStub as BeanStub69, _error as _error6, _isMultiRowSelection, _isUsingNewRowSelectionAPI, _warn as _warn48 } from "ag-grid-community";
-var DefaultStrategy = class extends BeanStub69 {
+import { BeanStub as BeanStub74, _error as _error11, _isMultiRowSelection, _isUsingNewRowSelectionAPI, _warn as _warn49 } from "ag-grid-community";
+var DefaultStrategy = class extends BeanStub74 {
   constructor(selectionCtx) {
     super();
     this.selectionCtx = selectionCtx;
@@ -44811,19 +46548,19 @@ var DefaultStrategy = class extends BeanStub69 {
   }
   setSelectedState(state) {
     if (typeof state !== "object") {
-      _error6(116);
+      _error11(116);
       return;
     }
     if (!("selectAll" in state)) {
-      _error6(116);
+      _error11(116);
       return;
     }
     if (typeof state.selectAll !== "boolean") {
-      _error6(117);
+      _error11(117);
       return;
     }
     if (!("toggledNodes" in state) || !Array.isArray(state.toggledNodes)) {
-      return _warn48(197);
+      return _warn49(197);
     }
     const newState = {
       selectAll: state.selectAll,
@@ -44833,12 +46570,12 @@ var DefaultStrategy = class extends BeanStub69 {
       if (typeof key === "string") {
         newState.toggledNodes.add(key);
       } else {
-        _warn48(196, { key });
+        _warn49(196, { key });
       }
     });
     const isSelectingMultipleRows = newState.selectAll || newState.toggledNodes.size > 1;
     if (_isUsingNewRowSelectionAPI(this.gos) && !_isMultiRowSelection(this.gos) && isSelectingMultipleRows) {
-      _warn48(130);
+      _warn49(130);
       return;
     }
     this.selectedState = newState;
@@ -44863,7 +46600,7 @@ var DefaultStrategy = class extends BeanStub69 {
     const onlyThisNode = clearSelection && newValue;
     if (!_isMultiRowSelection(this.gos) || onlyThisNode) {
       if (nodes.length > 1) {
-        _error6(130);
+        _error11(130);
         return 0;
       }
       const rowNode = nodes[0];
@@ -44921,7 +46658,7 @@ var DefaultStrategy = class extends BeanStub69 {
       selectAllUsed
     } = this;
     if (warnWhenSelectAll && selectAllUsed) {
-      _warn48(199);
+      _warn49(199);
     }
     return nullWhenSelectAll && selectAll ? null : Object.values(selectedNodes);
   }
@@ -44963,8 +46700,8 @@ var DefaultStrategy = class extends BeanStub69 {
 };
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/services/selection/strategies/groupSelectsChildrenStrategy.ts
-import { BeanStub as BeanStub70, _error as _error7, _isMultiRowSelection as _isMultiRowSelection2, _warn as _warn49 } from "ag-grid-community";
-var GroupSelectsChildrenStrategy = class extends BeanStub70 {
+import { BeanStub as BeanStub75, _error as _error12, _isMultiRowSelection as _isMultiRowSelection2, _warn as _warn50 } from "ag-grid-community";
+var GroupSelectsChildrenStrategy = class extends BeanStub75 {
   constructor(selectionCtx) {
     super();
     this.selectionCtx = selectionCtx;
@@ -45008,28 +46745,28 @@ var GroupSelectsChildrenStrategy = class extends BeanStub70 {
   }
   setSelectedState(state) {
     if ("selectAll" in state) {
-      _error7(111);
+      _error12(111);
       return;
     }
     const recursivelyDeserializeState = (normalisedState, parentSelected) => {
       if (typeof normalisedState !== "object") {
-        _error7(243);
+        _error12(243);
         throw new Error();
       }
       if ("selectAllChildren" in normalisedState && typeof normalisedState.selectAllChildren !== "boolean") {
-        _error7(244);
+        _error12(244);
         throw new Error();
       }
       if ("toggledNodes" in normalisedState) {
         if (!Array.isArray(normalisedState.toggledNodes)) {
-          _error7(245);
+          _error12(245);
           throw new Error();
         }
         const allHaveIds = normalisedState.toggledNodes.every(
           (innerState) => typeof innerState === "object" && "nodeId" in innerState && typeof innerState.nodeId === "string"
         );
         if (!allHaveIds) {
-          _error7(246);
+          _error12(246);
           throw new Error();
         }
       }
@@ -45042,7 +46779,7 @@ var GroupSelectsChildrenStrategy = class extends BeanStub70 {
         ([, innerState]) => isThisNodeSelected === innerState.selectAllChildren && innerState.toggledNodes.size === 0
       );
       if (doesRedundantStateExist) {
-        _error7(247);
+        _error12(247);
         throw new Error();
       }
       return {
@@ -45052,7 +46789,7 @@ var GroupSelectsChildrenStrategy = class extends BeanStub70 {
     };
     try {
       this.selectedState = recursivelyDeserializeState(state, !!state.selectAllChildren);
-    } catch (e) {
+    } catch {
     }
   }
   deleteSelectionStateFromParent(parentRoute, removedNodeIds) {
@@ -45082,7 +46819,7 @@ var GroupSelectsChildrenStrategy = class extends BeanStub70 {
     const onlyThisNode = clearSelection && newValue;
     if (!_isMultiRowSelection2(this.gos) || onlyThisNode) {
       if (nodes.length > 1) {
-        _error7(130);
+        _error12(130);
         return 0;
       }
       this.deselectAllRowNodes();
@@ -45201,7 +46938,7 @@ var GroupSelectsChildrenStrategy = class extends BeanStub70 {
     }
   }
   getSelectedNodes(nullWhenSelectAll = false) {
-    _warn49(202);
+    _warn50(202);
     if (this.selectedState.selectAllChildren && nullWhenSelectAll) {
       return null;
     }
@@ -45281,12 +47018,12 @@ var ServerSideSelectionService = class extends BaseSelectionService {
     if (this.isRowSelectionBlocked(rowNode)) {
       return 0;
     }
-    let updatedRows = 0;
     const selection = this.inferNodeSelections(rowNode, event.shiftKey, event.metaKey || event.ctrlKey, source);
     if (selection == null) {
       return 0;
     }
     this.selectionCtx.selectAll = false;
+    let updatedRows;
     if ("select" in selection) {
       if (selection.reset) {
         this.selectionStrategy.deselectAllRowNodes({ source: "api" });
@@ -45313,7 +47050,7 @@ var ServerSideSelectionService = class extends BaseSelectionService {
   setSelectionState(state, source) {
     if (!_isRowSelection3(this.gos)) {
       if (state) {
-        _warn50(132);
+        _warn51(132);
       }
       return;
     }
@@ -45330,12 +47067,12 @@ var ServerSideSelectionService = class extends BaseSelectionService {
   }
   setNodesSelected(params) {
     if (!_isRowSelection3(this.gos) && params.newValue) {
-      _warn50(132);
+      _warn51(132);
       return 0;
     }
     const { nodes, ...otherParams } = params;
     if (nodes.length > 1 && this.selectionMode !== "multiRow") {
-      _warn50(130);
+      _warn51(130);
       return 0;
     }
     const adjustedParams = {
@@ -45409,12 +47146,12 @@ var ServerSideSelectionService = class extends BaseSelectionService {
   }
   selectAllRowNodes(params) {
     if (!_isRowSelection3(this.gos)) {
-      _warn50(132);
+      _warn51(132);
       return;
     }
     validateSelectionParameters(params);
     if (_isUsingNewRowSelectionAPI2(this.gos) && !_isMultiRowSelection3(this.gos)) {
-      return _warn50(130);
+      return _warn51(130);
     }
     this.selectionStrategy.selectAllRowNodes(params);
     this.selectionCtx.selectAll = true;
@@ -45443,7 +47180,7 @@ var ServerSideSelectionService = class extends BaseSelectionService {
   }
   // used by CSRM
   getBestCostNodeSelection() {
-    return _warn50(194, { method: "getBestCostNodeSelection" });
+    return _warn51(194, { method: "getBestCostNodeSelection" });
   }
   /**
    * Updates the selectable state for a node by invoking isRowSelectable callback.
@@ -45481,7 +47218,7 @@ var ServerSideSelectionService = class extends BaseSelectionService {
     });
   }
   updateSelectableAfterGrouping() {
-    return _error8(194, { method: "updateSelectableAfterGrouping" });
+    return _error13(194, { method: "updateSelectableAfterGrouping" });
   }
   refreshMasterNodeState() {
   }
@@ -45491,13 +47228,13 @@ var ServerSideSelectionService = class extends BaseSelectionService {
 };
 function validateSelectionParameters({ selectAll }) {
   if (selectAll === "filtered" || selectAll === "currentPage") {
-    _warn50(195, { justCurrentPage: selectAll === "currentPage" });
+    _warn51(195, { justCurrentPage: selectAll === "currentPage" });
   }
 }
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/services/ssrmRowChildrenService.ts
-import { BeanStub as BeanStub71 } from "ag-grid-community";
-var SsrmRowChildrenService = class extends BeanStub71 {
+import { BeanStub as BeanStub76 } from "ag-grid-community";
+var SsrmRowChildrenService = class extends BeanStub76 {
   constructor() {
     super(...arguments);
     this.beanName = "rowChildrenSvc";
@@ -45510,8 +47247,13 @@ var SsrmRowChildrenService = class extends BeanStub71 {
 };
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/stores/lazy/lazyBlockLoadingService.ts
-import { BeanStub as BeanStub72, _addGridCommonParams as _addGridCommonParams25, _getMaxConcurrentDatasourceRequests } from "ag-grid-community";
-var LazyBlockLoadingService = class extends BeanStub72 {
+import {
+  BeanStub as BeanStub77,
+  _addGridCommonParams as _addGridCommonParams27,
+  _getGrandTotalRow as _getGrandTotalRow6,
+  _getMaxConcurrentDatasourceRequests
+} from "ag-grid-community";
+var LazyBlockLoadingService = class extends BeanStub77 {
   constructor() {
     super(...arguments);
     this.beanName = "lazyBlockLoadingSvc";
@@ -45564,7 +47306,7 @@ var LazyBlockLoadingService = class extends BeanStub72 {
     if (!nextBlockToLoad) {
       return;
     }
-    const isSameBlock = this.nextBlockToLoad && this.nextBlockToLoad.cache === nextBlockToLoad.cache && this.nextBlockToLoad.index === nextBlockToLoad.index;
+    const isSameBlock = this.nextBlockToLoad?.cache === nextBlockToLoad.cache && this.nextBlockToLoad.index === nextBlockToLoad.index;
     if (isSameBlock) {
       return;
     }
@@ -45594,6 +47336,7 @@ var LazyBlockLoadingService = class extends BeanStub72 {
   }
   executeLoad(cache, startRow, endRow) {
     const ssrmParams = cache.getSsrmParams();
+    const parentNode = cache.store.getParentNode();
     const request = {
       startRow,
       endRow,
@@ -45601,7 +47344,7 @@ var LazyBlockLoadingService = class extends BeanStub72 {
       valueCols: ssrmParams.valueCols,
       pivotCols: ssrmParams.pivotCols,
       pivotMode: ssrmParams.pivotMode,
-      groupKeys: cache.store.getParentNode().getRoute() ?? [],
+      groupKeys: parentNode.getRoute() ?? [],
       filterModel: ssrmParams.filterModel,
       sortModel: ssrmParams.sortModel
     };
@@ -45626,11 +47369,15 @@ var LazyBlockLoadingService = class extends BeanStub72 {
       cache.onLoadFailed(startRow, endRow - startRow);
       removeNodesFromLoadingMap();
     };
-    const params = _addGridCommonParams25(this.gos, {
+    const isRootStore = parentNode.level === -1;
+    const store = isRootStore ? cache.store : void 0;
+    const needsGrandTotal = isRootStore && store?.grandTotalData === void 0 && !!_getGrandTotalRow6(this.gos);
+    const params = _addGridCommonParams27(this.gos, {
       request,
       success,
       fail,
-      parentNode: cache.store.getParentNode()
+      parentNode,
+      needsGrandTotal
     });
     addNodesToLoadingMap();
     this.outboundRequests += 1;
@@ -45713,20 +47460,29 @@ var LazyBlockLoadingService = class extends BeanStub72 {
 };
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/stores/storeFactory.ts
-import { BeanStub as BeanStub75, _warn as _warn53 } from "ag-grid-community";
+import { BeanStub as BeanStub80, _warn as _warn54 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/stores/lazy/lazyStore.ts
 import {
-  BeanStub as BeanStub74,
+  BeanStub as BeanStub79,
   ServerSideTransactionResultStatus,
+  _getGrandTotalPinnedFloat as _getGrandTotalPinnedFloat2,
+  _getGrandTotalRow as _getGrandTotalRow7,
   _getGroupTotalRowCallback as _getGroupTotalRowCallback4,
   _getRowHeightAsNumber as _getRowHeightAsNumber5,
   _getRowIdCallback as _getRowIdCallback3,
-  _warn as _warn52
+  _warn as _warn53
 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/stores/lazy/lazyCache.ts
-import { BeanStub as BeanStub73, _getRowHeightAsNumber as _getRowHeightAsNumber4, _getRowIdCallback as _getRowIdCallback2, _warn as _warn51 } from "ag-grid-community";
+import {
+  BeanStub as BeanStub78,
+  GRAND_TOTAL_ROW_ID as GRAND_TOTAL_ROW_ID2,
+  _getRowHeightAsNumber as _getRowHeightAsNumber4,
+  _getRowHeightForNode as _getRowHeightForNode5,
+  _getRowIdCallback as _getRowIdCallback2,
+  _warn as _warn52
+} from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/stores/lazy/multiIndexMap.ts
 var MultiIndexMap = class {
@@ -45800,7 +47556,7 @@ var MultiIndexMap = class {
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/stores/lazy/lazyCache.ts
 var DEFAULT_BLOCK_SIZE = 100;
-var LazyCache = class extends BeanStub73 {
+var LazyCache = class extends BeanStub78 {
   constructor(store, numberOfRows, isLastRowKnown, storeParams) {
     super();
     /**
@@ -46354,11 +48110,13 @@ var LazyCache = class extends BeanStub73 {
     }
     const info = response.groupLevelInfo;
     this.store.setStoreInfo(info);
+    const isRootStore = this.store.getParentNode().level === -1;
+    const grandTotalId = isRootStore && this.getRowIdFunc != null ? GRAND_TOTAL_ROW_ID2 : null;
     if (this.getRowIdFunc != null) {
       const duplicates = this.extractDuplicateIds(response.rowData);
       if (duplicates.length > 0) {
         const duplicateIdText = duplicates.join(", ");
-        _warn51(205, { duplicateIdText });
+        _warn52(205, { duplicateIdText });
         this.onLoadFailed(firstRowIndex, numberOfRowsExpected);
         return;
       }
@@ -46367,29 +48125,46 @@ var LazyCache = class extends BeanStub73 {
       this.serverSideRowModel.generateSecondaryColumns(response.pivotResultFields);
     }
     const wasRefreshing = this.nodesToRefresh.size > 0;
-    response.rowData.forEach((data, responseRowIndex) => {
-      const rowIndex = firstRowIndex + responseRowIndex;
+    let skippedRowCount = 0;
+    let grandTotalData = void 0;
+    for (let responseRowIndex = 0; responseRowIndex < response.rowData.length; responseRowIndex++) {
+      const data = response.rowData[responseRowIndex];
+      if (grandTotalId != null && this.getRowId(data) === grandTotalId) {
+        grandTotalData = data;
+        skippedRowCount++;
+        continue;
+      }
+      const rowIndex = firstRowIndex + responseRowIndex - skippedRowCount;
       const nodeFromCache = this.nodeMap.getBy("index", rowIndex);
       if (nodeFromCache?.node?.stub) {
         this.createRowAtIndex(rowIndex, data);
-        return;
+        continue;
       }
       if (nodeFromCache && this.doesNodeMatch(data, nodeFromCache.node)) {
         this.blockUtils.updateDataIntoRowNode(nodeFromCache.node, data);
         this.nodesToRefresh.delete(nodeFromCache.node);
         nodeFromCache.node.__needsRefreshWhenVisible = false;
-        return;
+        continue;
       }
       this.createRowAtIndex(rowIndex, data);
-    });
+    }
+    if (isRootStore) {
+      if (response.grandTotalData !== void 0) {
+        grandTotalData = response.grandTotalData;
+      }
+      if (grandTotalData !== void 0) {
+        this.store.grandTotalData = grandTotalData;
+      }
+    }
+    const dataRowCount = response.rowData.length - skippedRowCount;
     if (response.rowCount != void 0 && response.rowCount !== -1) {
       this.numberOfRows = response.rowCount;
       this.isLastRowKnown = true;
-    } else if (numberOfRowsExpected > response.rowData.length) {
-      this.numberOfRows = firstRowIndex + response.rowData.length;
+    } else if (numberOfRowsExpected > dataRowCount) {
+      this.numberOfRows = firstRowIndex + dataRowCount;
       this.isLastRowKnown = true;
     } else if (!this.isLastRowKnown) {
-      const lastInferredRow = firstRowIndex + response.rowData.length + 1;
+      const lastInferredRow = firstRowIndex + dataRowCount + 1;
       if (lastInferredRow > this.numberOfRows) {
         this.numberOfRows = lastInferredRow;
       }
@@ -46397,6 +48172,9 @@ var LazyCache = class extends BeanStub73 {
     if (this.isLastRowKnown) {
       const lazyNodesAfterStoreEnd = this.nodeMap.filter((lazyNode) => lazyNode.index >= this.numberOfRows);
       lazyNodesAfterStoreEnd.forEach((lazyNode) => this.destroyRowAtIndex(lazyNode.index));
+    }
+    if (this.gos.get("serverSideEnableClientSideSort") && this.isStoreFullyLoaded()) {
+      this.clientSideSortRows();
     }
     this.fireStoreUpdatedEvent();
     const finishedRefreshing = this.nodesToRefresh.size === 0;
@@ -46422,26 +48200,22 @@ var LazyCache = class extends BeanStub73 {
     const knowsSize = this.isLastRowKnown;
     const hasCorrectRowCount = this.nodeMap.getSize() === this.numberOfRows;
     if (!knowsSize || !hasCorrectRowCount) {
-      return;
+      return false;
     }
     if (this.nodesToRefresh.size > 0) {
-      return;
-    }
-    let index = -1;
-    const firstOutOfPlaceNode = this.nodeMap.find((lazyNode) => {
-      index += 1;
-      if (lazyNode.index !== index) {
-        return true;
-      }
-      if (lazyNode.node.__needsRefreshWhenVisible) {
-        return true;
-      }
-      if (lazyNode.node.stub) {
-        return true;
-      }
       return false;
-    });
-    return firstOutOfPlaceNode == null;
+    }
+    for (let i = 0; i < this.numberOfRows; i++) {
+      const lazyNode = this.nodeMap.getBy("index", i);
+      if (!lazyNode) {
+        return false;
+      }
+      const { node } = lazyNode;
+      if (node.__needsRefreshWhenVisible || node.stub) {
+        return false;
+      }
+    }
+    return true;
   }
   isLastRowIndexKnown() {
     return this.isLastRowKnown;
@@ -46507,6 +48281,23 @@ var LazyCache = class extends BeanStub73 {
       level
     });
   }
+  /** Creates the grand total row node, or applies new data to the existing one. */
+  createOrUpdateGrandTotalNode(data) {
+    const existingNode = this.store.getGrandTotalNode();
+    if (existingNode) {
+      existingNode._updateDataNoSibling(data);
+      return existingNode;
+    }
+    const parentNode = this.store.getParentNode();
+    const newNode = _createRowNodeFooter(parentNode, this.beans, GRAND_TOTAL_ROW_ID2);
+    newNode.group = false;
+    newNode.stub = false;
+    newNode.data = data;
+    const rowHeight = _getRowHeightForNode5(this.beans, newNode);
+    newNode.setRowHeight(rowHeight.height, rowHeight.estimated);
+    this.nodeManager.addRowNode(newNode);
+    return newNode;
+  }
   getOrderedNodeMap() {
     const obj = {};
     this.nodeMap.forEach((node) => obj[node.index] = node);
@@ -46540,14 +48331,24 @@ var LazyCache = class extends BeanStub73 {
    */
   updateRowNodes(updates) {
     const updatedNodes = [];
-    updates.forEach((data) => {
+    const { store, blockUtils, nodeMap } = this;
+    for (const data of updates) {
       const id = this.getRowId(data);
-      const lazyNode = this.nodeMap.getBy("id", id);
+      if (id === GRAND_TOTAL_ROW_ID2) {
+        store.grandTotalData = data;
+        const grandTotalNode = store.getGrandTotalNode();
+        if (grandTotalNode) {
+          grandTotalNode._updateDataNoSibling(data);
+          updatedNodes.push(grandTotalNode);
+        }
+        continue;
+      }
+      const lazyNode = nodeMap.getBy("id", id);
       if (lazyNode) {
-        this.blockUtils.updateDataIntoRowNode(lazyNode.node, data);
+        blockUtils.updateDataIntoRowNode(lazyNode.node, data);
         updatedNodes.push(lazyNode.node);
       }
-    });
+    }
     return updatedNodes;
   }
   insertRowNodes(inserts, indexToAdd) {
@@ -46559,6 +48360,10 @@ var LazyCache = class extends BeanStub73 {
     const uniqueInsertsMap = {};
     inserts.forEach((data) => {
       const dataId = this.getRowId(data);
+      if (dataId === GRAND_TOTAL_ROW_ID2) {
+        this.store.grandTotalData = data;
+        return;
+      }
       if (dataId && this.isNodeInCache(dataId)) {
         return;
       }
@@ -46586,16 +48391,18 @@ var LazyCache = class extends BeanStub73 {
   removeRowNodes(idsToRemove, newRowCount) {
     const removedNodes = [];
     const nodesToVerify = [];
+    const idsToRemoveSet = new Set(idsToRemove);
+    if (idsToRemoveSet.delete(GRAND_TOTAL_ROW_ID2)) {
+      this.store.grandTotalData = null;
+    }
     let deletedNodeCount = 0;
-    const remainingIdsToRemove = [...idsToRemove];
     const allNodes = this.getOrderedNodeMap();
     let contiguousIndex = -1;
     for (const stringIndex of Object.keys(allNodes)) {
       contiguousIndex += 1;
       const node = allNodes[stringIndex];
-      const matchIndex = remainingIdsToRemove.findIndex((idToRemove) => idToRemove === node.id);
-      if (matchIndex !== -1) {
-        remainingIdsToRemove.splice(matchIndex, 1);
+      if (idsToRemoveSet.has(node.id)) {
+        idsToRemoveSet.delete(node.id);
         this.destroyRowAtIndex(Number(stringIndex));
         removedNodes.push(node.node);
         deletedNodeCount += 1;
@@ -46622,7 +48429,7 @@ var LazyCache = class extends BeanStub73 {
     } else {
       this.numberOfRows -= deletedNodeCount;
     }
-    if (remainingIdsToRemove.length > 0 && nodesToVerify.length > 0) {
+    if (idsToRemoveSet.size > 0 && nodesToVerify.length > 0) {
       nodesToVerify.forEach((node) => node.__needsRefreshWhenVisible = true);
       this.lazyBlockLoadingSvc.queueLoadCheck();
     }
@@ -46652,7 +48459,7 @@ var LazyCache = class extends BeanStub73 {
 };
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/stores/lazy/lazyStore.ts
-var LazyStore = class extends BeanStub74 {
+var LazyStore = class extends BeanStub79 {
   constructor(ssrmParams, storeParams, parentRowNode) {
     super();
     this.idSequence = { value: 0 };
@@ -46689,8 +48496,28 @@ var LazyStore = class extends BeanStub74 {
   destroy() {
     this.displayIndexStart = void 0;
     this.displayIndexEnd = void 0;
+    this.grandTotalData = void 0;
+    this.destroyGrandTotalRow();
     this.destroyBean(this.cache);
     super.destroy();
+  }
+  /** Returns the grand total node if one exists (root store only). Accessed via parentRowNode.sibling. */
+  getGrandTotalNode() {
+    if (this.parentRowNode.level === -1) {
+      const sibling = this.parentRowNode.sibling;
+      if (sibling?.footer) {
+        return sibling;
+      }
+    }
+    return void 0;
+  }
+  destroyGrandTotalRow() {
+    const grandTotalNode = this.getGrandTotalNode();
+    if (grandTotalNode) {
+      this.parentRowNode.sibling = void 0;
+      grandTotalNode.sibling = void 0;
+      this.blockUtils.destroyRowNode(grandTotalNode);
+    }
   }
   /**
    * Given a server response, ingest the rows outside of the data source lifecycle.
@@ -46711,7 +48538,7 @@ var LazyStore = class extends BeanStub74 {
   applyTransaction(transaction) {
     const idFunc = _getRowIdCallback3(this.gos);
     if (!idFunc) {
-      _warn52(206);
+      _warn53(206);
       return {
         status: ServerSideTransactionResultStatus.Cancelled
       };
@@ -46850,17 +48677,56 @@ var LazyStore = class extends BeanStub74 {
     this.displayIndexStart = displayIndexSeq.value;
     this.topPx = nextRowTop.value;
     const footerNode = this.parentRowNode.level > -1 && _getGroupTotalRowCallback4(this.gos)({ node: this.parentRowNode });
-    if (!footerNode) {
+    if (!footerNode && this.parentRowNode.level > -1) {
       _destroyRowNodeFooter(this.parentRowNode);
     }
     if (footerNode === "top") {
-      _createRowNodeFooter(this.parentRowNode, this.beans);
-      this.blockUtils.setDisplayIndex(this.parentRowNode.sibling, displayIndexSeq, nextRowTop, uiLevel);
+      this.blockUtils.setDisplayIndex(
+        _createRowNodeFooter(this.parentRowNode, this.beans),
+        displayIndexSeq,
+        nextRowTop,
+        uiLevel
+      );
+    }
+    let inlineGrandTotalTop;
+    let inlineGrandTotalBottom;
+    if (this.parentRowNode.level === -1) {
+      const grandTotalRow = _getGrandTotalRow7(this.gos);
+      let grandTotalNode = this.getGrandTotalNode();
+      if (grandTotalRow && this.grandTotalData) {
+        if (!grandTotalNode) {
+          grandTotalNode = this.cache.createOrUpdateGrandTotalNode(this.grandTotalData);
+        }
+      } else if (grandTotalNode) {
+        this.destroyGrandTotalRow();
+        grandTotalNode = void 0;
+      }
+      const pinnedFloat = _getGrandTotalPinnedFloat2(grandTotalRow);
+      this.beans.pinnedRowModel?.setGrandTotalPinned(pinnedFloat);
+      if (grandTotalNode) {
+        if (pinnedFloat) {
+          this.blockUtils.clearDisplayIndex(grandTotalNode);
+        } else if (grandTotalRow === "top") {
+          inlineGrandTotalTop = grandTotalNode;
+        } else if (grandTotalRow === "bottom") {
+          inlineGrandTotalBottom = grandTotalNode;
+        }
+      }
+    }
+    if (inlineGrandTotalTop) {
+      this.blockUtils.setDisplayIndex(inlineGrandTotalTop, displayIndexSeq, nextRowTop, uiLevel);
     }
     this.cache.setDisplayIndexes(displayIndexSeq, nextRowTop, uiLevel);
     if (footerNode === "bottom") {
-      _createRowNodeFooter(this.parentRowNode, this.beans);
-      this.blockUtils.setDisplayIndex(this.parentRowNode.sibling, displayIndexSeq, nextRowTop, uiLevel);
+      this.blockUtils.setDisplayIndex(
+        _createRowNodeFooter(this.parentRowNode, this.beans),
+        displayIndexSeq,
+        nextRowTop,
+        uiLevel
+      );
+    }
+    if (inlineGrandTotalBottom) {
+      this.blockUtils.setDisplayIndex(inlineGrandTotalBottom, displayIndexSeq, nextRowTop, uiLevel);
     }
     this.displayIndexEnd = displayIndexSeq.value;
     this.heightPx = nextRowTop.value - this.topPx;
@@ -46903,6 +48769,11 @@ var LazyStore = class extends BeanStub74 {
     if (footerNode === "top") {
       callback(this.parentRowNode.sibling, sequence.value++);
     }
+    const grandTotalPosition = this.parentRowNode.level === -1 ? _getGrandTotalRow7(this.gos) : void 0;
+    const grandTotalNode = this.getGrandTotalNode();
+    if (grandTotalPosition === "top" && grandTotalNode) {
+      callback(grandTotalNode, sequence.value++);
+    }
     const orderedNodes = this.cache.getOrderedNodeMap();
     for (const lazyNode of Object.values(orderedNodes)) {
       callback(lazyNode.node, sequence.value++);
@@ -46913,6 +48784,9 @@ var LazyStore = class extends BeanStub74 {
     }
     if (footerNode === "bottom") {
       callback(this.parentRowNode.sibling, sequence.value++);
+    }
+    if (grandTotalPosition === "bottom" && grandTotalNode) {
+      callback(grandTotalNode, sequence.value++);
     }
   }
   /**
@@ -46936,7 +48810,7 @@ var LazyStore = class extends BeanStub74 {
    * @returns the row node if the display index falls within the store, if it didn't exist this will create a new stub to return
    */
   getRowUsingDisplayIndex(displayRowIndex) {
-    if (this.parentRowNode.sibling && displayRowIndex === this.parentRowNode.sibling.rowIndex) {
+    if (displayRowIndex === this.parentRowNode.sibling?.rowIndex) {
       return this.parentRowNode.sibling;
     }
     return this.cache.getRowByDisplayIndex(displayRowIndex);
@@ -47114,6 +48988,8 @@ var LazyStore = class extends BeanStub74 {
    */
   refreshStore(purge) {
     if (purge) {
+      this.grandTotalData = void 0;
+      this.destroyGrandTotalRow();
       this.destroyBean(this.cache);
       this.cache = this.createManagedBean(new LazyCache(this, 1, false, this.storeParams));
       this.fireStoreUpdatedEvent();
@@ -47223,7 +49099,7 @@ var LazyStore = class extends BeanStub74 {
 };
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/stores/storeFactory.ts
-var StoreFactory = class extends BeanStub75 {
+var StoreFactory = class extends BeanStub80 {
   constructor() {
     super(...arguments);
     this.beanName = "ssrmStoreFactory";
@@ -47255,11 +49131,11 @@ var StoreFactory = class extends BeanStub75 {
       return;
     }
     if (ssrmParams.dynamicRowHeight) {
-      _warn53(203);
+      _warn54(203);
       return;
     }
     if (this.rowAutoHeight?.active) {
-      _warn53(204);
+      _warn54(204);
       return void 0;
     }
     return maxBlocksInCache;
@@ -47282,7 +49158,7 @@ var StoreFactory = class extends BeanStub75 {
       parentRowNode: parentNode.level >= 0 ? parentNode : void 0,
       rowGroupColumns: this.rowGroupColsSvc?.columns ?? [],
       pivotColumns: this.pivotColsSvc?.columns ?? [],
-      pivotMode: this.colModel.isPivotMode()
+      pivotMode: this.colModel.pivotMode
     };
     const res = callback(params);
     return res;
@@ -47290,8 +49166,8 @@ var StoreFactory = class extends BeanStub75 {
 };
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/stores/storeUtils.ts
-import { BeanStub as BeanStub76, _isServerSideRowModel as _isServerSideRowModel7 } from "ag-grid-community";
-var StoreUtils = class extends BeanStub76 {
+import { BeanStub as BeanStub81, _isServerSideRowModel as _isServerSideRowModel7 } from "ag-grid-community";
+var StoreUtils = class extends BeanStub81 {
   constructor() {
     super(...arguments);
     this.beanName = "ssrmStoreUtils";
@@ -47334,7 +49210,7 @@ var StoreUtils = class extends BeanStub76 {
       return true;
     }
     const allCols = this.colModel.getCols();
-    const affectedGroupCols = allCols.filter((col) => col.getColDef().showRowGroup && params.changedColumns.includes(col.getId())).map((col) => col.getColDef().showRowGroup).some((group) => group === true || group === colIdThisGroup);
+    const affectedGroupCols = allCols.filter((col) => col.colDef.showRowGroup && params.changedColumns.includes(col.getId())).map((col) => col.colDef.showRowGroup).some((group) => group === true || group === colIdThisGroup);
     return affectedGroupCols;
   }
   getServerSideInitialRowCount() {
@@ -47349,8 +49225,8 @@ var StoreUtils = class extends BeanStub76 {
 };
 
 // packages/ag-grid-enterprise/src/serverSideRowModel/transactionManager.ts
-import { BeanStub as BeanStub77, ServerSideTransactionResultStatus as ServerSideTransactionResultStatus2 } from "ag-grid-community";
-var TransactionManager = class extends BeanStub77 {
+import { BeanStub as BeanStub82, ServerSideTransactionResultStatus as ServerSideTransactionResultStatus2 } from "ag-grid-community";
+var TransactionManager = class extends BeanStub82 {
   constructor() {
     super(...arguments);
     this.beanName = "ssrmTxnManager";
@@ -47501,10 +49377,10 @@ var ServerSideRowModelApiModule = {
 };
 
 // packages/ag-grid-enterprise/src/formula/editor/formulaCellEditor.ts
-import { AgAbstractCellEditor as AgAbstractCellEditor2, KeyCode as KeyCode33, RefPlaceholder as RefPlaceholder47, _isBrowserSafari as _isBrowserSafari2, _placeCaretAtEnd as _placeCaretAtEnd2 } from "ag-grid-community";
+import { AgAbstractCellEditor as AgAbstractCellEditor2, KeyCode as KeyCode34, RefPlaceholder as RefPlaceholder49, _isBrowserSafari as _isBrowserSafari2, _placeCaretAtEnd as _placeCaretAtEnd2 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/widgets/agFormulaInputField.ts
-import { AgContentEditableField, _createElement as _createElement16, _getDocument as _getDocument6, _getWindow, _placeCaretAtEnd } from "ag-grid-community";
+import { AgContentEditableField, _createElement as _createElement20, _getDocument as _getDocument6, _getWindow, _placeCaretAtEnd } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/formula/refUtils.ts
 var CELL_OR_RANGE_REGEX = /\$?[A-Za-z]+\$?[0-9]+(?::\$?[A-Za-z]+\$?[0-9]+)?/g;
@@ -47515,6 +49391,17 @@ var isFormulaIdentChar = (char) => {
 };
 var isFormulaIdentStart = (char) => {
   return !!char && /[A-Za-z]/.test(char);
+};
+var isValidFunctionName = (name) => {
+  if (!isFormulaIdentStart(name[0])) {
+    return false;
+  }
+  for (let i = 1, len = name.length; i < len; ++i) {
+    if (!isFormulaIdentChar(name[i])) {
+      return false;
+    }
+  }
+  return true;
 };
 var isWordChar = (char) => {
   return isFormulaIdentChar(char ?? void 0);
@@ -47578,7 +49465,7 @@ var getRefTokenMatches = (text) => {
 var agFormulaInputField_default = ".ag-formula-token{line-height:var(--ag-line-height,1.6)}.ag-formula-token-color-1{color:var(--ag-formula-token-1-color)}.ag-formula-token-color-2{color:var(--ag-formula-token-2-color)}.ag-formula-token-color-3{color:var(--ag-formula-token-3-color)}.ag-formula-token-color-4{color:var(--ag-formula-token-4-color)}.ag-formula-token-color-5{color:var(--ag-formula-token-5-color)}.ag-formula-token-color-6{color:var(--ag-formula-token-6-color)}.ag-formula-token-color-7{color:var(--ag-formula-token-7-color)}.ag-formula-range-color-1{--ag-range-selection-border-color:var(--ag-formula-token-1-color);--ag-range-selection-background-color:var(--ag-formula-token-1-background-color)}.ag-formula-range-color-2{--ag-range-selection-border-color:var(--ag-formula-token-2-color);--ag-range-selection-background-color:var(--ag-formula-token-2-background-color)}.ag-formula-range-color-3{--ag-range-selection-border-color:var(--ag-formula-token-3-color);--ag-range-selection-background-color:var(--ag-formula-token-3-background-color)}.ag-formula-range-color-4{--ag-range-selection-border-color:var(--ag-formula-token-4-color);--ag-range-selection-background-color:var(--ag-formula-token-4-background-color)}.ag-formula-range-color-5{--ag-range-selection-border-color:var(--ag-formula-token-5-color);--ag-range-selection-background-color:var(--ag-formula-token-5-background-color)}.ag-formula-range-color-6{--ag-range-selection-border-color:var(--ag-formula-token-6-color);--ag-range-selection-background-color:var(--ag-formula-token-6-background-color)}.ag-formula-range-color-7{--ag-range-selection-border-color:var(--ag-formula-token-7-color);--ag-range-selection-background-color:var(--ag-formula-token-7-background-color)}.ag-fill-handle.ag-formula-range-color-1,.ag-range-handle.ag-formula-range-color-1{background-color:var(--ag-formula-token-1-color)}.ag-fill-handle.ag-formula-range-color-2,.ag-range-handle.ag-formula-range-color-2{background-color:var(--ag-formula-token-2-color)}.ag-fill-handle.ag-formula-range-color-3,.ag-range-handle.ag-formula-range-color-3{background-color:var(--ag-formula-token-3-color)}.ag-fill-handle.ag-formula-range-color-4,.ag-range-handle.ag-formula-range-color-4{background-color:var(--ag-formula-token-4-color)}.ag-fill-handle.ag-formula-range-color-5,.ag-range-handle.ag-formula-range-color-5{background-color:var(--ag-formula-token-5-color)}.ag-fill-handle.ag-formula-range-color-6,.ag-range-handle.ag-formula-range-color-6{background-color:var(--ag-formula-token-6-color)}";
 
 // packages/ag-grid-enterprise/src/widgets/formulaInputAutocompleteFeature.ts
-import { BeanStub as BeanStub78, KeyCode as KeyCode32, _getDocument as _getDocument5 } from "ag-grid-community";
+import { BeanStub as BeanStub83, KeyCode as KeyCode33, _getDocument as _getDocument5 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/widgets/formulaInputTokenUtils.ts
 var TOKEN_INSERT_AFTER_CHARS = /* @__PURE__ */ new Set(["=", "+", "-", "*", "/", "^", ",", "(", ";", "<", ">", "&"]);
@@ -47593,7 +49480,7 @@ var getPreviousNonSpaceChar = (value, offset) => {
 };
 
 // packages/ag-grid-enterprise/src/widgets/formulaRangeUtils.ts
-import { isSpecialCol as isSpecialCol3 } from "ag-grid-community";
+import { _getRowNode as _getRowNode8, isSpecialCol as isSpecialCol3 } from "ag-grid-community";
 var FORMULA_TOKEN_COLOR_CLASS = "ag-formula-token-color";
 var FORMULA_RANGE_COLOR_CLASS = "ag-formula-range-color";
 var getColorClassesForRef = (_ref, colorIndexOverride) => {
@@ -47652,6 +49539,33 @@ var getCellRangeParams = (beans, ref) => {
     columnEnd: endColMatch
   };
 };
+var toDisplayRangeParams = (beans, params) => {
+  const rowModel = beans.rowModel;
+  if (!rowModel) {
+    return null;
+  }
+  const { rowStartIndex, rowEndIndex } = params;
+  let displayStart = null;
+  for (let i = rowStartIndex; i <= rowEndIndex; i++) {
+    const idx = rowModel.getFormulaRow(i)?.rowIndex;
+    if (idx != null) {
+      displayStart = idx;
+      break;
+    }
+  }
+  let displayEnd = null;
+  for (let i = rowEndIndex; i >= rowStartIndex; i--) {
+    const idx = rowModel.getFormulaRow(i)?.rowIndex;
+    if (idx != null) {
+      displayEnd = idx;
+      break;
+    }
+  }
+  if (displayStart == null || displayEnd == null) {
+    return null;
+  }
+  return { ...params, rowStartIndex: displayStart, rowEndIndex: displayEnd };
+};
 var getLatestRangeRef = (beans) => {
   const ranges = beans.rangeSvc?.getCellRanges();
   const latest = ranges?.length ? ranges[ranges.length - 1] : null;
@@ -47670,8 +49584,15 @@ var rangeToRef = (beans, range) => {
   if (!startRow || !endRow || startRow.rowPinned || endRow.rowPinned) {
     return null;
   }
-  const rowStartIndex = Math.min(startRow.rowIndex, endRow.rowIndex) + 1;
-  const rowEndIndex = Math.max(startRow.rowIndex, endRow.rowIndex) + 1;
+  const startNode = _getRowNode8(beans, startRow);
+  const endNode = _getRowNode8(beans, endRow);
+  const startFormulaIdx = startNode?.formulaRowIndex;
+  const endFormulaIdx = endNode?.formulaRowIndex;
+  if (startFormulaIdx == null || endFormulaIdx == null) {
+    return null;
+  }
+  const rowStartIndex = Math.min(startFormulaIdx, endFormulaIdx) + 1;
+  const rowEndIndex = Math.max(startFormulaIdx, endFormulaIdx) + 1;
   const columns = range.columns?.filter((col) => !isSpecialCol3(col) && !!formula.getColRef(col));
   if (!columns?.length) {
     return null;
@@ -47714,7 +49635,7 @@ var getRefTokensFromText = (beans, text) => {
 };
 
 // packages/ag-grid-enterprise/src/widgets/formulaInputAutocompleteFeature.ts
-var FormulaInputAutocompleteFeature = class extends BeanStub78 {
+var FormulaInputAutocompleteFeature = class extends BeanStub83 {
   constructor(field) {
     super();
     this.field = field;
@@ -47741,28 +49662,28 @@ var FormulaInputAutocompleteFeature = class extends BeanStub78 {
   onContentKeyDown(event) {
     if (this.functionAutocompleteList) {
       switch (event.key) {
-        case KeyCode32.ENTER:
-        case KeyCode32.TAB:
+        case KeyCode33.ENTER:
+        case KeyCode33.TAB:
           event.preventDefault();
           event.stopPropagation();
           this.confirmFunctionAutocomplete();
           return;
-        case KeyCode32.ESCAPE:
+        case KeyCode33.ESCAPE:
           event.preventDefault();
           event.stopPropagation();
           this.closeFunctionAutocomplete();
           return;
-        case KeyCode32.UP:
-        case KeyCode32.DOWN:
+        case KeyCode33.UP:
+        case KeyCode33.DOWN:
           this.functionAutocompleteList.onNavigationKeyDown(event, event.key);
           return;
       }
     }
     switch (event.key) {
-      case KeyCode32.LEFT:
-      case KeyCode32.RIGHT:
-      case KeyCode32.PAGE_HOME:
-      case KeyCode32.PAGE_END:
+      case KeyCode33.LEFT:
+      case KeyCode33.RIGHT:
+      case KeyCode33.PAGE_HOME:
+      case KeyCode33.PAGE_END:
         this.scheduleFunctionAutocompleteUpdate();
         break;
     }
@@ -47827,7 +49748,7 @@ var FormulaInputAutocompleteFeature = class extends BeanStub78 {
   getFunctionAutocompleteEntries() {
     const formula = this.beans.formula;
     const names = formula?.active ? formula.getFunctionNames?.() ?? [] : [];
-    if (!this.functionAutocompleteEntries || this.functionAutocompleteEntries.length !== names.length) {
+    if (this.functionAutocompleteEntries?.length !== names.length) {
       this.functionAutocompleteEntries = names.map((name) => ({ key: name }));
     }
     return this.functionAutocompleteEntries;
@@ -47975,8 +49896,8 @@ var isInsideStringLiteral = (value, offset) => {
 };
 
 // packages/ag-grid-enterprise/src/widgets/formulaInputRangeSyncFeature.ts
-import { BeanStub as BeanStub79, _last as _last17, isSpecialCol as isSpecialCol4 } from "ag-grid-community";
-var FormulaInputRangeSyncFeature = class extends BeanStub79 {
+import { BeanStub as BeanStub84, _last as _last17, isSpecialCol as isSpecialCol4 } from "ag-grid-community";
+var FormulaInputRangeSyncFeature = class extends BeanStub84 {
   constructor(field) {
     super();
     this.field = field;
@@ -48406,8 +50327,12 @@ var FormulaInputRangeSyncFeature = class extends BeanStub79 {
       if (!params) {
         return void 0;
       }
+      const displayParams = toDisplayRangeParams(this.beans, params);
+      if (!displayParams) {
+        return void 0;
+      }
       this.withSuppressedRangeEvents(() => {
-        created = rangeSvc.addCellRange(params);
+        created = rangeSvc.addCellRange(displayParams);
       });
     } else {
       created = this.findLatestRangeForRef(ref, true) ?? this.findLatestRangeForRef(ref, false);
@@ -49171,7 +51096,7 @@ var createReferenceNode = (ref, colorIndex, useTokenColors, tokenIndex) => {
     tokenClass = classes.tokenClass;
     attrs["data-formula-range-class"] = classes.rangeClass;
   }
-  const node = _createElement16({
+  const node = _createElement20({
     tag: "span",
     cls: "ag-formula-token",
     attrs,
@@ -49453,8 +51378,10 @@ var translateFormulaError = (translate, errorId, variableValues) => {
 var FormulaCellEditor = class extends AgAbstractCellEditor2 {
   constructor() {
     super({ tag: "div", cls: "ag-cell-edit-wrapper" });
-    this.eEditor = RefPlaceholder47;
+    this.eEditor = RefPlaceholder49;
     this.focusAfterAttached = false;
+    /** Last raw input passed to `params.parseValue`. Initialised to `this` as an "uncached" sentinel — a DOM raw value can never equal the editor instance, so the first cache check always misses. */
+    this.cachedRaw = this;
   }
   initialiseEditor(params) {
     const formulaInputField = this.createManagedBean(new AgFormulaInputField());
@@ -49468,9 +51395,9 @@ var FormulaCellEditor = class extends AgAbstractCellEditor2 {
     let startValue;
     if (cellStartedEdit) {
       this.focusAfterAttached = true;
-      if (eventKey === KeyCode33.BACKSPACE || eventKey === KeyCode33.DELETE) {
+      if (eventKey === KeyCode34.BACKSPACE || eventKey === KeyCode34.DELETE) {
         startValue = "";
-      } else if (eventKey && eventKey.length === 1) {
+      } else if (eventKey?.length === 1) {
         startValue = eventKey;
       } else {
         startValue = this.getStartValue(params);
@@ -49484,7 +51411,7 @@ var FormulaCellEditor = class extends AgAbstractCellEditor2 {
   }
   onFormulaInputKeyDown(event, onKeyDown) {
     const { key } = event;
-    if (key !== KeyCode33.TAB || event.defaultPrevented) {
+    if (key !== KeyCode34.TAB || event.defaultPrevented) {
       return;
     }
     const { focusSvc } = this.beans;
@@ -49539,7 +51466,13 @@ var FormulaCellEditor = class extends AgAbstractCellEditor2 {
     if (rawValue == null && value == null) {
       return value;
     }
-    return parseValue(String(rawValue));
+    if (Object.is(this.cachedRaw, rawValue)) {
+      return this.cachedParsed;
+    }
+    const parsed = parseValue(String(rawValue));
+    this.cachedRaw = rawValue;
+    this.cachedParsed = parsed;
+    return parsed;
   }
   getValidationElement() {
     return this.eEditor.getContentElement();
@@ -49571,9 +51504,25 @@ var FormulaCellEditor = class extends AgAbstractCellEditor2 {
 // packages/ag-grid-enterprise/src/formula/formula.css
 var formula_default = '.formula-error:after{background-color:var(--ag-invalid-color);content:"";height:12px;position:absolute;top:-6px;width:12px}:where(.ag-ltr) .formula-error:after{right:-6px;transform:rotate(45deg)}:where(.ag-rtl) .formula-error:after{left:-6px;transform:rotate(-45deg)}';
 
+// packages/ag-grid-enterprise/src/formula/formulaApi.ts
+function refreshFormulas(beans, rowNode) {
+  const formulaSvc = beans.formula;
+  if (!formulaSvc?.active) {
+    return false;
+  }
+  if (rowNode === void 0) {
+    if (!formulaSvc.hasCachedRows()) {
+      return false;
+    }
+    formulaSvc.refreshFormulas(true);
+    return true;
+  }
+  return formulaSvc.refreshRow(rowNode);
+}
+
 // packages/ag-grid-enterprise/src/formula/formulaDataService.ts
-import { BeanStub as BeanStub80, _addGridCommonParams as _addGridCommonParams26, _isExpressionString as _isExpressionString2 } from "ag-grid-community";
-var FormulaDataService = class extends BeanStub80 {
+import { BeanStub as BeanStub85, _addGridCommonParams as _addGridCommonParams28, _isExpressionString as _isExpressionString2 } from "ag-grid-community";
+var FormulaDataService = class extends BeanStub85 {
   constructor() {
     super(...arguments);
     this.beanName = "formulaDataSvc";
@@ -49601,7 +51550,7 @@ var FormulaDataService = class extends BeanStub80 {
     dataSource.init?.(this.createInitParams());
   }
   createInitParams() {
-    return _addGridCommonParams26(this.gos, {});
+    return _addGridCommonParams28(this.gos, {});
   }
   destroy() {
     this.dataSource?.destroy?.();
@@ -49610,8 +51559,8 @@ var FormulaDataService = class extends BeanStub80 {
 };
 
 // packages/ag-grid-enterprise/src/formula/formulaInputManagerService.ts
-import { BeanStub as BeanStub81 } from "ag-grid-community";
-var FormulaInputManagerService = class extends BeanStub81 {
+import { BeanStub as BeanStub86 } from "ag-grid-community";
+var FormulaInputManagerService = class extends BeanStub86 {
   constructor() {
     super(...arguments);
     this.beanName = "formulaInputManager";
@@ -49663,7 +51612,13 @@ var FormulaInputManagerService = class extends BeanStub81 {
 };
 
 // packages/ag-grid-enterprise/src/formula/formulaService.ts
-import { BeanStub as BeanStub82, _convertColumnEventSourceType as _convertColumnEventSourceType3, _isExpressionString as _isExpressionString4, _warn as _warn54 } from "ag-grid-community";
+import {
+  BeanStub as BeanStub87,
+  _convertColumnEventSourceType as _convertColumnEventSourceType3,
+  _isExpressionString as _isExpressionString4,
+  _parseBigIntOrNull as _parseBigIntOrNull3,
+  _warn as _warn55
+} from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/formula/ast/parsers.ts
 import { _getClientSideRowModel as _getClientSideRowModel2, _isExpressionString as _isExpressionString3 } from "ag-grid-community";
@@ -49993,11 +51948,11 @@ function parseExpression(beans, expr, unsafe) {
         }
       }
       const paren = ops[ops.length - 1];
-      if (!paren || paren.kind !== "parenthesis") {
+      if (paren?.kind !== "parenthesis") {
         throw new FormulaParseError(10, i, i + 1);
       }
       const maybeFunction = ops[ops.length - 2];
-      if (!maybeFunction || maybeFunction.kind !== "function") {
+      if (maybeFunction?.kind !== "function") {
         throw new FormulaParseError(11, i, i + 1);
       }
       if (output.length > paren.outLen) {
@@ -50019,7 +51974,7 @@ function parseExpression(beans, expr, unsafe) {
         }
       }
       const paren = ops[ops.length - 1];
-      if (!paren || paren.kind !== "parenthesis") {
+      if (paren?.kind !== "parenthesis") {
         throw new FormulaParseError(13, i, i + 1);
       }
       const parenOutLen = paren.outLen;
@@ -50038,7 +51993,7 @@ function parseExpression(beans, expr, unsafe) {
     if (incoming) {
       while (true) {
         const top = ops[ops.length - 1];
-        if (!top || top.kind !== "op") {
+        if (top?.kind !== "op") {
           break;
         }
         if (shouldReduce(top.def, incoming)) {
@@ -50091,7 +52046,7 @@ function asBool(node, def = false) {
   return !!node.value;
 }
 function asStringish(node) {
-  if (!node || node.type !== "operand") {
+  if (node?.type !== "operand") {
     return null;
   }
   const v = node.value;
@@ -50186,131 +52141,126 @@ function colIndexFromId(colModel, cols, colId) {
   return i >= 0 ? i : null;
 }
 function colIdFromIndex(cols, idx) {
-  const col = cols[idx];
-  return col ? col.getId() ?? null : null;
+  return cols[idx]?.colId ?? null;
 }
 function rowIndexFromId(beans, rowId) {
   const row = beans.rowModel?.getRowNode?.(rowId);
-  if (row?.formulaRowIndex != null) {
-    return row.formulaRowIndex + 1;
+  const formulaRowIndex = row?.formulaRowIndex;
+  if (formulaRowIndex != null) {
+    return formulaRowIndex + 1;
   }
   return null;
 }
 function rowIdFromIndex(beans, idx) {
   return _getClientSideRowModel3(beans)?.getFormulaRow?.(idx - 1)?.id ?? null;
 }
+var LETTERS_ONLY = /^[A-Za-z]+$/;
 function quoteString(s2) {
   if (s2.includes('"')) {
     throw new FormulaError(18);
   }
-  return `"${s2}"`;
+  return '"' + s2 + '"';
 }
 function columnValueForREF(beans, ref) {
-  const looksLetters = /^[A-Za-z]+$/.test(ref.id);
+  const id = ref.id;
+  const looksLetters = LETTERS_ONLY.test(id);
   if (ref.absolute) {
     if (looksLetters) {
-      return ref.id.toUpperCase();
+      return id.toUpperCase();
     }
-    const label = colLabelFromId(beans, ref.id);
+    const label = colLabelFromId(beans, id);
     if (label) {
       return label.toUpperCase();
     }
-    throw new FormulaError(19, [ref.id]);
-  } else {
-    if (looksLetters) {
-      const id = colIdFromLabel(beans, ref.id);
-      if (id) {
-        return id;
-      }
-    }
-    return ref.id;
+    throw new FormulaError(19, [id]);
   }
-}
-function rowValueForREF(beans, ref) {
-  const { id, absolute } = ref;
-  if (absolute) {
-    const rowId = rowIdFromIndex(beans, Number(id));
-    if (rowId == null) {
-      throw new FormulaError(20, [id]);
-    }
-  } else {
-    const idx = rowIndexFromId(beans, id);
-    if (idx == null) {
-      throw new FormulaError(21, [id]);
+  if (looksLetters) {
+    const mappedId = colIdFromLabel(beans, id);
+    if (mappedId) {
+      return mappedId;
     }
   }
   return id;
 }
-function columnLabelForA1(beans, ref) {
-  if (ref.absolute) {
-    return ref.id;
+function rowValueForREF(beans, ref) {
+  const { id, absolute } = ref;
+  if (absolute) {
+    if (rowIdFromIndex(beans, Number(id)) == null) {
+      throw new FormulaError(20, [id]);
+    }
+  } else if (rowIndexFromId(beans, id) == null) {
+    throw new FormulaError(21, [id]);
   }
-  const label = colLabelFromId(beans, ref.id);
+  return id;
+}
+function columnLabelForA1(beans, ref) {
+  const id = ref.id;
+  if (ref.absolute) {
+    return id;
+  }
+  const label = colLabelFromId(beans, id);
   if (label) {
     return label.toUpperCase();
   }
-  throw new FormulaError(22, [ref.id]);
+  throw new FormulaError(22, [id]);
 }
 function rowIndexForA1(beans, ref) {
+  const id = ref.id;
   if (ref.absolute) {
-    const idx2 = Number(ref.id);
+    const idx2 = Number(id);
     if (Number.isFinite(idx2) && idx2 >= 1) {
       return idx2;
     }
-    throw new FormulaError(23, [ref.id]);
+    throw new FormulaError(23, [id]);
   }
-  const idx = rowIndexFromId(beans, ref.id);
+  const idx = rowIndexFromId(beans, id);
   if (idx != null) {
     return idx;
   }
-  throw new FormulaError(24, [ref.id]);
+  throw new FormulaError(24, [id]);
+}
+function emitA1Ref(beans, ref, isCol, unsafe) {
+  const raw = unsafe ? ref.id : isCol ? columnLabelForA1(beans, ref) : rowIndexForA1(beans, ref);
+  return ref.absolute ? "$" + raw : "" + raw;
 }
 function serializeCellA1(beans, cell, unsafe) {
-  const a = (abs, x) => (abs ? "$" : "") + String(x);
-  const col1 = unsafe ? cell.column.id : columnLabelForA1(beans, cell.column);
-  const row1 = unsafe ? cell.row.id : rowIndexForA1(beans, cell.row);
-  const startRef = a(cell.column.absolute, col1) + a(cell.row.absolute, row1);
-  if (cell.endColumn && cell.endRow) {
-    const col2 = unsafe ? cell.endColumn.id : columnLabelForA1(beans, cell.endColumn);
-    const row2 = unsafe ? cell.endRow.id : rowIndexForA1(beans, cell.endRow);
-    return `${startRef}:${a(cell.endColumn.absolute, col2)}${a(cell.endRow.absolute, row2)}`;
+  const startRef = emitA1Ref(beans, cell.column, true, unsafe) + emitA1Ref(beans, cell.row, false, unsafe);
+  const { endColumn, endRow } = cell;
+  if (endColumn && endRow) {
+    return startRef + ":" + emitA1Ref(beans, endColumn, true, unsafe) + emitA1Ref(beans, endRow, false, unsafe);
   }
   return startRef;
 }
-function serializeCellREF(beans, cell) {
-  const colPart = (r) => `COLUMN(${quoteString(columnValueForREF(beans, r))}${r.absolute ? ",true" : ""})`;
-  const rowPart = (r) => `ROW(${quoteString(rowValueForREF(beans, r))}${r.absolute ? ",true" : ""})`;
-  const start = `REF(${colPart(cell.column)},${rowPart(cell.row)}`;
-  if (cell.endColumn && cell.endRow) {
-    return `${start},${colPart(cell.endColumn)},${rowPart(cell.endRow)})`;
-  }
-  return `${start})`;
+function emitRefColPart(beans, ref) {
+  return "COLUMN(" + quoteString(columnValueForREF(beans, ref)) + (ref.absolute ? ",true)" : ")");
 }
-function isUnaryMinusNode(node) {
-  if (!isOperationNode(node) || node.operation !== "-" || node.operands.length !== 2) {
+function emitRefRowPart(beans, ref) {
+  return "ROW(" + quoteString(rowValueForREF(beans, ref)) + (ref.absolute ? ",true)" : ")");
+}
+function serializeCellREF(beans, cell) {
+  const start = "REF(" + emitRefColPart(beans, cell.column) + "," + emitRefRowPart(beans, cell.row);
+  const { endColumn, endRow } = cell;
+  if (endColumn && endRow) {
+    return start + "," + emitRefColPart(beans, endColumn) + "," + emitRefRowPart(beans, endRow) + ")";
+  }
+  return start + ")";
+}
+function unaryMinusInner(node) {
+  if (node.operation !== "-" || node.operands.length !== 2) {
     return null;
   }
   const [left, right] = node.operands;
-  if (left.type === "operand" && left.value === 0) {
-    return right;
-  }
-  return null;
-}
-function isInfixOpNode(node) {
-  if (!isOperationNode(node)) {
-    return false;
-  }
-  return !!getDefBySymbol(node.operation, "infix");
+  return left.type === "operand" && left.value === 0 ? right : null;
 }
 function needsParensInBinary(parentDef, child, side) {
   if (!isOperationNode(child)) {
     return false;
   }
-  if (isUnaryMinusNode(child)) {
+  if (unaryMinusInner(child)) {
     return false;
   }
   const childDef = getDefBySymbol(child.operation, "infix");
-  if (!childDef || childDef.fixity !== "infix") {
+  if (!childDef) {
     return false;
   }
   const pParent = parentDef.precedence;
@@ -50322,11 +52272,9 @@ function needsParensInBinary(parentDef, child, side) {
     return false;
   }
   if (parentDef.associativity === "right") {
-    const sameOp = childDef.symbol === parentDef.symbol;
-    return side === "left" && sameOp;
+    return side === "left" && childDef.symbol === parentDef.symbol;
   }
-  const parentAssociative = parentDef.isAssociative === true;
-  if (!parentAssociative) {
+  if (!parentDef.isAssociative) {
     return side === "right";
   }
   return false;
@@ -50336,14 +52284,9 @@ function needsParensForUnaryMinus(rhs) {
     return false;
   }
   const innerInfix = getDefBySymbol(rhs.operation, "infix");
-  if (!innerInfix) {
-    return false;
-  }
-  const isPow = innerInfix.symbol === "^";
-  return !isPow;
+  return !!innerInfix && innerInfix.symbol !== "^";
 }
 function serializeFormula(beans, root, useRefFormat, unsafe) {
-  const emitCell = (cell) => useRefFormat ? serializeCellREF(beans, cell) : serializeCellA1(beans, cell, unsafe);
   function emit(node) {
     if (node.type === "operand") {
       const v = node.value;
@@ -50351,49 +52294,144 @@ function serializeFormula(beans, root, useRefFormat, unsafe) {
         return quoteString(v);
       }
       if (typeof v === "number") {
-        return String(v);
+        return "" + v;
       }
       if (typeof v === "boolean") {
         return v ? "TRUE" : "FALSE";
       }
-      return emitCell(v);
+      return useRefFormat ? serializeCellREF(beans, v) : serializeCellA1(beans, v, unsafe);
     }
-    const unaryMinusInner = isUnaryMinusNode(node);
-    if (unaryMinusInner) {
-      const s2 = emit(unaryMinusInner);
-      return needsParensForUnaryMinus(unaryMinusInner) ? `-(${s2})` : `-${s2}`;
+    const operands = node.operands;
+    const arity = operands.length;
+    if (arity === 2 && node.operation === "-") {
+      const inner = unaryMinusInner(node);
+      if (inner) {
+        const s2 = emit(inner);
+        return needsParensForUnaryMinus(inner) ? "-(" + s2 + ")" : "-" + s2;
+      }
     }
     const op = node.operation.toUpperCase();
-    if (node.operands.length === 1) {
-      const rhs = node.operands[0];
+    if (arity === 1) {
+      const rhs = operands[0];
       const post = getDefBySymbol(op, "postfix");
       if (post) {
-        return `${emit(rhs)}${post.symbol}`;
+        return emit(rhs) + post.symbol;
       }
       const pre = getDefBySymbol(op, "prefix");
       if (pre) {
         const inner = emit(rhs);
-        const need = isInfixOpNode(rhs);
-        return need ? `${pre.symbol}(${inner})` : `${pre.symbol}${inner}`;
+        return isOperationNode(rhs) && getDefBySymbol(rhs.operation, "infix") ? pre.symbol + "(" + inner + ")" : pre.symbol + inner;
       }
-      return `${op}(${emit(rhs)})`;
+      return op + "(" + emit(rhs) + ")";
     }
-    if (node.operands.length === 2) {
+    if (arity === 2) {
       const def = getDefBySymbol(op, "infix");
       if (def) {
-        const [l, r] = node.operands;
-        const Ls = needsParensInBinary(def, l, "left") ? `(${emit(l)})` : emit(l);
-        const Rs = needsParensInBinary(def, r, "right") ? `(${emit(r)})` : emit(r);
-        return `${Ls}${def.symbol}${Rs}`;
+        const l = operands[0];
+        const r = operands[1];
+        const Ls = needsParensInBinary(def, l, "left") ? "(" + emit(l) + ")" : emit(l);
+        const Rs = needsParensInBinary(def, r, "right") ? "(" + emit(r) + ")" : emit(r);
+        return Ls + def.symbol + Rs;
       }
     }
-    return `${op}(${node.operands.map(emit).join(",")})`;
+    let args = "";
+    for (let i = 0; i < arity; i++) {
+      args += (i === 0 ? "" : ",") + emit(operands[i]);
+    }
+    return op + "(" + args + ")";
   }
   return "=" + emit(root);
 }
 
+// packages/ag-grid-enterprise/src/formula/cellFormula.ts
+var CellFormula = class {
+  constructor(rowNode, column, formulaString, fromDataSource, beans, service) {
+    this.rowNode = rowNode;
+    this.column = column;
+    this.formulaString = formulaString;
+    this.fromDataSource = fromDataSource;
+    this.beans = beans;
+    this.service = service;
+    // Hot fields (hit on every read) declared first so V8 keeps them as inline-cache slots.
+    /** Version at which `_value` / error fields were computed. -1 = never computed. */
+    this._valueVersion = -1;
+    this.errorType = null;
+    this._value = void 0;
+    this.astStale = true;
+    this.ast = null;
+    // Cold error metadata, only touched when a cell errors. Public so the outer resolveValue catch
+    // can decompose a `throw cachedCellFormula` without allocating a FormulaError to propagate.
+    this.errorId = null;
+    this.errorMessage = "";
+    this.errorVariableValues = null;
+    /**
+     * Cached `dataTypeSvc.getBaseDataType(column)` result, populated on the first coercion.
+     * `undefined` = not yet resolved; `null` = resolved with no type. Stable for this cell's
+     * lifetime because column data-type changes trigger a full cache rebuild.
+     */
+    this.baseDataType = void 0;
+  }
+  /** Cache write: store a fresh computed value (and clear previous error). */
+  setComputedValue(v) {
+    this._value = v;
+    this._valueVersion = this.service.valueCacheVersion;
+    this.errorType = null;
+    this.errorId = null;
+    this.errorMessage = "";
+    this.errorVariableValues = null;
+  }
+  /**
+   * Cache write from raw fields - used by the eval loop so it can propagate a thrown
+   * `CellFormula` without having to allocate a FormulaError around it.
+   */
+  setErrorFields(type, errorId, message, variableValues) {
+    this.errorType = type;
+    this.errorId = errorId;
+    this.errorMessage = errorId == null ? message : "";
+    this.errorVariableValues = variableValues;
+    this._valueVersion = this.service.valueCacheVersion;
+  }
+  isValueReady() {
+    return this._valueVersion === this.service.valueCacheVersion;
+  }
+  /** Return the error type string or the computed value. */
+  getValue() {
+    return this.errorType ?? this._value;
+  }
+  /** Returns the AST for the formula and recomputes if stale */
+  getAst() {
+    if (!this.astStale) {
+      return this.ast;
+    }
+    const ast = parseFormula(this.beans, this.formulaString) ?? null;
+    this.ast = ast;
+    this.astStale = false;
+    return ast;
+  }
+};
+
 // packages/ag-grid-enterprise/src/formula/functions/resolver.ts
 import { _getClientSideRowModel as _getClientSideRowModel4 } from "ag-grid-community";
+function formulaVisitorSetVisiting(ctx, r, c) {
+  let colSet = ctx.get(r);
+  if (colSet?.has(c)) {
+    throw new FormulaError(51);
+  }
+  if (!colSet) {
+    colSet = /* @__PURE__ */ new Set();
+    ctx.set(r, colSet);
+  }
+  colSet.add(c);
+}
+function formulaVisitorSetVisited(ctx, r, c) {
+  const colSet = ctx.get(r);
+  if (colSet) {
+    colSet.delete(c);
+    if (colSet.size === 0) {
+      ctx.delete(r);
+    }
+  }
+}
 function isRangeCell(cell) {
   return !!(cell.endColumn && cell.endRow);
 }
@@ -50406,7 +52444,7 @@ function resolveRefToAddress(beans, cell) {
   }
   return { row: rowNode, column: agCol };
 }
-function evalAst(beans, node, getCellValue, caller) {
+function evalAst(beans, node, resolver, caller) {
   if (node.type === "operand") {
     const v = node.value;
     if (typeof v !== "object") {
@@ -50419,38 +52457,38 @@ function evalAst(beans, node, getCellValue, caller) {
     if (!addr) {
       throw new FormulaError(26);
     }
-    return getCellValue(addr);
+    return resolver.resolveAddrRef(addr);
   }
   const fn = beans.formula?.getFunction(node.operation);
   if (!fn) {
     throw new FormulaError(27, [node.operation]);
   }
-  const { args, values } = makeArgIterables(beans, node.operands, getCellValue, caller);
+  const { args, values } = makeArgIterables(beans, node.operands, resolver, caller);
   return fn({ row: caller.row, column: caller.column, args, values });
 }
-function operandToArg(beans, node, getCellValue, caller) {
+function operandToArg(beans, node, resolver, caller) {
   if (node.type === "operand") {
     const v = node.value;
     if (typeof v !== "object") {
       return { kind: "value", value: v };
     }
     if (isRangeCell(v)) {
-      return buildRangeArgLazy(beans, v, getCellValue);
+      return buildRangeArgLazy(beans, v, resolver);
     }
     const addr = resolveRefToAddress(beans, v);
     if (!addr) {
       throw new FormulaError(26);
     }
-    return { kind: "value", value: getCellValue(addr) };
+    return { kind: "value", value: resolver.resolveAddrRef(addr) };
   }
-  const val = evalAst(beans, node, getCellValue, caller);
+  const val = evalAst(beans, node, resolver, caller);
   return { kind: "value", value: val };
 }
 var ParamsIterator = class {
-  constructor(beans, operandNodes, getCellValue, caller) {
+  constructor(beans, operandNodes, resolver, caller) {
     this.beans = beans;
     this.operandNodes = operandNodes;
-    this.getCellValue = getCellValue;
+    this.resolver = resolver;
     this.caller = caller;
     this.i = 0;
     this.res = { done: false, value: void 0 };
@@ -50462,7 +52500,7 @@ var ParamsIterator = class {
       return this.res;
     }
     this.res.done = false;
-    this.res.value = operandToArg(this.beans, this.operandNodes[this.i++], this.getCellValue, this.caller);
+    this.res.value = operandToArg(this.beans, this.operandNodes[this.i++], this.resolver, this.caller);
     return this.res;
   }
   [Symbol.iterator]() {
@@ -50470,10 +52508,10 @@ var ParamsIterator = class {
   }
 };
 var ValuesIterator = class {
-  constructor(beans, operandNodes, getCellValue, caller) {
+  constructor(beans, operandNodes, resolver, caller) {
     this.beans = beans;
     this.operandNodes = operandNodes;
-    this.getCellValue = getCellValue;
+    this.resolver = resolver;
     this.caller = caller;
     this.i = 0;
     this.inner = null;
@@ -50496,7 +52534,7 @@ var ValuesIterator = class {
         this.res.value = void 0;
         return this.res;
       }
-      const arg = operandToArg(this.beans, this.operandNodes[this.i++], this.getCellValue, this.caller);
+      const arg = operandToArg(this.beans, this.operandNodes[this.i++], this.resolver, this.caller);
       if (arg.kind === "value") {
         this.res.done = false;
         this.res.value = arg.value;
@@ -50509,15 +52547,15 @@ var ValuesIterator = class {
     return this;
   }
 };
-function makeArgIterables(beans, operandNodes, getCellValue, caller) {
+function makeArgIterables(beans, operandNodes, resolver, caller) {
   const args = {
     [Symbol.iterator]() {
-      return new ParamsIterator(beans, operandNodes, getCellValue, caller);
+      return new ParamsIterator(beans, operandNodes, resolver, caller);
     }
   };
   const values = {
     [Symbol.iterator]() {
-      return new ValuesIterator(beans, operandNodes, getCellValue, caller);
+      return new ValuesIterator(beans, operandNodes, resolver, caller);
     }
   };
   return { args, values };
@@ -50551,13 +52589,13 @@ function resolveCol(beans, ref) {
   return col;
 }
 var RangeValuesIterator = class {
-  constructor(beans, rowStartIndex, rowEndIndex, colStart, colEnd, getCellValue) {
+  constructor(beans, rowStartIndex, rowEndIndex, colStart, colEnd, resolver) {
     this.beans = beans;
     this.rowStartIndex = rowStartIndex;
     this.rowEndIndex = rowEndIndex;
     this.colStart = colStart;
     this.colEnd = colEnd;
-    this.getCellValue = getCellValue;
+    this.resolver = resolver;
     this.cols = null;
     this.currentRowIndex = this.rowStartIndex;
     this.currentColIdx = -1;
@@ -50599,7 +52637,7 @@ var RangeValuesIterator = class {
         this.currentColIdx = this.colStartIdx;
         this.currentRowIndex++;
       }
-      this.res.value = this.getCellValue({ row, column: col });
+      this.res.value = this.resolver.resolveAddrRef({ row, column: col });
       return this.res;
     }
     this.res.done = true;
@@ -50607,7 +52645,7 @@ var RangeValuesIterator = class {
     return this.res;
   }
 };
-function buildRangeArgLazy(beans, cell, getCellValue) {
+function buildRangeArgLazy(beans, cell, resolver) {
   const r1 = resolveRowIndex(beans, cell.row);
   const r2 = cell.endRow ? resolveRowIndex(beans, cell.endRow) : r1;
   const rowStart = Math.min(r1, r2);
@@ -50621,7 +52659,7 @@ function buildRangeArgLazy(beans, cell, getCellValue) {
     colStart: c1,
     colEnd: c2,
     [Symbol.iterator]() {
-      return new RangeValuesIterator(beans, rowStart, rowEnd, c1, c2, getCellValue);
+      return new RangeValuesIterator(beans, rowStart, rowEnd, c1, c2, resolver);
     }
   };
 }
@@ -50665,7 +52703,7 @@ function* rangeAddrs(beans, rowStartIndex, rowEndIndex, startColumn, endColumn) 
     }
   }
 }
-function* unresolvedDeps(beans, root, ensureFormulaCache) {
+function* unresolvedDeps(beans, root, resolver) {
   const astStack = [root];
   while (astStack.length) {
     const currentNode = astStack.pop();
@@ -50679,7 +52717,7 @@ function* unresolvedDeps(beans, root, ensureFormulaCache) {
         if (!cellAddress) {
           throw new FormulaError(33);
         }
-        const cachedCellFormula = ensureFormulaCache(cellAddress.row, cellAddress.column);
+        const cachedCellFormula = resolver.ensureCellFormula(cellAddress.row, cellAddress.column);
         if (!cachedCellFormula || cachedCellFormula.isValueReady()) {
           continue;
         }
@@ -50696,7 +52734,7 @@ function* unresolvedDeps(beans, root, ensureFormulaCache) {
       const startCol = resolveCol(beans, operandValue.column);
       const endCol = resolveCol(beans, operandValue.endColumn);
       for (const cellAddress of rangeAddrs(beans, rowStartIndex, rowEndIndex, startCol, endCol)) {
-        const cachedCellFormula = ensureFormulaCache(cellAddress.row, cellAddress.column);
+        const cachedCellFormula = resolver.ensureCellFormula(cellAddress.row, cellAddress.column);
         if (!cachedCellFormula || cachedCellFormula.isValueReady()) {
           continue;
         }
@@ -51407,73 +53445,73 @@ var supportedFuncs_default = {
 };
 
 // packages/ag-grid-enterprise/src/formula/formulaService.ts
-var CellFormula = class {
-  constructor(rowNode, column, formulaString, beans) {
-    this.rowNode = rowNode;
-    this.column = column;
-    this.formulaString = formulaString;
-    this.beans = beans;
-    this.error = null;
-    this.ast = null;
-    this.astStale = true;
-    this._value = void 0;
-    this._valueStale = true;
-  }
-  setFormulaString(next) {
-    if (this.formulaString === next) {
-      return;
-    }
-    this.formulaString = next;
-    this.astStale = true;
-    this._valueStale = true;
-  }
-  /** Cache write: store a fresh computed value (and clear previous error). */
-  setComputedValue(v) {
-    this._value = v;
-    this._valueStale = false;
-    this.error = null;
-  }
-  /** Cache write: store an error (value considered stale). */
-  setError(e) {
-    this.error = e;
-    this._valueStale = false;
-  }
-  isValueReady() {
-    return !this._valueStale;
-  }
-  /**
-   * Return the error type or the value
-   */
-  getValue() {
-    return this.error?.type ?? this._value;
-  }
-  getError() {
-    return this.error;
-  }
-  /** Returns the AST for the formula and recomputes if stale */
-  getAst() {
-    if (!this.astStale) {
-      return this.ast;
-    }
-    const ast = parseFormula(this.beans, this.formulaString);
-    this.ast = ast ?? null;
-    this.astStale = false;
-    return this.ast;
-  }
-};
-var FormulaService = class extends BeanStub82 {
+var REFRESH_CELLS_PARAMS = { suppressFlash: true, force: true };
+var COL_REF_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+var COL_REF_BASE = COL_REF_ALPHABET.length;
+var FormulaService = class extends BeanStub87 {
   constructor() {
     super(...arguments);
     this.beanName = "formula";
-    /** Cache: row -> (column -> CellFormula) */
-    this.cachedResult = /* @__PURE__ */ new WeakMap();
-    /** Map "A", "B", ..., "AA" -> actual AgColumn */
-    this.colRefMap = /* @__PURE__ */ new Map();
-    this.functionNames = null;
+    /**
+     * Monotonic cache-generation counter for computed formula values. Stamped into
+     * `CellFormula._valueVersion` on every cache write; a mismatch on read means the entry is
+     * implicitly stale. Incrementing this bulk-invalidates every cached value in O(1) while
+     * preserving parsed ASTs. Read on every `CellFormula.isValueReady()`.
+     */
+    this.valueCacheVersion = 0;
+    /**
+     * Whether formulas are currently enabled for the grid and safe to evaluate. When false,
+     * formula parsing/evaluation helpers short-circuit and caches are not refreshed. Read on
+     * every `isFormula()` check (per cell, per render).
+     */
     this.active = false;
+    /**
+     * Cache: RowNode -> (AgColumn -> CellFormula).
+     *
+     * Map (not WeakMap) so we can iterate for explicit cleanup on destroyed rows. Memory stays
+     * bounded because every destructive event purges destroyed entries explicitly
+     * (`onRowsChanged`) or wipes the whole map (`refreshFormulas`).
+     */
+    this.cachedResult = /* @__PURE__ */ new Map();
+    /**
+     * Stored at the class level so a `valueGetter` that resolves another formula cell (e.g. via
+     * `api.getCellValue`) reuses the same cycle-detection state instead of hitting a false
+     * positive. Read at the top of every `resolveValue` call; null outside of an active eval.
+     */
+    this.activeCtx = null;
+    /** Map "A", "B", ..., "AA" -> actual AgColumn. */
+    this.colRefMap = /* @__PURE__ */ new Map();
+    /** Reverse lookup for A1 labels by column instance. */
+    this.colToRefMap = /* @__PURE__ */ new Map();
+    /** Lazy-sorted, validated subset of `supportedOperations` keys surfaced to autocomplete. */
+    this.functionNames = null;
+    /** Cached reference to the optional formula data service, resolved in `postConstruct`. */
+    this.formulaDataSvc = void 0;
+    /**
+     * Cached result of the "any column currently allows formulas?" scan, refreshed on every
+     * `setFormulasActive` call (which is the only time the underlying column set changes).
+     * Lets property-change listeners skip the O(cols) rescan on every masterDetail /
+     * enableCellExpressions toggle.
+     */
+    this.formulaColumnsPresent = false;
   }
+  hasCachedRows() {
+    return this.cachedResult.size > 0;
+  }
+  /**
+   * Recompute `active`, the `formulaColumnsPresent` cache, and trigger a full formula refresh
+   * if the active state changed. Called by `columnModel` whenever the column set changes.
+   */
   setFormulasActive(cols) {
-    const formulaColumnsPresent = cols.list.some((col) => col.isAllowFormula());
+    const columns = cols.list;
+    let formulaColumnsPresent = false;
+    for (let i = 0, len = columns.length; i < len; ++i) {
+      if (columns[i].isAllowFormula()) {
+        formulaColumnsPresent = true;
+        break;
+      }
+    }
+    this.formulaColumnsPresent = formulaColumnsPresent;
     const active = formulaColumnsPresent && this.checkForIncompatibleServices(cols);
     if (active !== this.active) {
       this.active = active;
@@ -51482,101 +53520,210 @@ var FormulaService = class extends BeanStub82 {
   }
   checkForIncompatibleServices(cols) {
     if (this.gos.get("masterDetail")) {
-      _warn54(295, { blockedService: "Master Detail" });
+      _warn55(295, { blockedService: "Master Detail" });
       return false;
     }
     if (this.gos.get("treeData")) {
-      _warn54(295, { blockedService: "Tree Data" });
+      _warn55(295, { blockedService: "Tree Data" });
       return false;
     }
     if (this.gos.get("enableCellExpressions")) {
-      _warn54(295, { blockedService: "Cell Expressions" });
+      _warn55(295, { blockedService: "Cell Expressions" });
       return false;
     }
-    return cols.list.every((col) => {
+    const columns = cols.list;
+    for (let i = 0, len = columns.length; i < len; ++i) {
+      const col = columns[i];
       if (col.isAllowPivot() || col.isPivotActive()) {
-        _warn54(295, { blockedService: "Column Pivoting" });
+        _warn55(295, { blockedService: "Column Pivoting" });
         return false;
       }
       if (col.isAllowRowGroup() || col.isRowGroupActive()) {
-        _warn54(295, { blockedService: "Row Groups" });
+        _warn55(295, { blockedService: "Row Groups" });
         return false;
       }
       if (col.isAllowValue() || col.isValueActive() || col.getAggFunc()) {
-        _warn54(295, { blockedService: "Value Aggregation" });
+        _warn55(295, { blockedService: "Value Aggregation" });
         return false;
       }
-      return true;
-    });
+    }
+    return true;
   }
   postConstruct() {
     this.setupFunctions();
-    const refreshFormulas = () => {
-      if (this.active) {
-        this.refreshFormulas(true);
+    this.formulaDataSvc = this.beans.formulaDataSvc;
+    const onCellValueChanged = (event) => {
+      if (!this.active) {
+        return;
       }
+      const node = event.node;
+      if (node.rowPinned != null && node.pinnedSibling) {
+        return;
+      }
+      this.dropRow(node);
+      this.bumpValueCacheAndRefresh();
     };
-    const resetColMap = () => {
-      if (this.active) {
-        this.setupColRefMap();
+    const onNewColumnsLoaded = () => {
+      if (!this.active) {
+        return;
+      }
+      this.rebuildColRefMap();
+      this.refreshFormulas(true);
+    };
+    const onColumnMoved = () => {
+      if (!this.active) {
+        return;
+      }
+      this.rebuildColRefMap();
+      if (this.cachedResult.size === 0) {
+        return;
+      }
+      this.bumpValueCacheAndRefresh();
+    };
+    const onPinnedRowsChanged = () => {
+      const cache = this.cachedResult;
+      if (!this.active || cache.size === 0) {
+        return;
+      }
+      let dropped = false;
+      for (const row of cache.keys()) {
+        if (row.rowPinned) {
+          cache.delete(row);
+          dropped = true;
+          const sibling = row.sibling;
+          if (sibling) {
+            cache.delete(sibling);
+          }
+        }
+      }
+      if (dropped) {
+        this.beans.rowRenderer.refreshCells(REFRESH_CELLS_PARAMS);
       }
     };
     this.addManagedPropertyListeners(["masterDetail", "enableCellExpressions"], (e) => {
-      const { colModel } = this.beans;
-      const formulaColumnsPresent = colModel.cols?.list.some((col) => col.isAllowFormula());
-      if (formulaColumnsPresent) {
-        colModel.refreshAll(_convertColumnEventSourceType3(e.source));
+      if (this.formulaColumnsPresent) {
+        this.beans.colModel.refreshAll(_convertColumnEventSourceType3(e.source));
       }
     });
     this.addManagedListeners(this.beans.eventSvc, {
-      modelUpdated: refreshFormulas,
-      cellValueChanged: refreshFormulas,
-      rowDataUpdated: refreshFormulas,
-      newColumnsLoaded: resetColMap,
-      columnMoved: resetColMap
+      cellValueChanged: onCellValueChanged,
+      newColumnsLoaded: onNewColumnsLoaded,
+      columnMoved: onColumnMoved,
+      pinnedRowDataChanged: onPinnedRowsChanged,
+      pinnedRowsChanged: onPinnedRowsChanged
     });
   }
+  destroy() {
+    this.active = false;
+    super.destroy();
+    this.cachedResult.clear();
+    this.colRefMap.clear();
+    this.colToRefMap.clear();
+    this.supportedOperations.clear();
+    this.functionNames = null;
+    this.activeCtx = null;
+    this.formulaDataSvc = void 0;
+  }
+  /** Evict a row and its pinned / group-footer siblings from the cache. */
+  dropRow(row) {
+    const cache = this.cachedResult;
+    let dropped = cache.delete(row);
+    const sibling = row.sibling;
+    if (sibling) {
+      if (cache.delete(sibling)) {
+        dropped = true;
+      }
+      const siblingPinnedSibling = sibling.pinnedSibling;
+      if (siblingPinnedSibling && cache.delete(siblingPinnedSibling)) {
+        dropped = true;
+      }
+    }
+    const pinnedSibling = row.pinnedSibling;
+    if (pinnedSibling && cache.delete(pinnedSibling)) {
+      dropped = true;
+    }
+    return dropped;
+  }
+  /**
+   * Called by CSRM after every model refresh. Drops cache entries for destroyed / updated rows
+   * and, when surviving values could be affected by row changes, bumps the value version so they
+   * recompute on next read while keeping parsed ASTs.
+   */
+  onRowsChanged(changed, newData) {
+    if (!this.active) {
+      return;
+    }
+    if (newData) {
+      this.refreshFormulas(true);
+      return;
+    }
+    let needsRefresh = true;
+    if (changed) {
+      const { adds, removals, updates, reordered } = changed;
+      for (const row of removals) {
+        this.dropRow(row);
+      }
+      for (const row of updates) {
+        this.dropRow(row);
+      }
+      needsRefresh = reordered || removals.length > 0 || adds.size > 0 || updates.size > 0;
+    }
+    if (needsRefresh) {
+      this.bumpValueCacheAndRefresh();
+    }
+  }
+  /**
+   * Bulk-invalidate every cached value via a version bump (ASTs preserved) and repaint.
+   * O(1); entries become stale on next read.
+   */
+  bumpValueCacheAndRefresh() {
+    this.valueCacheVersion++;
+    this.beans.rowRenderer.refreshCells(REFRESH_CELLS_PARAMS);
+  }
+  /**
+   * Re-serialize `params.value` with every relative ref shifted by (`rowDelta`, `columnDelta`).
+   * Used by copy/paste and fill-handle to keep relative references pointing at the right cells
+   * after a move. Returns the input unchanged if parsing fails.
+   *
+   * @param params.useRefFormat when false, disables REF-wrapping for the result (unsafe mode).
+   */
   updateFormulaByOffset(params) {
     const { value, rowDelta = 0, columnDelta = 0, useRefFormat = true } = params;
-    const { beans } = this;
+    const beans = this.beans;
     try {
       const unsafe = !useRefFormat;
       const ast = parseFormula(beans, value, unsafe);
       shiftNode(beans, ast, rowDelta, columnDelta, unsafe);
-      return serializeFormula(
-        beans,
-        ast,
-        /*useRefFormat*/
-        useRefFormat,
-        unsafe
-      );
+      return serializeFormula(beans, ast, useRefFormat, unsafe);
     } catch {
       return value;
     }
   }
   setupFunctions() {
-    this.supportedOperations = /* @__PURE__ */ new Map();
-    Object.keys(supportedFuncs_default).forEach((name) => {
-      this.supportedOperations.set(name, supportedFuncs_default[name]);
-    });
+    const supportedOperations = this.supportedOperations = /* @__PURE__ */ new Map();
+    const supportedFunctionNames = Object.keys(supportedFuncs_default);
+    for (let i = 0, len = supportedFunctionNames.length; i < len; ++i) {
+      const name = supportedFunctionNames[i];
+      supportedOperations.set(name, supportedFuncs_default[name]);
+    }
     this.functionNames = null;
     const customFuncs = this.gos.get("formulaFuncs");
     if (customFuncs) {
-      Object.keys(customFuncs).forEach((name) => {
-        this.supportedOperations.set(name.toUpperCase(), customFuncs[name].func);
-      });
+      const customFunctionNames = Object.keys(customFuncs);
+      for (let i = 0, len = customFunctionNames.length; i < len; ++i) {
+        const name = customFunctionNames[i];
+        supportedOperations.set(name.toUpperCase(), customFuncs[name].func);
+      }
     }
   }
   getFunctionNames() {
-    if (this.functionNames) {
-      return this.functionNames;
-    }
+    return this.functionNames ?? this.buildFunctionNames();
+  }
+  buildFunctionNames() {
+    const supportedOperations = this.supportedOperations;
     const names = [];
-    for (const name of this.supportedOperations.keys()) {
-      if (!isFormulaIdentStart(name[0])) {
-        continue;
-      }
-      if (![...name].every((char) => isFormulaIdentChar(char))) {
+    for (const name of supportedOperations.keys()) {
+      if (!isValidFunctionName(name)) {
         continue;
       }
       names.push(name);
@@ -51585,37 +53732,43 @@ var FormulaService = class extends BeanStub82 {
     this.functionNames = names;
     return names;
   }
-  setupColRefMap() {
-    if (!this.active) {
-      this.colRefMap = /* @__PURE__ */ new Map();
+  /**
+   * Rebuild the A1-style label -> AgColumn map from the current primary column order.
+   * Does NOT touch the formula cache; callers are responsible for invalidating values if needed.
+   */
+  rebuildColRefMap() {
+    const { beans, active, colRefMap, colToRefMap } = this;
+    colRefMap.clear();
+    colToRefMap.clear();
+    if (!active) {
       return;
     }
-    const alphabet = "abcdefghijklmnopqrstuvwxyz";
-    const base = alphabet.length;
-    const list = this.beans.colModel.getCols();
-    const map = /* @__PURE__ */ new Map();
+    const list = beans.colModel.getCols();
+    if (!list) {
+      return;
+    }
     let idx = 0;
-    list?.forEach((col) => {
-      if (!col.isPrimary()) {
-        return;
+    for (let i = 0, len = list.length; i < len; ++i) {
+      const col = list[i];
+      if (!col.primary) {
+        continue;
       }
       let label = "";
       let n = idx++;
       while (true) {
-        label = alphabet[n % base] + label;
-        if (n < base) {
+        label = COL_REF_ALPHABET[n % COL_REF_BASE] + label;
+        if (n < COL_REF_BASE) {
           break;
         }
-        n = Math.floor(n / base) - 1;
+        n = Math.floor(n / COL_REF_BASE) - 1;
       }
-      if (col.formulaRef !== label.toUpperCase()) {
-        col.formulaRef = label.toUpperCase();
+      if (col.formulaRef !== label) {
+        col.formulaRef = label;
         col.dispatchColEvent("formulaRefChanged", "api");
       }
-      map.set(label.toUpperCase(), col);
-    });
-    this.colRefMap = map;
-    this.refreshFormulas(true);
+      colRefMap.set(label, col);
+      colToRefMap.set(col, label);
+    }
   }
   /** Lookup a column by A1-style reference label, e.g. "A", "AB". */
   getColByRef(ref) {
@@ -51623,23 +53776,47 @@ var FormulaService = class extends BeanStub82 {
   }
   /** Find the A1-style label for a given column (reverse lookup). */
   getColRef(col) {
-    for (const [label, value] of this.colRefMap.entries()) {
-      if (value === col) {
-        return label;
-      }
-    }
-    return null;
+    return this.colToRefMap.get(col) ?? null;
   }
   /** Clear all cached results and re-render cells. */
   refreshFormulas(refreshCells) {
-    this.cachedResult = /* @__PURE__ */ new WeakMap();
+    this.cachedResult.clear();
     if (refreshCells) {
-      this.beans.rowRenderer.refreshCells({ suppressFlash: true, force: true });
+      this.beans.rowRenderer.refreshCells(REFRESH_CELLS_PARAMS);
     }
   }
   /**
-   * Is a value a formula string (starts with '=')
-   **/
+   * Drop a row's formula cache (with its sibling chain) and repaint. When given a string id,
+   * body / pinned-top / pinned-bottom are all consulted and every match is evicted. Returns
+   * `true` if anything was dropped.
+   */
+  refreshRow(row) {
+    if (!this.active) {
+      return false;
+    }
+    let dropped = false;
+    if (typeof row === "string") {
+      const { rowModel, pinnedRowModel } = this.beans;
+      const body = rowModel.getRowNode(row);
+      if (body && this.dropRow(body)) {
+        dropped = true;
+      }
+      const pinnedTop = pinnedRowModel?.getPinnedRowById(row, "top");
+      if (pinnedTop && this.dropRow(pinnedTop)) {
+        dropped = true;
+      }
+      const pinnedBottom = pinnedRowModel?.getPinnedRowById(row, "bottom");
+      if (pinnedBottom && this.dropRow(pinnedBottom)) {
+        dropped = true;
+      }
+    } else {
+      dropped = this.dropRow(row);
+    }
+    if (dropped) {
+      this.bumpValueCacheAndRefresh();
+    }
+    return dropped;
+  }
   isFormula(value) {
     return this.active && _isExpressionString4(value);
   }
@@ -51648,56 +53825,96 @@ var FormulaService = class extends BeanStub82 {
    * @returns null if the formula is invalid.
    */
   normaliseFormula(value, shorthand = false) {
-    const { beans } = this;
+    const beans = this.beans;
     try {
-      const parsedAST = parseFormula(beans, value);
-      const serialized = serializeFormula(beans, parsedAST, !shorthand, false);
-      return serialized;
+      return serializeFormula(beans, parseFormula(beans, value), !shorthand, false);
     } catch {
       return null;
     }
   }
-  /** If the cell has been evaluated and errored, return its last error (else null). */
+  /**
+   * Return the `formulaDataSource` formula for (row, col), or undefined. Raw-data `"=..."`
+   * values take a separate path via the standard field lookup + `isFormula` check.
+   */
+  getDataSourceFormula(row, col) {
+    if (!this.active || !this.formulaDataSvc?.hasDataSource()) {
+      return void 0;
+    }
+    const cf = this.ensureCellFormula(row, col);
+    return cf?.fromDataSource ? cf.formulaString : void 0;
+  }
+  /**
+   * Return the current formula error for a cell, or null. Recomputes if the cached entry is
+   * stale. Short-circuits for non-formula cells (common in mostly-plain allowFormula columns).
+   */
   getFormulaError(column, node) {
-    const rowMap = this.cachedResult.get(node);
-    const cell = rowMap?.get(column);
-    return cell?.error ?? null;
+    const cell = this.ensureCellFormula(node, column);
+    if (!cell) {
+      return null;
+    }
+    if (!cell.isValueReady()) {
+      this.resolveValue(column, node);
+    }
+    const errorType = cell.errorType;
+    if (!errorType) {
+      return null;
+    }
+    const errorId = cell.errorId;
+    return errorId != null ? new FormulaError(errorId, cell.errorVariableValues ?? void 0, errorType) : new FormulaError(cell.errorMessage, errorType);
   }
   /** Get a registered function by name (used by the evaluator). */
   getFunction(name) {
-    return this.supportedOperations.get(name.toUpperCase());
+    const supportedOperations = this.supportedOperations;
+    return supportedOperations.get(name) ?? supportedOperations.get(name.toUpperCase());
   }
-  /** Ensure a CellFormula exists for (row,col) if it's a formula cell; returns null for non-formula. */
+  /**
+   * Ensure a `CellFormula` exists for (row, col), or null if the cell isn't a formula.
+   * Non-formula results are negatively cached (as `null`) so N dependent formulas referencing
+   * the same plain cell trigger one `getFormula` + `fetchRawValue` pair, not N.
+   */
   ensureCellFormula(row, col) {
-    let rowMap = this.cachedResult.get(row);
-    let cf = rowMap?.get(col);
-    if (cf) {
-      return cf;
-    }
-    const str = this.getFormulaFromDataSource(row, col) ?? this.fetchRawValue(col, row);
-    if (typeof str !== "string" || str[0] !== "=") {
+    if (!this.active || !col.isAllowFormula()) {
       return null;
     }
-    cf = new CellFormula(row, col, str, this.beans);
+    const cache = this.cachedResult;
+    let rowMap = cache.get(row);
+    const cached = rowMap?.get(col);
+    if (cached !== void 0) {
+      return cached;
+    }
     if (!rowMap) {
       rowMap = /* @__PURE__ */ new Map();
-      this.cachedResult.set(row, rowMap);
+      cache.set(row, rowMap);
     }
-    rowMap.set(col, cf);
-    return cf;
-  }
-  getFormulaFromDataSource(row, col) {
-    const dataSource = this.beans.formulaDataSvc;
-    if (!dataSource?.hasDataSource()) {
-      return void 0;
+    rowMap.set(col, null);
+    try {
+      const dataSvc = this.formulaDataSvc;
+      const fromSource = dataSvc?.hasDataSource() ? dataSvc.getFormula({ column: col, rowNode: row }) : void 0;
+      if (_isExpressionString4(fromSource)) {
+        const cellFormula = new CellFormula(row, col, fromSource, true, this.beans, this);
+        rowMap.set(col, cellFormula);
+        return cellFormula;
+      }
+      const str = this.fetchRawValue(col, row);
+      if (_isExpressionString4(str)) {
+        const cellFormula = new CellFormula(row, col, str, false, this.beans, this);
+        rowMap.set(col, cellFormula);
+        return cellFormula;
+      }
+      return null;
+    } catch (e) {
+      rowMap.delete(col);
+      throw e;
     }
-    return dataSource.getFormula({ column: col, rowNode: row });
   }
-  coerceFormulaValue(column, value) {
-    const baseDataType = this.beans.dataTypeSvc?.getBaseDataType(column);
+  coerceFormulaValue(cell, value) {
+    let baseDataType = cell.baseDataType;
+    if (baseDataType === void 0) {
+      baseDataType = this.beans.dataTypeSvc?.getBaseDataType(cell.column) ?? null;
+      cell.baseDataType = baseDataType;
+    }
     if (baseDataType === "bigint") {
-      const bigintValue = this.toBigIntValue(value);
-      return bigintValue ?? value;
+      return _parseBigIntOrNull3(value) ?? value;
     }
     if (baseDataType === "number" && typeof value === "bigint") {
       const asNumber = Number(value);
@@ -51705,57 +53922,28 @@ var FormulaService = class extends BeanStub82 {
     }
     return value;
   }
-  toBigIntValue(value) {
-    if (typeof value === "bigint") {
-      return value;
-    }
-    if (typeof value === "number") {
-      if (!Number.isFinite(value) || !Number.isInteger(value)) {
-        return null;
-      }
-      return BigInt(value);
-    }
-    return null;
-  }
   /** Fetch a non-formula value from the grid without triggering nested formula calc. */
   fetchRawValue(col, row) {
     return this.beans.valueSvc.getValue(col, row, "data");
   }
-  getVisitorContext() {
-    if (this.activeCtx) {
-      return this.activeCtx;
+  /**
+   * Resolve an `Addr` for `evalAst`. Throws a FormulaError if the cell isn't ready, or the
+   * `CellFormula` itself if it holds an error — the outer catch decomposes it, avoiding a
+   * FormulaError allocation on the eval hot path.
+   */
+  resolveAddrRef(addr) {
+    const { row, column } = addr;
+    const cachedRefFormula = this.ensureCellFormula(row, column);
+    if (cachedRefFormula) {
+      if (!cachedRefFormula.isValueReady()) {
+        throw new FormulaError(53);
+      }
+      if (cachedRefFormula.errorType) {
+        throw cachedRefFormula;
+      }
+      return cachedRefFormula.getValue();
     }
-    const stateByCell = /* @__PURE__ */ new Map();
-    const setVisiting = (r, c) => {
-      let colSet = stateByCell.get(r);
-      const isVisiting = colSet?.has(c);
-      if (isVisiting) {
-        throw new FormulaError(51);
-      }
-      if (!colSet) {
-        colSet = /* @__PURE__ */ new Set();
-        stateByCell.set(r, colSet);
-      }
-      colSet.add(c);
-    };
-    const setVisited = (r, c) => {
-      const colSet = stateByCell.get(r);
-      if (colSet) {
-        colSet.delete(c);
-        if (colSet.size === 0) {
-          stateByCell.delete(r);
-        }
-      }
-    };
-    const errorAllVisitors = (error) => {
-      for (const [row, cells] of stateByCell) {
-        for (const col of cells) {
-          const cache = this.ensureCellFormula(row, col);
-          cache?.setError(error);
-        }
-      }
-    };
-    return this.activeCtx = { setVisited, setVisiting, errorAllVisitors };
+    return this.fetchRawValue(column, row);
   }
   makeFormulaFrame(address) {
     const cachedItem = this.ensureCellFormula(address.row, address.column);
@@ -51763,13 +53951,11 @@ var FormulaService = class extends BeanStub82 {
     if (!ast) {
       throw new FormulaError(52);
     }
-    const unresolvedDepIterator = unresolvedDeps(this.beans, ast, this.ensureCellFormula.bind(this));
+    const unresolvedDepIterator = unresolvedDeps(this.beans, ast, this);
     return { address, ast, unresolvedDepIterator };
   }
   /**
-   * Evaluate a single cell's formula **iteratively** (no recursion to avoid large stack traces),
-   * caching dependency results into their own CellFormula entries.
-   *
+   * Evaluate a cell's formula iteratively (no recursion), caching dependency results.
    * Returns the computed value, or a '#...' string on error.
    */
   resolveValue(column, node) {
@@ -51780,11 +53966,11 @@ var FormulaService = class extends BeanStub82 {
     if (rootCachedCellFormula.isValueReady()) {
       return rootCachedCellFormula.getValue();
     }
-    const hadCtx = !!this.activeCtx;
-    const { setVisited, setVisiting, errorAllVisitors } = this.getVisitorContext();
+    const existingCtx = this.activeCtx;
+    const ctx = existingCtx ?? (this.activeCtx = /* @__PURE__ */ new Map());
     const evalStack = [];
     try {
-      setVisiting(node, column);
+      formulaVisitorSetVisiting(ctx, node, column);
       evalStack.push(this.makeFormulaFrame({ row: node, column }));
       while (evalStack.length) {
         const { address, ast, unresolvedDepIterator } = evalStack[evalStack.length - 1];
@@ -51792,9 +53978,9 @@ var FormulaService = class extends BeanStub82 {
         const cachedCellFormula = this.ensureCellFormula(row, col);
         if (cachedCellFormula.isValueReady()) {
           evalStack.pop();
-          setVisited(row, col);
-          if (cachedCellFormula.error) {
-            throw cachedCellFormula.error;
+          formulaVisitorSetVisited(ctx, row, col);
+          if (cachedCellFormula.errorType) {
+            throw cachedCellFormula;
           }
           continue;
         }
@@ -51805,37 +53991,18 @@ var FormulaService = class extends BeanStub82 {
           if (!depCachedCellFormula || depCachedCellFormula.isValueReady()) {
             continue;
           }
-          setVisiting(depAddr.row, depAddr.column);
+          formulaVisitorSetVisiting(ctx, depAddr.row, depAddr.column);
           evalStack.push(this.makeFormulaFrame(depAddr));
           continue;
         }
-        const computed = evalAst(
-          this.beans,
-          ast,
-          (addr) => {
-            const cachedRefFormula = this.ensureCellFormula(addr.row, addr.column);
-            if (cachedRefFormula) {
-              if (!cachedRefFormula.isValueReady()) {
-                throw new FormulaError(53);
-              }
-              const error = cachedRefFormula.getError();
-              if (error) {
-                throw error;
-              }
-              return cachedRefFormula.getValue();
-            }
-            return this.fetchRawValue(addr.column, addr.row);
-          },
-          { row, column: col }
-        );
-        const coerced = this.coerceFormulaValue(col, computed);
-        const existing = cachedCellFormula.getError();
-        if (existing) {
-          setVisited(row, col);
-          throw existing;
+        const computed = evalAst(this.beans, ast, this, address);
+        const coerced = this.coerceFormulaValue(cachedCellFormula, computed);
+        if (cachedCellFormula.errorType && cachedCellFormula.isValueReady()) {
+          formulaVisitorSetVisited(ctx, row, col);
+          throw cachedCellFormula;
         }
         cachedCellFormula.setComputedValue(coerced);
-        setVisited(row, col);
+        formulaVisitorSetVisited(ctx, row, col);
         evalStack.pop();
       }
       if (!rootCachedCellFormula.isValueReady()) {
@@ -51843,14 +54010,43 @@ var FormulaService = class extends BeanStub82 {
       }
       return rootCachedCellFormula.getValue();
     } catch (e) {
-      const normalized = e instanceof FormulaError ? e : new FormulaError(String(e?.message ?? e));
-      errorAllVisitors(normalized);
-      return normalized.type;
+      return this.errorAllVisitors(ctx, e);
     } finally {
-      if (!hadCtx) {
+      if (!existingCtx) {
         this.activeCtx = null;
       }
     }
+  }
+  /**
+   * Stamp every still-visiting cell with the final error fields decomposed from `source`.
+   * Accepts the thrown value directly (CellFormula, FormulaError, or anything else) so the
+   * catch site stays a single call and decomposition happens exactly once per eval cycle.
+   * Returns the error type so the catch can use it as the return value.
+   */
+  errorAllVisitors(ctx, source) {
+    let type = "#ERROR!";
+    let errorId = null;
+    let message;
+    let variableValues = null;
+    if (source instanceof CellFormula) {
+      type = source.errorType ?? "#ERROR!";
+      errorId = source.errorId;
+      message = source.errorMessage;
+      variableValues = source.errorVariableValues;
+    } else if (source instanceof FormulaError) {
+      type = source.type;
+      errorId = source.errorId;
+      message = source.message;
+      variableValues = source.variableValues ?? null;
+    } else {
+      message = String(source?.message ?? source);
+    }
+    ctx.forEach((cells, row) => {
+      for (const col of cells) {
+        this.ensureCellFormula(row, col)?.setErrorFields(type, errorId, message, variableValues);
+      }
+    });
+    return type;
   }
 };
 
@@ -51860,8 +54056,830 @@ var FormulaModule = {
   version: VERSION,
   userComponents: { agFormulaCellEditor: FormulaCellEditor },
   beans: [FormulaService, FormulaDataService, FormulaInputManagerService],
+  apiFunctions: {
+    refreshFormulas
+  },
   dependsOn: [RowNumbersModule],
   css: [formula_default]
+};
+
+// packages/ag-grid-enterprise/src/notes/notesModule.ts
+import { _PopupModule as _PopupModule5 } from "ag-grid-community";
+
+// packages/ag-grid-enterprise/src/notes/notes.css
+var notes_default = '.ag-has-cell-notes:after{border-style:solid;content:"";pointer-events:none;position:absolute;top:0}:where(.ag-ltr) .ag-has-cell-notes:after{border-color:transparent var(--ag-note-indicator-color) transparent transparent;border-width:0 var(--ag-note-indicator-size) var(--ag-note-indicator-size) 0;right:0}:where(.ag-rtl) .ag-has-cell-notes:after{border-color:transparent transparent transparent var(--ag-note-indicator-color);border-width:0 0 var(--ag-note-indicator-size) var(--ag-note-indicator-size);left:0}.ag-notes-panel.ag-panel{background-color:var(--ag-note-popup-background-color);border:var(--ag-note-popup-border);width:100%}.ag-notes-panel-content-wrapper,.ag-notes-popup-content{min-height:0;min-width:0}.ag-notes-popup-content{display:flex;flex-direction:column;gap:calc(var(--ag-spacing)/2);height:100%;padding:var(--ag-note-popup-padding);width:100%}.ag-notes-popup-meta{color:var(--ag-note-popup-text-color);font-size:calc(var(--ag-font-size) - 1px)}:where(.ag-ltr) .ag-notes-popup-meta{padding-left:calc(var(--ag-spacing)/2)}:where(.ag-rtl) .ag-notes-popup-meta{padding-right:calc(var(--ag-spacing)/2)}.ag-notes-popup-body{display:flex;flex:1 1 auto;min-height:0;min-width:0}.ag-notes-popup-editor{display:flex;flex:1 1 auto;height:100%;min-width:0;width:100%}.ag-notes-popup-editor :where(.ag-text-area-input-wrapper){align-items:stretch;flex:1 1 auto;height:100%;min-width:0;width:100%}.ag-notes-popup-editor .ag-text-area-input{background-color:var(--ag-note-popup-input-background-color);color:var(--ag-note-popup-input-text-color);flex:1 1 auto;height:100%;min-width:0;padding:calc(var(--ag-spacing)/2);resize:none;width:100%}.ag-notes-popup-editor .ag-text-area-input[readonly]{background-color:var(--ag-note-popup-background-color);border:none}.ag-notes-popup-read-only :where(.ag-text-area-input-wrapper){background-color:var(--ag-input-disabled-background-color)}';
+
+// packages/ag-grid-enterprise/src/notes/notesApi.ts
+function getNote(beans, params) {
+  return beans.notesSvc?.getNote(params);
+}
+function setNote(beans, params) {
+  beans.notesSvc?.setNote(params);
+}
+function refreshNotes(beans, params) {
+  beans.notesSvc?.refreshNotes(params);
+}
+
+// packages/ag-grid-enterprise/src/notes/notesDataService.ts
+import { BeanStub as BeanStub88, _addGridCommonParams as _addGridCommonParams29 } from "ag-grid-community";
+
+// packages/ag-grid-enterprise/src/notes/notesShared.ts
+function isFullWidthRowNoteParams(params) {
+  return params.location === "fullWidthRow";
+}
+
+// packages/ag-grid-enterprise/src/notes/notesUtils.ts
+function cloneNote(note) {
+  if (!note || typeof note.text !== "string" || !note.text.trim()) {
+    return void 0;
+  }
+  return { ...note };
+}
+
+// packages/ag-grid-enterprise/src/notes/notesDataService.ts
+var NotesDataService = class extends BeanStub88 {
+  constructor() {
+    super(...arguments);
+    this.beanName = "notesDataSvc";
+  }
+  postConstruct() {
+    this.setDataSource(this.gos.get("notesDataSource"));
+    this.addManagedPropertyListener("notesDataSource", ({ currentValue }) => {
+      this.setDataSource(currentValue);
+      this.beans.notesSvc?.onDataSourceChanged();
+    });
+  }
+  hasDataSource() {
+    return !!this.dataSource;
+  }
+  supportsFullWidthRows() {
+    return this.isFullWidthDataSource(this.dataSource);
+  }
+  getNote(params) {
+    const { dataSource } = this;
+    if (isFullWidthRowNoteParams(params)) {
+      return cloneNote(this.isFullWidthDataSource(dataSource) ? dataSource.getNote(params) : void 0);
+    }
+    const column = this.beans.colModel.getCol(params.column);
+    if (!column) {
+      return void 0;
+    }
+    return cloneNote(dataSource?.getNote({ ...params, column }));
+  }
+  setNote(params) {
+    const { dataSource } = this;
+    const note = cloneNote(params.note);
+    if (isFullWidthRowNoteParams(params)) {
+      if (this.isFullWidthDataSource(dataSource)) {
+        dataSource.setNote({ ...params, note });
+      }
+      return;
+    }
+    const column = this.beans.colModel.getCol(params.column);
+    if (!column) {
+      return;
+    }
+    dataSource?.setNote({ ...params, column, note });
+  }
+  setDataSource(dataSource) {
+    if (this.dataSource === dataSource) {
+      return;
+    }
+    this.dataSource?.destroy?.();
+    this.dataSource = dataSource;
+    dataSource?.init?.(this.createInitParams());
+  }
+  createInitParams() {
+    return _addGridCommonParams29(this.gos, {});
+  }
+  isFullWidthDataSource(dataSource) {
+    return !!dataSource && "supportsFullWidthRows" in dataSource && dataSource.supportsFullWidthRows === true;
+  }
+  destroy() {
+    this.dataSource?.destroy?.();
+    super.destroy();
+  }
+};
+
+// packages/ag-grid-enterprise/src/notes/notesService.ts
+import { BeanStub as BeanStub90 } from "ag-grid-community";
+
+// packages/ag-grid-enterprise/src/notes/agNotesFeature.ts
+import { _interpretAsRightClick as _interpretAsRightClick3, _isStopPropagationForAgGrid as _isStopPropagationForAgGrid3 } from "ag-grid-community";
+
+// packages/ag-grid-enterprise/src/notes/agNotesPopup.ts
+import {
+  AgInputTextAreaSelector,
+  BeanStub as BeanStub89,
+  Component as Component62,
+  KeyCode as KeyCode35,
+  RefPlaceholder as RefPlaceholder50,
+  _computeAlignedPosition,
+  _findBestPlacement,
+  _fitsWithinBounds,
+  _getActiveDomElement as _getActiveDomElement16,
+  _getEffectivePlacements,
+  _getRectSize,
+  _setDisplayed as _setDisplayed26,
+  _toRelativeRect
+} from "ag-grid-community";
+var DEFAULT_SIZE = {
+  width: 290,
+  height: 150,
+  minWidth: 240,
+  minHeight: 150
+};
+var CELL_PLACEMENTS = ["tl-tr", "tr-br", "br-tr", "tr-tl", "br-tl"];
+var FULL_WIDTH_ROW_PLACEMENTS = ["tl-tr", "tr-br", "br-tr"];
+var NotesPopupContentElement = {
+  tag: "div",
+  cls: "ag-notes-popup-content",
+  children: [
+    { tag: "div", ref: "eMeta", cls: "ag-notes-popup-meta" },
+    {
+      tag: "div",
+      cls: "ag-notes-popup-body",
+      children: [{ tag: "ag-input-text-area", ref: "eEditor", cls: "ag-notes-popup-editor" }]
+    }
+  ]
+};
+var AgNotesPopupContent = class extends Component62 {
+  constructor(note, readOnly) {
+    super(NotesPopupContentElement, [AgInputTextAreaSelector]);
+    this.note = note;
+    this.readOnly = readOnly;
+    this.eMeta = RefPlaceholder50;
+    this.eEditor = RefPlaceholder50;
+    this.initialText = note?.text.trim() ?? "";
+  }
+  postConstruct() {
+    const translate = this.getLocaleTextFunc();
+    const author = this.note?.author?.trim();
+    const timestamp = this.note?.updatedAt?.trim() || this.note?.createdAt?.trim();
+    const metaParts = [author, timestamp].filter((part) => !!part);
+    this.eMeta.textContent = metaParts.join(" \xB7 ");
+    _setDisplayed26(this.eMeta, !!metaParts.length);
+    this.eEditor.setInputPlaceholder(this.readOnly ? void 0 : translate("notePlaceholder", "Add a note...")).setRows(8).setValue(this.note?.text ?? "", true).setInputAriaLabel(translate("ariaInputEditor", "Input Editor"));
+    const inputEl = this.eEditor.getInputElement();
+    inputEl.setAttribute("title", "");
+    inputEl.readOnly = this.readOnly;
+  }
+  focusEditor() {
+    const focusable = this.eEditor.getFocusableElement();
+    focusable.focus();
+    const inputEl = this.eEditor.getInputElement();
+    const valueLength = inputEl.value.length;
+    inputEl.setSelectionRange(valueLength, valueLength);
+  }
+  getEditedNote() {
+    return buildEditedNote(this.note, this.eEditor.getValue());
+  }
+  isDirty() {
+    if (this.readOnly) {
+      return false;
+    }
+    return (this.eEditor.getValue()?.trim() ?? "") !== this.initialText;
+  }
+};
+function buildEditedNote(note, nextText) {
+  const text = nextText?.trim();
+  if (!text) {
+    return void 0;
+  }
+  return {
+    ...note ?? {},
+    text
+  };
+}
+var AgNotesPopup = class extends BeanStub89 {
+  constructor(params) {
+    super();
+    this.params = params;
+    this.saveOnClose = true;
+    this.closed = false;
+  }
+  postConstruct() {
+    const note = cloneNote(this.params.note);
+    const contentComp = this.createManagedBean(new AgNotesPopupContent(note, !!this.params.readOnly));
+    this.contentComp = contentComp;
+    const { x, y } = this.computeInitialPosition();
+    const dialog = this.createManagedBean(
+      new Dialog({
+        ...DEFAULT_SIZE,
+        modal: true,
+        resizable: true,
+        movable: false,
+        closable: false,
+        hideTitleBar: true,
+        cssIdentifier: "notes",
+        x,
+        y,
+        closedCallback: (event) => this.onDialogClosed(event)
+      })
+    );
+    this.dialog = dialog;
+    dialog.setBodyComponent(contentComp);
+    const eGui = dialog.getGui();
+    const translate = this.getLocaleTextFunc();
+    eGui.classList.add("ag-notes-popup");
+    eGui.classList.toggle("ag-notes-popup-read-only", !!this.params.readOnly);
+    eGui.setAttribute("aria-label", translate("note", "Note"));
+    this.addManagedElementListeners(eGui, {
+      keydown: (event) => {
+        if (event.key === KeyCode35.TAB) {
+          event.preventDefault();
+        }
+      },
+      pointerenter: () => this.params.onPopupEnter(),
+      pointerout: (event) => this.onPotentialLeave(event.relatedTarget, true),
+      focusout: (event) => {
+        if (dialog.isResizing) {
+          return;
+        }
+        this.onPotentialLeave(event.relatedTarget, false);
+      }
+    });
+    if (this.params.focusEditor) {
+      contentComp.focusEditor();
+    }
+  }
+  hide(save = true) {
+    this.saveOnClose = save;
+    this.dialog?.close();
+  }
+  focusEditor() {
+    this.contentComp?.focusEditor();
+  }
+  hasFocus() {
+    return !!this.dialog?.getGui().contains(_getActiveDomElement16(this.beans));
+  }
+  onPotentialLeave(relatedTarget, keepOpenWhileFocused) {
+    const eGui = this.dialog?.getGui();
+    if (!eGui) {
+      return;
+    }
+    if (relatedTarget && eGui.contains(relatedTarget)) {
+      return;
+    }
+    if (keepOpenWhileFocused && this.hasFocus()) {
+      return;
+    }
+    this.params.onPopupLeave();
+  }
+  computeInitialPosition() {
+    return findNotesPopupPosition({
+      anchorRect: this.params.anchorToElement.getBoundingClientRect(),
+      parentRect: this.beans.popupSvc.getParentRect(),
+      popupSize: DEFAULT_SIZE,
+      placementMode: this.params.placementMode,
+      enableRtl: this.gos.get("enableRtl")
+    });
+  }
+  /** Called by Dialog's closedCallback (Escape key, click outside, etc.) */
+  onDialogClosed(event) {
+    if (this.closed) {
+      return;
+    }
+    this.closed = true;
+    this.notifyClosed(event);
+  }
+  destroy() {
+    if (!this.closed) {
+      this.closed = true;
+      this.notifyClosed();
+    }
+    super.destroy();
+  }
+  notifyClosed(closeEvent) {
+    const noteChanged = this.saveOnClose && (this.contentComp?.isDirty() ?? false);
+    const editedNote = noteChanged ? this.contentComp?.getEditedNote() : void 0;
+    this.params.onClosed(noteChanged, editedNote, closeEvent);
+  }
+};
+function findNotesPopupPosition(params) {
+  const { anchorRect, parentRect, popupSize, placementMode, enableRtl } = params;
+  const referenceRect = _toRelativeRect(anchorRect, parentRect);
+  const parentSize = _getRectSize(parentRect);
+  const basePlacements = placementMode === "fullWidthRow" ? FULL_WIDTH_ROW_PLACEMENTS : CELL_PLACEMENTS;
+  const placements = _getEffectivePlacements(basePlacements, enableRtl);
+  for (const alignment of placements) {
+    const position = _computeAlignedPosition(referenceRect, popupSize, alignment, 0);
+    if (alignment === "tl-tr" || alignment === "tr-tl") {
+      position.y -= 1;
+    }
+    if (_fitsWithinBounds(position, popupSize, parentSize)) {
+      return position;
+    }
+  }
+  return _findBestPlacement(referenceRect, popupSize, parentSize, [...basePlacements.slice(1), basePlacements[0]], {
+    gap: 0,
+    enableRtl
+  });
+}
+
+// packages/ag-grid-enterprise/src/notes/agNotesFeature.ts
+var CSS_HAS_CELL_NOTES = "ag-has-cell-notes";
+var BaseNotesFeature = class {
+  constructor(beans, notesSvc) {
+    this.beans = beans;
+    this.notesSvc = notesSvc;
+    this.showTimer = 0;
+    this.hideTimer = 0;
+    this.suppressHoverUntilPointerLeave = false;
+    // when this feature replaces its own popup (for example switching between embedded full-width
+    // sections), closing the old popup would normally unregister this feature as the active owner. We
+    // need to keep ownership through this close process so NotesService can still close the popup if another
+    // cell or row opens a note next. (This is only relevant for embedded full-width row notes).
+    this.preserveActivePopupOwnerOnClose = false;
+  }
+  refresh() {
+    this.refreshHasNotesStyling();
+    if (!this.activeTarget) {
+      return;
+    }
+    const { canView, canCreate } = this.notesSvc.getNoteAccess(this.activeTarget.noteParams) || {};
+    if (!canView && !canCreate) {
+      this.closeNotePopup(false);
+    }
+  }
+  show(params) {
+    const target = this.getTarget(params?.pinned);
+    if (!target) {
+      return;
+    }
+    this.openPopup(target, params?.focusEditor);
+  }
+  hide(save = true) {
+    this.closeNotePopup(save);
+  }
+  closeNotePopup(save = true) {
+    this.clearShowTimer();
+    this.cancelHide();
+    this.popup?.hide(save);
+  }
+  destroy() {
+    this.closeNotePopup(false);
+  }
+  getNoteTrigger() {
+    return this.beans.gos.get("noteTrigger") === "click" ? "click" : "hover";
+  }
+  onPointerEnter(target, event) {
+    if (event.pointerType !== "mouse") {
+      return;
+    }
+    if (this.suppressHoverUntilPointerLeave) {
+      return;
+    }
+    if (this.getNoteTrigger() !== "hover") {
+      if (target && this.matchesActiveTarget(target)) {
+        this.cancelHide();
+      }
+      return;
+    }
+    const access = target && this.notesSvc.getNoteAccess(target.noteParams);
+    this.cancelHide();
+    if (!target || !access?.canView) {
+      return;
+    }
+    if (this.matchesActiveTarget(target)) {
+      return;
+    }
+    this.clearShowTimer();
+    const hoverGeneration = this.notesSvc.getHoverGeneration();
+    this.showTimer = window.setTimeout(() => {
+      if (hoverGeneration !== this.notesSvc.getHoverGeneration()) {
+        return;
+      }
+      this.openPopup(target);
+    }, this.beans.gos.get("noteShowDelay"));
+  }
+  onPointerLeave(event) {
+    if (event.pointerType !== "mouse") {
+      return;
+    }
+    this.suppressHoverUntilPointerLeave = false;
+    this.clearShowTimer();
+    if (this.popup?.hasFocus()) {
+      return;
+    }
+    this.scheduleHide();
+  }
+  onContextMenu() {
+    this.suppressHoverUntilPointerLeave = true;
+    this.closeNotePopup();
+  }
+  onClick(target, event) {
+    if (this.getNoteTrigger() !== "click" || _isStopPropagationForAgGrid3(event) || _interpretAsRightClick3(this.beans, event)) {
+      return;
+    }
+    const access = target && this.notesSvc.getNoteAccess(target.noteParams);
+    if (!target || !access?.canView) {
+      return;
+    }
+    this.suppressHoverUntilPointerLeave = false;
+    this.openPopup(target);
+  }
+  openPopup(target, focusEditor = false) {
+    const access = this.notesSvc.getNoteAccess(target.noteParams);
+    if (!access || !access.canView && !(focusEditor && access.canCreate)) {
+      return;
+    }
+    this.cancelHide();
+    this.clearShowTimer();
+    if (this.matchesActiveTarget(target) && this.popup) {
+      if (focusEditor) {
+        this.popup.focusEditor();
+      }
+      return;
+    }
+    const previousOwner = this.notesSvc.replaceActivePopupOwner(this);
+    if (previousOwner) {
+      previousOwner.closeNotePopup();
+    } else if (this.popup) {
+      this.preserveActivePopupOwnerOnClose = true;
+      this.closeNotePopup();
+    }
+    const popup = this.beans.context.createBean(
+      new AgNotesPopup({
+        note: access.note ?? { text: "" },
+        readOnly: access.canView && !access.canEdit,
+        anchorToElement: target.anchorElement,
+        placementMode: isFullWidthRowNoteParams(target.noteParams) ? "fullWidthRow" : "cell",
+        focusEditor,
+        onClosed: (noteChanged, note, closeEvent) => this.onPopupClosed(noteChanged, note, closeEvent),
+        onPopupEnter: () => this.cancelHide(),
+        onPopupLeave: () => this.scheduleHide()
+      })
+    );
+    this.popup = popup;
+    this.activeTarget = target;
+  }
+  onPopupClosed(noteChanged, note, closeEvent) {
+    const target = this.activeTarget;
+    const popup = this.popup;
+    const preserveActivePopupOwner = this.preserveActivePopupOwnerOnClose;
+    this.popup = void 0;
+    this.activeTarget = void 0;
+    this.preserveActivePopupOwnerOnClose = false;
+    if (!preserveActivePopupOwner) {
+      this.notesSvc.clearActivePopupOwner(this);
+    }
+    if (popup) {
+      this.beans.context.destroyBean(popup);
+    }
+    if (target && closeEvent instanceof KeyboardEvent && closeEvent.key === "Escape") {
+      this.beans.focusSvc.setFocusedCell({
+        rowIndex: target.rowNode.rowIndex,
+        rowPinned: target.rowNode.rowPinned,
+        column: target.focusColumn,
+        forceBrowserFocus: true,
+        preventScrollOnBrowserFocus: true,
+        sourceEvent: closeEvent
+      });
+    }
+    if (!noteChanged || !target) {
+      return;
+    }
+    this.notesSvc.setNote({
+      ...target.noteParams,
+      note,
+      previousNote: this.notesSvc.getNoteAccess(target.noteParams)?.note,
+      source: "ui"
+    });
+  }
+  matchesActiveTarget(target) {
+    return areSameNoteParams(this.activeTarget?.noteParams, target.noteParams);
+  }
+  scheduleHide() {
+    this.cancelHide();
+    this.hideTimer = window.setTimeout(() => this.closeNotePopup(), this.beans.gos.get("noteHideDelay"));
+  }
+  cancelHide() {
+    if (this.hideTimer) {
+      window.clearTimeout(this.hideTimer);
+      this.hideTimer = 0;
+    }
+  }
+  clearShowTimer() {
+    if (this.showTimer) {
+      window.clearTimeout(this.showTimer);
+      this.showTimer = 0;
+    }
+  }
+};
+var AgNotesFeature = class extends BaseNotesFeature {
+  constructor(beans, ctrl, notesSvc) {
+    super(beans, notesSvc);
+    this.ctrl = ctrl;
+  }
+  refresh() {
+    if (this.ctrl.isNoteHoverSuppressed()) {
+      this.clearShowTimer();
+    }
+    super.refresh();
+  }
+  initialise() {
+    this.ctrl.addManagedElementListeners(this.ctrl.eGui, {
+      pointerenter: (event) => {
+        if (this.ctrl.isNoteHoverSuppressed()) {
+          return;
+        }
+        this.onPointerEnter(this.getTarget(), event);
+      },
+      pointerleave: (event) => this.onPointerLeave(event),
+      click: (event) => {
+        if (this.ctrl.isNoteHoverSuppressed()) {
+          return;
+        }
+        this.onClick(this.getTarget(), event);
+      },
+      contextmenu: () => this.onContextMenu()
+    });
+    this.refresh();
+  }
+  refreshHasNotesStyling() {
+    const hasNote = !!this.notesSvc.getNoteAccess(this.getPosition())?.note;
+    this.ctrl.comp.toggleCss(CSS_HAS_CELL_NOTES, hasNote && !this.ctrl.isNoteHoverSuppressed());
+  }
+  getPosition() {
+    return {
+      rowNode: this.ctrl.rowNode,
+      column: this.ctrl.column
+    };
+  }
+  getTarget() {
+    return {
+      noteParams: this.getPosition(),
+      rowNode: this.ctrl.rowNode,
+      focusColumn: this.ctrl.column,
+      anchorElement: this.ctrl.eGui
+    };
+  }
+};
+var AgFullWidthRowNotesFeature = class extends BaseNotesFeature {
+  constructor(beans, ctrl, notesSvc) {
+    super(beans, notesSvc);
+    this.ctrl = ctrl;
+  }
+  initialise() {
+    this.refresh();
+  }
+  refreshHasNotesStyling() {
+    if (!this.ctrl.isFullWidth()) {
+      return;
+    }
+    this.ctrl.forEachGui(void 0, (gui) => {
+      this.registerGui(gui);
+      const position = this.getPositionForGui(gui);
+      const hasNote = !!position && !!this.notesSvc.getNoteAccess(position)?.note;
+      gui.rowComp.toggleCss(CSS_HAS_CELL_NOTES, hasNote);
+    });
+  }
+  registerGui(gui) {
+    this.ctrl.addManagedGuiElementListeners(gui, {
+      pointerenter: (event) => this.onPointerEnter(this.getTargetForGui(gui), event),
+      pointerleave: (event) => this.onPointerLeave(event),
+      click: (event) => this.onClick(this.getTargetForGui(gui), event),
+      contextmenu: () => this.onContextMenu()
+    });
+  }
+  getPositionForGui(gui) {
+    const pinned = this.ctrl.getPinnedForFullWidth(gui);
+    const normalisedPinned = pinned === "left" || pinned === "right" ? pinned : void 0;
+    return {
+      rowNode: this.ctrl.rowNode,
+      location: "fullWidthRow",
+      pinned: normalisedPinned
+    };
+  }
+  getTargetForGui(gui) {
+    const position = this.getPositionForGui(gui);
+    const focusColumn = this.ctrl.getColumnForFullWidth(gui);
+    if (!focusColumn) {
+      return void 0;
+    }
+    return {
+      noteParams: position,
+      rowNode: this.ctrl.rowNode,
+      focusColumn,
+      anchorElement: gui.element
+    };
+  }
+  getTarget(pinned) {
+    let matchedTarget;
+    let firstTarget;
+    this.ctrl.forEachGui(void 0, (gui) => {
+      if (matchedTarget) {
+        return;
+      }
+      const target = this.getTargetForGui(gui);
+      if (!target) {
+        return;
+      }
+      if (!firstTarget) {
+        firstTarget = target;
+      }
+      if (isFullWidthRowNoteParams(target.noteParams) && target.noteParams.pinned === pinned) {
+        matchedTarget = target;
+      }
+    });
+    return matchedTarget ?? firstTarget;
+  }
+};
+function areSameNoteParams(left, right) {
+  if (!left || !right) {
+    return left === right;
+  }
+  if (isFullWidthRowNoteParams(left) || isFullWidthRowNoteParams(right)) {
+    return isFullWidthRowNoteParams(left) && isFullWidthRowNoteParams(right) && left.rowNode === right.rowNode && left.pinned === right.pinned;
+  }
+  return left.rowNode === right.rowNode && left.column === right.column;
+}
+
+// packages/ag-grid-enterprise/src/notes/notesService.ts
+var NotesService = class extends BeanStub90 {
+  constructor() {
+    super(...arguments);
+    this.beanName = "notesSvc";
+    this.hoverGeneration = 0;
+  }
+  postConstruct() {
+    this.addManagedListeners(this.beans.eventSvc, {
+      bodyScroll: () => this.resetActivePopupState()
+    });
+  }
+  hasDataSource() {
+    return !!this.beans.notesDataSvc?.hasDataSource();
+  }
+  onDataSourceChanged() {
+    this.resetActivePopupState(false);
+    this.beans.rowRenderer.redrawRows();
+  }
+  getHoverGeneration() {
+    return this.hoverGeneration;
+  }
+  createNotesFeature(ctrl) {
+    if (!this.hasDataSource()) {
+      return void 0;
+    }
+    const feature = new AgNotesFeature(this.beans, ctrl, this);
+    feature.initialise();
+    return feature;
+  }
+  createFullWidthNotesFeature(ctrl) {
+    if (!this.hasDataSource() || !this.beans.notesDataSvc?.supportsFullWidthRows()) {
+      return void 0;
+    }
+    const feature = new AgFullWidthRowNotesFeature(this.beans, ctrl, this);
+    feature.initialise();
+    return feature;
+  }
+  getNoteAccess(params) {
+    const { colModel, notesDataSvc } = this.beans;
+    if (!this.hasDataSource()) {
+      return void 0;
+    }
+    if (isFullWidthRowNoteParams(params) && !notesDataSvc.supportsFullWidthRows()) {
+      return void 0;
+    }
+    if (isFullWidthRowNoteParams(params) && params.pinned && !this.gos.get("embedFullWidthRows")) {
+      params = { ...params, pinned: void 0 };
+    }
+    const column = isFullWidthRowNoteParams(params) ? this.getColumnForFullWidth(params.pinned) : colModel.getCol(params.column);
+    const note = notesDataSvc.getNote(params);
+    if (!column) {
+      return void 0;
+    }
+    const isSuppressed = column.isColumnFunc(params.rowNode, column.colDef.suppressNoteActions ?? null);
+    const isReadOnly = !!note?.readOnly;
+    return {
+      params,
+      rowNode: params.rowNode,
+      column,
+      note,
+      isReadOnly,
+      isSuppressed,
+      canView: !!note,
+      canCreate: !note && !isSuppressed,
+      canEdit: !!note && !isSuppressed && !isReadOnly,
+      canDelete: !!note && !isSuppressed && !isReadOnly
+    };
+  }
+  getNote(params) {
+    return this.getNoteAccess(params)?.note;
+  }
+  replaceActivePopupOwner(owner) {
+    const previousOwner = this.activePopupOwner;
+    if (previousOwner === owner) {
+      return void 0;
+    }
+    this.activePopupOwner = owner;
+    return previousOwner;
+  }
+  clearActivePopupOwner(owner) {
+    if (this.activePopupOwner === owner) {
+      this.activePopupOwner = void 0;
+    }
+  }
+  resetActivePopupState(save = true) {
+    this.hoverGeneration++;
+    this.activePopupOwner?.closeNotePopup(save);
+  }
+  showNote(params, focusEditor = false) {
+    const access = this.getNoteAccess(params);
+    if (!access || !access.canView && !(focusEditor && access.canCreate)) {
+      return false;
+    }
+    const { rowRenderer } = this.beans;
+    if (isFullWidthRowNoteParams(access.params)) {
+      const rowCtrl = rowRenderer.getRowCtrlByNode(params.rowNode);
+      const feature = rowCtrl?.getNotesFeature();
+      if (!feature) {
+        return false;
+      }
+      feature.show({ pinned: access.params.pinned, focusEditor });
+      return true;
+    }
+    const cellCtrl = rowRenderer.getCellCtrls([params.rowNode], [access.column])[0];
+    if (cellCtrl) {
+      cellCtrl.showNote(focusEditor);
+      return true;
+    }
+    return false;
+  }
+  setNote(params) {
+    const { notesDataSvc } = this.beans;
+    if (!this.hasDataSource()) {
+      return;
+    }
+    const access = this.getNoteAccess(params);
+    if (!access) {
+      return;
+    }
+    const { note } = params;
+    const previousNote = params.previousNote ?? access.note;
+    const source = params.source ?? "api";
+    if (!note && !previousNote) {
+      return;
+    }
+    if (source === "ui" && (access.isSuppressed || previousNote?.readOnly)) {
+      return;
+    }
+    if (source === "api") {
+      this.activePopupOwner?.closeNotePopup(false);
+    }
+    notesDataSvc.setNote(
+      isFullWidthRowNoteParams(access.params) ? { ...access.params, note } : { rowNode: access.rowNode, column: access.column, note }
+    );
+    this.refreshNotes(
+      isFullWidthRowNoteParams(access.params) ? { rowNodes: [params.rowNode] } : { rowNodes: [params.rowNode], columns: [access.column] }
+    );
+  }
+  refreshNotes(params = {}) {
+    const { rowRenderer } = this.beans;
+    rowRenderer.refreshCells({
+      rowNodes: params.rowNodes,
+      columns: params.columns,
+      force: true,
+      suppressFlash: true
+    });
+    const rowNodes = params.rowNodes;
+    const rowNodeSet = rowNodes ? new Set(rowNodes) : void 0;
+    for (const rowCtrl of rowRenderer.getAllRowCtrls()) {
+      if (!rowCtrl.isFullWidth()) {
+        continue;
+      }
+      if (rowNodeSet && !rowNodeSet.has(rowCtrl.rowNode)) {
+        continue;
+      }
+      rowCtrl.refreshFullWidth();
+    }
+  }
+  getColumnForFullWidth(pinned) {
+    const { visibleCols } = this.beans;
+    switch (pinned) {
+      case "left":
+        return visibleCols.leftCols[0];
+      case "right":
+        return visibleCols.rightCols[0];
+      default:
+        return visibleCols.centerCols[0] ?? visibleCols.allCols[0];
+    }
+  }
+};
+
+// packages/ag-grid-enterprise/src/notes/notesModule.ts
+var NotesModule = {
+  moduleName: "Notes",
+  version: VERSION,
+  beans: [NotesDataService, NotesService],
+  apiFunctions: {
+    getNote,
+    setNote,
+    refreshNotes
+  },
+  dependsOn: [EnterpriseCoreModule, _PopupModule5],
+  css: [notes_default]
 };
 
 // packages/ag-grid-enterprise/src/sparkline/sparklinesModule.ts
@@ -51872,16 +54890,16 @@ var sparkline_default = ".ag-sparkline-wrapper{height:100%;line-height:normal;po
 
 // packages/ag-grid-enterprise/src/sparkline/sparklineCellRenderer.ts
 import {
-  Component as Component55,
-  RefPlaceholder as RefPlaceholder48,
+  Component as Component63,
+  RefPlaceholder as RefPlaceholder51,
   _batchCall,
   _formatNumberCommas as _formatNumberCommas6,
-  _setAriaLabel as _setAriaLabel20,
+  _setAriaLabel as _setAriaLabel21,
   _setAriaLabelledBy as _setAriaLabelledBy4
 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/sparkline/sparklinesUtils.ts
-var WrappedFunctionMarker = Symbol("WrappedFunctionMarker");
+var WrappedFunctionMarker = /* @__PURE__ */ Symbol("WrappedFunctionMarker");
 var wrapFn = (fn, wrapperFn) => {
   if (fn[WrappedFunctionMarker]) {
     return fn;
@@ -51976,14 +54994,14 @@ function tooltipRenderer(params) {
   return { content: `${params.yValue}` };
 }
 var COMPONENT_PREFIX = "ag-sparkline";
-var SparklineCellRenderer = class extends Component55 {
+var SparklineCellRenderer = class extends Component63 {
   constructor() {
     super({
       tag: "div",
       cls: `${COMPONENT_PREFIX}-wrapper`,
       children: [{ tag: "span", ref: "eSparkline" }]
     });
-    this.eSparkline = RefPlaceholder48;
+    this.eSparkline = RefPlaceholder51;
     this.cachedWidth = 0;
     this.cachedHeight = 0;
     this.dataRef = [];
@@ -52093,7 +55111,7 @@ var SparklineCellRenderer = class extends Component55 {
       summary,
       formatNumber: (value) => _formatNumberCommas6(value, getLocaleText)
     });
-    _setAriaLabel20(this.getGui(), interpolateTemplate(template, values));
+    _setAriaLabel21(this.getGui(), interpolateTemplate(template, values));
   }
   processData(data) {
     if (!data?.length) {
@@ -52217,9 +55235,9 @@ function findRefresh(beans) {
 }
 
 // packages/ag-grid-enterprise/src/find/findCellRenderer.ts
-import { Component as Component56, _clearElement as _clearElement19, _createElement as _createElement17, _toString as _toString2 } from "ag-grid-community";
+import { Component as Component64, _clearElement as _clearElement21, _createElement as _createElement21, _toString as _toString2 } from "ag-grid-community";
 var FindCellRendererElement = { tag: "span", cls: "ag-find-cell" };
-var FindCellRenderer = class extends Component56 {
+var FindCellRenderer = class extends Component64 {
   constructor() {
     super(FindCellRendererElement);
   }
@@ -52237,7 +55255,7 @@ var FindCellRenderer = class extends Component56 {
     });
     const displayValue = valueFormatted ?? value ?? "";
     const eGui = this.getGui();
-    _clearElement19(eGui);
+    _clearElement21(eGui);
     const parts = findSvc?.getParts({ value: displayValue, node, column: column ?? null });
     if (!parts) {
       eGui.textContent = _toString2(displayValue) ?? "";
@@ -52247,7 +55265,7 @@ var FindCellRenderer = class extends Component56 {
       for (const { value: value2, match, activeMatch } of parts) {
         const content = _toString2(value2) ?? "";
         if (match) {
-          const element = _createElement17({ tag: "mark", cls: "ag-find-match" });
+          const element = _createElement21({ tag: "mark", cls: "ag-find-match" });
           element.textContent = content;
           if (activeMatch) {
             element.classList.add("ag-find-active-match");
@@ -52266,9 +55284,9 @@ var FindCellRenderer = class extends Component56 {
 
 // packages/ag-grid-enterprise/src/find/findService.ts
 import {
-  BeanStub as BeanStub83,
-  _addGridCommonParams as _addGridCommonParams27,
-  _debounce as _debounce7,
+  BeanStub as BeanStub91,
+  _addGridCommonParams as _addGridCommonParams30,
+  _debounce as _debounce9,
   _isClientSideRowModel as _isClientSideRowModel9,
   _isFullWidthGroupRow,
   _jsonEquals as _jsonEquals4,
@@ -52295,7 +55313,7 @@ function getMatchesForValue(findSearchValue, caseFormat, valueToFind) {
   }
   return numMatches;
 }
-var FindService = class extends BeanStub83 {
+var FindService = class extends BeanStub91 {
   constructor() {
     super(...arguments);
     this.beanName = "findSvc";
@@ -52327,7 +55345,7 @@ var FindService = class extends BeanStub83 {
     }
     const refreshAndWipeActive = this.refresh.bind(this, false);
     const refreshAndKeepActive = this.refresh.bind(this, true);
-    const refreshAndKeepActiveDebounced = _debounce7(
+    const refreshAndKeepActiveDebounced = _debounce9(
       this,
       () => {
         if (this.isAlive()) {
@@ -52355,7 +55373,7 @@ var FindService = class extends BeanStub83 {
       batchEditingStopped: refreshAndKeepActiveDebounced
     });
     const rowSpanSvc = this.beans.rowSpanSvc;
-    if (rowSpanSvc) {
+    if (rowSpanSvc?.active) {
       this.addManagedListeners(rowSpanSvc, { spannedCellsUpdated: refreshAndKeepActiveDebounced });
     }
     refreshAndWipeActive();
@@ -52537,7 +55555,7 @@ var FindService = class extends BeanStub83 {
     const fullWidthCellRendererParams = gos.get("fullWidthCellRendererParams");
     const groupRowRendererParams = gos.get("groupRowRendererParams");
     const flattenDetails = _getFlattenDetails(gos);
-    const pivotMode = colModel.isPivotMode();
+    const pivotMode = colModel.pivotMode;
     let containerNumMatches = 0;
     let matches;
     let rowNodes;
@@ -52601,7 +55619,7 @@ var FindService = class extends BeanStub83 {
         if (getFindText) {
           const value = valueSvc.getValueForDisplay({ node, from: "batch" }).value;
           valueToFind = getFindText(
-            _addGridCommonParams27(gos, {
+            _addGridCommonParams30(gos, {
               value,
               node,
               data,
@@ -52647,7 +55665,7 @@ var FindService = class extends BeanStub83 {
         if (getFindText) {
           const value = valueSvc.getValueForDisplay({ column, node, from: "batch" }).value;
           valueToFind = getFindText(
-            _addGridCommonParams27(gos, {
+            _addGridCommonParams30(gos, {
               value,
               node,
               data,
@@ -52993,7 +56011,7 @@ var FindService = class extends BeanStub83 {
   }
   getActiveMatchNum(node, column) {
     const activeMatch = this.activeMatch;
-    return activeMatch != null && activeMatch.node === node && activeMatch.column === column ? activeMatch.numInMatch : 0;
+    return activeMatch?.node === node && activeMatch.column === column ? activeMatch.numInMatch : 0;
   }
   destroy() {
     this.topMatches.clear();
@@ -53039,10 +56057,10 @@ var FindModule = {
 import { _EditCoreModule as _EditCoreModule2 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/batch-edit/batchEditApi.ts
-import { _isClientSideRowModel as _isClientSideRowModel10, _warn as _warn55 } from "ag-grid-community";
+import { _isClientSideRowModel as _isClientSideRowModel10, _warn as _warn56 } from "ag-grid-community";
 function startBatchEdit({ editSvc, gos, rowModel }) {
   if (!_isClientSideRowModel10(gos, rowModel)) {
-    _warn55(289, { rowModelType: gos.get("rowModelType") });
+    _warn56(289, { rowModelType: gos.get("rowModelType") });
     return;
   }
   editSvc?.startBatchEditing();
@@ -53073,7 +56091,7 @@ var BatchEditModule = {
 };
 
 // packages/ag-grid-enterprise/src/rowGrouping/rowGroupingEditValueSvc.ts
-import { BeanStub as BeanStub84 } from "ag-grid-community";
+import { BeanStub as BeanStub92 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/rowGrouping/distributeGroupValue/valueConversion.ts
 var resolveStrategy = (aggFunc, distribution) => {
@@ -53673,13 +56691,13 @@ function inheritOptions(parent, distribution) {
 }
 
 // packages/ag-grid-enterprise/src/rowGrouping/rowGroupingEditValueSvc.ts
-var RowGroupingEditValueSvc = class extends BeanStub84 {
+var RowGroupingEditValueSvc = class extends BeanStub92 {
   constructor() {
     super(...arguments);
     this.beanName = "rowGroupingEditValueSvc";
   }
   isGroupCellEditable(rowNode, column) {
-    const colDef = column.getColDef();
+    const colDef = column.colDef;
     if (!column.isColumnFunc(rowNode, colDef.groupRowEditable)) {
       return false;
     }
@@ -53695,7 +56713,7 @@ var RowGroupingEditValueSvc = class extends BeanStub84 {
     return resolveStrategy(aggFunc, setter ?? void 0) !== false;
   }
   setGroupDataValue(rowNode, column, newValue, oldValue, eventSource, valueChanged) {
-    const colDef = column.getColDef();
+    const colDef = column.colDef;
     let setter = colDef.groupRowValueSetter;
     if (setter == null) {
       const gre = colDef.groupRowEditable;
@@ -53732,11 +56750,11 @@ var RowGroupingEditModule = {
 };
 
 // packages/ag-grid-enterprise/src/charts/integratedChartsModule.ts
-import { _PopupModule as _PopupModule5, _SharedDragAndDropModule as _SharedDragAndDropModule5, _preInitErrMsg as _preInitErrMsg2 } from "ag-grid-community";
+import { _PopupModule as _PopupModule6, _SharedDragAndDropModule as _SharedDragAndDropModule5, _preInitErrMsg as _preInitErrMsg2 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/agChartsExports.ts
-import { BeanStub as BeanStub85 } from "ag-grid-community";
-var AgChartsExports = class extends BeanStub85 {
+import { BeanStub as BeanStub93 } from "ag-grid-community";
+var AgChartsExports = class extends BeanStub93 {
   constructor(params) {
     super();
     this.beanName = "agChartsExports";
@@ -53750,7 +56768,7 @@ var AgChartsExports = class extends BeanStub85 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/chartProxies/enterpriseChartProxyFactory.ts
-import { BeanStub as BeanStub90 } from "ag-grid-community";
+import { BeanStub as BeanStub98 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/chartProxies/cartesian/cartesianChartProxy.ts
 import { _parseDateTimeFromString as _parseDateTimeFromString3 } from "ag-grid-community";
@@ -54033,7 +57051,7 @@ function getFullChartNameTranslationKey(chartType) {
 }
 
 // packages/ag-grid-enterprise/src/charts/chartComp/chartProxies/chartTheme.ts
-import { _warn as _warn56 } from "ag-grid-community";
+import { _warn as _warn57 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/utils/axisTypeMapper.ts
 var ALL_AXIS_TYPES = ["number", "category", "grouped-category", "log", "time"];
@@ -54279,7 +57297,7 @@ function lookupCustomChartTheme(chartProxyParams, name) {
   const { customChartThemes } = chartProxyParams;
   const customChartTheme = customChartThemes?.[name];
   if (!customChartTheme) {
-    _warn56(140, { name });
+    _warn57(140, { name });
   }
   return customChartTheme;
 }
@@ -55044,34 +58062,33 @@ function renderHeatmapTooltip(params) {
 }
 
 // packages/ag-grid-enterprise/src/charts/chartComp/model/chartDataModel.ts
-import { BeanStub as BeanStub89, CellRangeType as CellRangeType3, _normalizeSortType as _normalizeSortType2, isColumnGroupAutoCol as isColumnGroupAutoCol3 } from "ag-grid-community";
+import { BeanStub as BeanStub97, CellRangeType as CellRangeType3, _normalizeSortType as _normalizeSortType2, isColumnGroupAutoCol as isColumnGroupAutoCol3 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/datasource/chartDatasource.ts
 import {
-  BeanStub as BeanStub86,
+  BeanStub as BeanStub94,
   GROUP_AUTO_COLUMN_ID as GROUP_AUTO_COLUMN_ID3,
   _isClientSideRowModel as _isClientSideRowModel11,
   _isServerSideRowModel as _isServerSideRowModel8,
   _last as _last18,
-  _warn as _warn57
+  _warn as _warn58
 } from "ag-grid-community";
-var ChartDatasource = class extends BeanStub86 {
+var ChartDatasource = class extends BeanStub94 {
   wireBeans(beans) {
     this.sortSvc = beans.sortSvc;
     this.gridRowModel = beans.rowModel;
     this.colModel = beans.colModel;
-    this.valueSvc = beans.valueSvc;
     this.pivotResultCols = beans.pivotResultCols;
     this.rowNodeSorter = beans.rowNodeSorter;
   }
   getData(params) {
     if (params.crossFiltering) {
       if (params.grouping) {
-        _warn57(141);
+        _warn58(141);
         return { chartData: [], colNames: {} };
       }
       if (!_isClientSideRowModel11(this.gos)) {
-        _warn57(142);
+        _warn58(142);
         return { chartData: [], colNames: {} };
       }
     }
@@ -55118,11 +58135,11 @@ var ChartDatasource = class extends BeanStub86 {
     if (numRows > 0) {
       for (const col of valueCols) {
         let colNamesArr = [];
-        const pivotKeys = col.getColDef().pivotKeys;
+        const pivotKeys = col.colDef.pivotKeys;
         if (pivotKeys) {
           colNamesArr = pivotKeys.slice();
         }
-        const headerName = col.getColDef().headerName;
+        const headerName = col.colDef.headerName;
         if (headerName) {
           colNamesArr.push(headerName);
         }
@@ -55145,7 +58162,7 @@ var ChartDatasource = class extends BeanStub86 {
         const colId = col.colId;
         const column = this.colModel.getCol(colId);
         if (column) {
-          const valueObject = this.valueSvc.getValue(column, rowNode, "data");
+          const valueObject = rowNode.getDataValue(column, "data");
           if (grouping) {
             const valueString = valueObject?.toString ? String(valueObject.toString()) : " ";
             const labels2 = this.getGroupLabels(rowNode, valueString);
@@ -55181,10 +58198,10 @@ var ChartDatasource = class extends BeanStub86 {
         }
       }
       for (const col of valueCols) {
-        const colId = col.getColId();
+        const colId = col.colId;
         if (crossFiltering) {
           const filteredOutColId = colId + "-filtered-out";
-          const value = this.valueSvc.getValue(col, rowNode, "data");
+          const value = rowNode.getDataValue(col, "data");
           let actualValue = value;
           if (value != null) {
             if (typeof value.toNumber === "function") {
@@ -55201,7 +58218,7 @@ var ChartDatasource = class extends BeanStub86 {
             data[filteredOutColId] = actualValue;
           }
         } else {
-          let value = this.valueSvc.getValue(col, rowNode, "data");
+          let value = rowNode.getDataValue(col, "data");
           if (value && typeof value.value === "number") {
             value = value.value;
           }
@@ -55263,14 +58280,14 @@ var ChartDatasource = class extends BeanStub86 {
       const aggFuncOrString = params.aggFunc;
       const aggFunc = typeof aggFuncOrString === "function" ? aggFuncOrString : typeof aggFuncOrString === "string" ? this.beans.aggFuncSvc.getAggFunc(aggFuncOrString) : null;
       if (typeof aggFunc !== "function") {
-        _warn57(109, { inputValue: String(aggFuncOrString), allSuggestions: [] });
+        _warn58(109, { inputValue: String(aggFuncOrString), allSuggestions: [] });
         return dataAggregated;
       }
       const api = this.beans.gridApi;
       const context = this.gos.get("context");
       for (const groupItem of dataAggregated) {
         for (const col of params.valueCols) {
-          const colId = col.getColId();
+          const colId = col.colId;
           if (params.crossFiltering) {
             const dataToAgg = groupItem.__children.filter((child) => typeof child[colId] !== "undefined").map((child) => child[colId]);
             const aggResult = aggFunc({
@@ -55284,7 +58301,7 @@ var ChartDatasource = class extends BeanStub86 {
               api,
               context
             });
-            groupItem[colId] = aggResult && typeof aggResult.value !== "undefined" ? aggResult.value : aggResult;
+            groupItem[colId] = typeof aggResult?.value !== "undefined" ? aggResult.value : aggResult;
             const filteredOutColId = `${colId}-filtered-out`;
             const dataToAggFiltered = groupItem.__children.filter((child) => typeof child[filteredOutColId] !== "undefined").map((child) => child[filteredOutColId]);
             const aggResultFiltered = aggFunc({
@@ -55298,7 +58315,7 @@ var ChartDatasource = class extends BeanStub86 {
               api,
               context
             });
-            groupItem[filteredOutColId] = aggResultFiltered && typeof aggResultFiltered.value !== "undefined" ? aggResultFiltered.value : aggResultFiltered;
+            groupItem[filteredOutColId] = typeof aggResultFiltered?.value !== "undefined" ? aggResultFiltered.value : aggResultFiltered;
           } else {
             const dataToAgg = groupItem.__children.map((child) => child[colId]);
             const aggResult = aggFunc({
@@ -55312,7 +58329,7 @@ var ChartDatasource = class extends BeanStub86 {
               api,
               context
             });
-            groupItem[colId] = aggResult && typeof aggResult.value !== "undefined" ? aggResult.value : aggResult;
+            groupItem[colId] = typeof aggResult?.value !== "undefined" ? aggResult.value : aggResult;
           }
         }
       }
@@ -55327,10 +58344,10 @@ var ChartDatasource = class extends BeanStub86 {
     const pivotKeySeparator = this.extractPivotKeySeparator(secondaryColumns);
     for (const col of secondaryColumns) {
       if (pivotKeySeparator === "") {
-        col.getColDef().pivotKeys = [];
+        col.colDef.pivotKeys = [];
       } else {
-        const keys = col.getColId().split(pivotKeySeparator);
-        col.getColDef().pivotKeys = keys.slice(0, keys.length - 1);
+        const keys = col.colId.split(pivotKeySeparator);
+        col.colDef.pivotKeys = keys.slice(0, keys.length - 1);
       }
     }
   }
@@ -55349,7 +58366,7 @@ var ChartDatasource = class extends BeanStub86 {
     if (firstSecondaryCol.getParent() == null) {
       return "";
     }
-    return extractSeparator(firstSecondaryCol.getParent(), firstSecondaryCol.getColId());
+    return extractSeparator(firstSecondaryCol.getParent(), firstSecondaryCol.colId);
   }
   getGroupLabels(rowNode, initialLabel) {
     const labels2 = [initialLabel];
@@ -55359,7 +58376,7 @@ var ChartDatasource = class extends BeanStub86 {
         if (rowNode.group) {
           const groupColumn = this.colModel.getCol(GROUP_AUTO_COLUMN_ID3);
           if (groupColumn) {
-            const valueObject = this.valueSvc.getValue(groupColumn, rowNode, "data");
+            const valueObject = rowNode.getDataValue(groupColumn, "data");
             const valueString = valueObject?.toString ? String(valueObject.toString()) : " ";
             labels2.push(valueString);
           }
@@ -55397,8 +58414,8 @@ var ChartDatasource = class extends BeanStub86 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/services/chartColumnService.ts
-import { BeanStub as BeanStub87, _getRowNode as _getRowNode8, _warn as _warn58 } from "ag-grid-community";
-var ChartColumnService = class extends BeanStub87 {
+import { BeanStub as BeanStub95, _getRowNode as _getRowNode9, _warn as _warn59 } from "ag-grid-community";
+var ChartColumnService = class extends BeanStub95 {
   constructor() {
     super(...arguments);
     this.valueColsWithoutSeriesType = /* @__PURE__ */ new Set();
@@ -55406,7 +58423,6 @@ var ChartColumnService = class extends BeanStub87 {
   wireBeans(beans) {
     this.colModel = beans.colModel;
     this.colNames = beans.colNames;
-    this.valueSvc = beans.valueSvc;
   }
   postConstruct() {
     const clearValueCols = () => this.valueColsWithoutSeriesType.clear();
@@ -55416,7 +58432,7 @@ var ChartColumnService = class extends BeanStub87 {
     });
   }
   getColumn(colId) {
-    return this.colModel.getColDefCol(colId);
+    return this.colModel.getColDefColOrCol(colId);
   }
   getAllDisplayedColumns() {
     return this.beans.visibleCols.allCols;
@@ -55434,7 +58450,7 @@ var ChartColumnService = class extends BeanStub87 {
     return this.beans.showRowGroupCols?.columns ?? [];
   }
   isPivotMode() {
-    return this.colModel.isPivotMode();
+    return this.colModel.pivotMode;
   }
   isPivotActive() {
     return this.colModel.isPivotActive();
@@ -55444,7 +58460,7 @@ var ChartColumnService = class extends BeanStub87 {
     const dimensionCols = /* @__PURE__ */ new Set();
     const valueCols = /* @__PURE__ */ new Set();
     for (const col of gridCols) {
-      const colDef = col.getColDef();
+      const colDef = col.colDef;
       const chartDataType = colDef.chartDataType;
       if (chartDataType) {
         switch (chartDataType) {
@@ -55458,7 +58474,7 @@ var ChartColumnService = class extends BeanStub87 {
           case "excluded":
             continue;
           default:
-            _warn58(153, { chartDataType });
+            _warn59(153, { chartDataType });
             break;
         }
       }
@@ -55466,7 +58482,7 @@ var ChartColumnService = class extends BeanStub87 {
         dimensionCols.add(col);
         continue;
       }
-      if (!col.isPrimary()) {
+      if (!col.primary) {
         valueCols.add(col);
         continue;
       }
@@ -55475,15 +58491,15 @@ var ChartColumnService = class extends BeanStub87 {
     return { dimensionCols, valueCols };
   }
   isInferredValueCol(col) {
-    const colId = col.getColId();
+    const colId = col.colId;
     if (colId === "ag-Grid-AutoColumn") {
       return false;
     }
-    const row = _getRowNode8(this.beans, { rowIndex: 0, rowPinned: null });
+    const row = _getRowNode9(this.beans, { rowIndex: 0, rowPinned: null });
     if (!row) {
       return this.valueColsWithoutSeriesType.has(colId);
     }
-    let cellValue = this.valueSvc.getValue(col, row, "data");
+    let cellValue = row.getDataValue(col, "data");
     if (cellValue == null) {
       cellValue = this.extractLeafData(row, col);
     }
@@ -55498,12 +58514,12 @@ var ChartColumnService = class extends BeanStub87 {
     if (isNumber) {
       this.valueColsWithoutSeriesType.add(colId);
     } else if (cellValue == null && col.colDef.cellDataType !== "number") {
-      _warn58(265, { colId });
+      _warn59(265, { colId });
     }
     return isNumber;
   }
   extractLeafData(row, col) {
-    const value = row.data && this.valueSvc.getValue(col, row, "data");
+    const value = row.data && row.getDataValue(col, "data");
     if (value != null) {
       return value;
     }
@@ -55526,9 +58542,9 @@ var ChartColumnService = class extends BeanStub87 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/model/comboChartModel.ts
-import { BeanStub as BeanStub88, _warn as _warn59 } from "ag-grid-community";
+import { BeanStub as BeanStub96, _warn as _warn60 } from "ag-grid-community";
 var SUPPORTED_COMBO_CHART_TYPES = /* @__PURE__ */ new Set(["line", "groupedColumn", "stackedColumn", "area", "stackedArea"]);
-var ComboChartModel = class extends BeanStub88 {
+var ComboChartModel = class extends BeanStub96 {
   constructor(chartDataModel) {
     super();
     // this control flag is used to only log warning for the initial user config
@@ -55570,11 +58586,11 @@ var ComboChartModel = class extends BeanStub88 {
   updateSeriesChartTypesForCustomCombo() {
     const seriesChartTypesSupplied = this.seriesChartTypes && this.seriesChartTypes.length > 0;
     if (!seriesChartTypesSupplied && !this.suppressComboChartWarnings) {
-      _warn59(150);
+      _warn60(150);
     }
     this.seriesChartTypes = this.seriesChartTypes.map((s2) => {
       if (!SUPPORTED_COMBO_CHART_TYPES.has(s2.chartType)) {
-        _warn59(151, { chartType: s2.chartType });
+        _warn60(151, { chartType: s2.chartType });
         s2.chartType = "line";
       }
       return s2;
@@ -55586,7 +58602,7 @@ var ComboChartModel = class extends BeanStub88 {
       const providedSeriesChartType = this.savedCustomSeriesChartTypes.find((s2) => s2.colId === valueCol.colId);
       if (!providedSeriesChartType) {
         if (valueCol.selected && !this.suppressComboChartWarnings) {
-          _warn59(152, { colId: valueCol.colId });
+          _warn60(152, { colId: valueCol.colId });
         }
         return {
           colId: valueCol.colId,
@@ -55616,7 +58632,7 @@ var ComboChartModel = class extends BeanStub88 {
 
 // packages/ag-grid-enterprise/src/charts/chartComp/model/chartDataModel.ts
 var DEFAULT_CHART_CATEGORY = "AG-GRID-DEFAULT-CATEGORY";
-var ChartDataModel = class extends BeanStub89 {
+var ChartDataModel = class extends BeanStub97 {
   constructor(params) {
     super();
     this.unlinked = false;
@@ -55738,7 +58754,7 @@ var ChartDataModel = class extends BeanStub89 {
     const isGroupActive = usingTreeData || groupedCols && groupedCols.length > 0;
     const colIds = this.getSelectedDimensions().map(({ colId }) => colId);
     const displayedGroupCols = this.chartColSvc.getGroupDisplayColumns();
-    const groupDimensionSelected = displayedGroupCols.map((col) => col.getColId()).some((id) => colIds.includes(id));
+    const groupDimensionSelected = displayedGroupCols.map((col) => col.colId).some((id) => colIds.includes(id));
     return !!isGroupActive && groupDimensionSelected;
   }
   getSelectedValueCols() {
@@ -55778,7 +58794,7 @@ var ChartDataModel = class extends BeanStub89 {
     };
     getDisplayName2(column.getParent());
     if (attemptFallbackToColNames) {
-      const colNames = this.colNames[column.getColId()];
+      const colNames = this.colNames[column.colId];
       if (colNames) {
         displayNames = colNames;
       }
@@ -55793,7 +58809,7 @@ var ChartDataModel = class extends BeanStub89 {
   }
   getChartDataType(colId) {
     const column = this.chartColSvc.getColumn(colId);
-    return column ? column.getColDef().chartDataType : void 0;
+    return column ? column.colDef.chartDataType : void 0;
   }
   getConvertTime(colId) {
     const column = this.chartColSvc.getColumn(colId);
@@ -55855,10 +58871,10 @@ var ChartDataModel = class extends BeanStub89 {
     const groupingActive = usingTreeData || rowGroupCols && rowGroupCols.length > 0;
     dimensionCols.forEach((column) => {
       const autoGroup = isColumnGroupAutoCol3(column);
-      const selected = this.crossFiltering && this.aggFunc ? aggFuncDimension.getColId() === column.getColId() : this.useGroupColumnAsCategory && groupingActive && autoGroup || (!hasSelectedDimension || supportsMultipleDimensions) && allCols.has(column);
+      const selected = this.crossFiltering && this.aggFunc ? aggFuncDimension.getColId() === column.colId : this.useGroupColumnAsCategory && groupingActive && autoGroup || (!hasSelectedDimension || supportsMultipleDimensions) && allCols.has(column);
       this.dimensionColState.push({
         column,
-        colId: column.getColId(),
+        colId: column.colId,
         displayName: this.getColDisplayName(column),
         selected,
         order: order++
@@ -55884,7 +58900,7 @@ var ChartDataModel = class extends BeanStub89 {
       }
       this.valueColState.push({
         column,
-        colId: column.getColId(),
+        colId: column.colId,
         displayName: this.getColDisplayName(column),
         selected: allCols.has(column),
         order: order++
@@ -55972,7 +58988,7 @@ var ChartDataModel = class extends BeanStub89 {
           selectedValueCols.push(col);
           numSelected++;
         }
-      } else if (this.valueColState.some((colState) => colState.selected && colState.colId === col.getColId())) {
+      } else if (this.valueColState.some((colState) => colState.selected && colState.colId === col.colId)) {
         selectedValueCols.push(col);
       }
     });
@@ -55981,9 +58997,9 @@ var ChartDataModel = class extends BeanStub89 {
       if (this.valueColState.length > 0) {
         orderedColIds = this.valueColState.map((c) => c.colId);
       } else {
-        colsInRange.forEach((c) => orderedColIds.push(c.getColId()));
+        colsInRange.forEach((c) => orderedColIds.push(c.colId));
       }
-      selectedValueCols.sort((a, b) => orderedColIds.indexOf(a.getColId()) - orderedColIds.indexOf(b.getColId()));
+      selectedValueCols.sort((a, b) => orderedColIds.indexOf(a.colId) - orderedColIds.indexOf(b.colId));
       this.valueCellRange = this.createCellRange(CellRangeType3.VALUE, ...selectedValueCols);
     }
   }
@@ -56001,7 +59017,7 @@ var ChartDataModel = class extends BeanStub89 {
     }
   }
   updateSelectedDimensions(columns) {
-    const colIdSet = new Set(columns.map((column) => column.getColId()));
+    const colIdSet = new Set(columns.map((column) => column.colId));
     const supportsMultipleDimensions = isHierarchical(getSeriesType(this.chartType));
     if (!supportsMultipleDimensions) {
       const foundColState = this.dimensionColState.find((colState) => colIdSet.has(colState.colId)) || this.dimensionColState[0];
@@ -56186,7 +59202,7 @@ var RangeChartProxy = class extends StatisticalChartProxy {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/chartProxies/enterpriseChartProxyFactory.ts
-var EnterpriseChartProxyFactory = class extends BeanStub90 {
+var EnterpriseChartProxyFactory = class extends BeanStub98 {
   constructor() {
     super(...arguments);
     this.beanName = "enterpriseChartProxyFactory";
@@ -56223,14 +59239,14 @@ var EnterpriseChartProxyFactory = class extends BeanStub90 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/advancedSettings/advancedSettingsMenuFactory.ts
-import { BeanStub as BeanStub92, TabGuardComp as TabGuardComp4, _findFocusableElements as _findFocusableElements4, _findNextFocusableElement as _findNextFocusableElement8 } from "ag-grid-community";
+import { BeanStub as BeanStub100, TabGuardComp as TabGuardComp4, _findFocusableElements as _findFocusableElements5, _findNextFocusableElement as _findNextFocusableElement8 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/advancedSettings/advancedSettingsPanel.ts
-import { Component as Component61 } from "ag-grid-community";
+import { Component as Component69 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/chartPanelFeature.ts
-import { BeanStub as BeanStub91, _removeFromParent as _removeFromParent11 } from "ag-grid-community";
-var ChartPanelFeature = class extends BeanStub91 {
+import { BeanStub as BeanStub99, _removeFromParent as _removeFromParent12 } from "ag-grid-community";
+var ChartPanelFeature = class extends BeanStub99 {
   constructor(chartController, eGui, cssClass, createPanels) {
     super();
     this.chartController = chartController;
@@ -56265,7 +59281,7 @@ var ChartPanelFeature = class extends BeanStub91 {
   }
   destroyPanels() {
     for (const panel of this.panels) {
-      _removeFromParent11(panel.getGui());
+      _removeFromParent12(panel.getGui());
       this.destroyBean(panel);
     }
     this.panels = [];
@@ -56277,8 +59293,8 @@ var ChartPanelFeature = class extends BeanStub91 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/advancedSettings/interactivity/animationPanel.ts
-import { AgInputNumberFieldSelector as AgInputNumberFieldSelector2, Component as Component57 } from "ag-grid-community";
-var AnimationPanel = class extends Component57 {
+import { AgInputNumberFieldSelector as AgInputNumberFieldSelector2, Component as Component65 } from "ag-grid-community";
+var AnimationPanel = class extends Component65 {
   constructor(chartMenuParamsFactory) {
     super();
     this.chartMenuParamsFactory = chartMenuParamsFactory;
@@ -56322,7 +59338,7 @@ var AnimationPanel = class extends Component57 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/advancedSettings/interactivity/crosshairPanel.ts
-import { AgCheckboxSelector as AgCheckboxSelector6, Component as Component58 } from "ag-grid-community";
+import { AgCheckboxSelector as AgCheckboxSelector6, Component as Component66 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/widgets/colorPicker.ts
 var ColorPicker = class extends AgColorPicker {
@@ -56339,7 +59355,7 @@ var ColorPickerSelector = {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/advancedSettings/interactivity/crosshairPanel.ts
-var CrosshairPanel = class extends Component58 {
+var CrosshairPanel = class extends Component66 {
   constructor(chartMenuParamsFactory) {
     super();
     this.chartMenuParamsFactory = chartMenuParamsFactory;
@@ -56392,8 +59408,8 @@ var CrosshairPanel = class extends Component58 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/advancedSettings/interactivity/navigatorPanel.ts
-import { AgCheckboxSelector as AgCheckboxSelector7, Component as Component59 } from "ag-grid-community";
-var NavigatorPanel = class extends Component59 {
+import { AgCheckboxSelector as AgCheckboxSelector7, Component as Component67 } from "ag-grid-community";
+var NavigatorPanel = class extends Component67 {
   constructor(chartMenuParamsFactory) {
     super();
     this.chartMenuParamsFactory = chartMenuParamsFactory;
@@ -56442,12 +59458,12 @@ var NavigatorPanel = class extends Component59 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/advancedSettings/interactivity/zoomPanel.ts
-import { AgCheckboxSelector as AgCheckboxSelector8, Component as Component60, RefPlaceholder as RefPlaceholder49 } from "ag-grid-community";
-var ZoomPanel = class extends Component60 {
+import { AgCheckboxSelector as AgCheckboxSelector8, Component as Component68, RefPlaceholder as RefPlaceholder52 } from "ag-grid-community";
+var ZoomPanel = class extends Component68 {
   constructor(chartMenuParamsFactory) {
     super();
     this.chartMenuParamsFactory = chartMenuParamsFactory;
-    this.zoomScrollingStepInput = RefPlaceholder49;
+    this.zoomScrollingStepInput = RefPlaceholder52;
   }
   wireBeans(beans) {
     this.chartTranslation = beans.chartTranslation;
@@ -56506,7 +59522,7 @@ var ZoomPanel = class extends Component60 {
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/advancedSettings/advancedSettingsPanel.ts
 var INTERACTIVITY_GROUPS = ["navigator", "zoom", "animation", "crosshair"];
-var AdvancedSettingsPanel = class extends Component61 {
+var AdvancedSettingsPanel = class extends Component69 {
   constructor(chartMenuContext) {
     super(
       /* html */
@@ -56553,7 +59569,7 @@ var AdvancedSettingsPanel = class extends Component61 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/advancedSettings/advancedSettingsMenuFactory.ts
-var AdvancedSettingsMenuFactory = class extends BeanStub92 {
+var AdvancedSettingsMenuFactory = class extends BeanStub100 {
   constructor() {
     super(...arguments);
     this.beanName = "advSettingsMenuFactory";
@@ -56572,7 +59588,7 @@ var AdvancedSettingsMenuFactory = class extends BeanStub92 {
         centered: true,
         closable: true,
         afterGuiAttached: () => {
-          _findFocusableElements4(menu.getGui())[0]?.focus();
+          _findFocusableElements5(menu.getGui())[0]?.focus();
         },
         closedCallback: () => {
           this.activeMenu = this.destroyBean(this.activeMenu);
@@ -56621,7 +59637,7 @@ var AdvancedSettingsMenu = class extends TabGuardComp4 {
     if (nextEl) {
       nextEl.focus();
     } else {
-      const focusableElements = _findFocusableElements4(panelGui);
+      const focusableElements = _findFocusableElements5(panelGui);
       if (focusableElements.length) {
         focusableElements[backwards ? focusableElements.length - 1 : 0].focus();
       }
@@ -56631,15 +59647,15 @@ var AdvancedSettingsMenu = class extends TabGuardComp4 {
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/chartMenuList.ts
 import {
-  BeanStub as BeanStub93,
-  Component as Component62,
-  RefPlaceholder as RefPlaceholder50,
-  _addGridCommonParams as _addGridCommonParams28,
-  _createIconNoSpan as _createIconNoSpan25,
-  _focusInto as _focusInto10,
+  BeanStub as BeanStub101,
+  Component as Component70,
+  RefPlaceholder as RefPlaceholder53,
+  _addGridCommonParams as _addGridCommonParams31,
+  _createIconNoSpan as _createIconNoSpan27,
+  _focusInto as _focusInto11,
   _isNothingFocused as _isNothingFocused5
 } from "ag-grid-community";
-var ChartMenuListFactory = class extends BeanStub93 {
+var ChartMenuListFactory = class extends BeanStub101 {
   constructor() {
     super(...arguments);
     this.beanName = "chartMenuListFactory";
@@ -56717,7 +59733,7 @@ var ChartMenuListFactory = class extends BeanStub93 {
       return chartMenuItems;
     } else {
       return chartMenuItems(
-        _addGridCommonParams28(this.gos, {
+        _addGridCommonParams31(this.gos, {
           defaultItems,
           chartId: chartController.getChartId()
         })
@@ -56793,7 +59809,7 @@ var ChartMenuListFactory = class extends BeanStub93 {
   createMenuItem(name, iconName, action) {
     return {
       name,
-      icon: _createIconNoSpan25(iconName, this.beans, null),
+      icon: _createIconNoSpan27(iconName, this.beans, null),
       action
     };
   }
@@ -56802,7 +59818,7 @@ var ChartMenuListFactory = class extends BeanStub93 {
     super.destroy();
   }
 };
-var ChartMenuList = class extends Component62 {
+var ChartMenuList = class extends Component70 {
   constructor(menuItems) {
     super(
       /* html */
@@ -56811,7 +59827,7 @@ var ChartMenuList = class extends Component62 {
         `
     );
     this.menuItems = menuItems;
-    this.eChartsMenu = RefPlaceholder50;
+    this.eChartsMenu = RefPlaceholder53;
   }
   postConstruct() {
     this.mainMenuList = this.createManagedBean(new MenuList(0));
@@ -56840,13 +59856,13 @@ var ChartMenuList = class extends Component62 {
         });
       }
     }
-    _focusInto10(this.mainMenuList.getGui());
+    _focusInto11(this.mainMenuList.getGui());
   }
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/services/chartCrossFilterService.ts
-import { BeanStub as BeanStub94, _warn as _warn60 } from "ag-grid-community";
-var ChartCrossFilterService = class extends BeanStub94 {
+import { BeanStub as BeanStub102, _warn as _warn61 } from "ag-grid-community";
+var ChartCrossFilterService = class extends BeanStub102 {
   constructor() {
     super(...arguments);
     this.beanName = "chartCrossFilterSvc";
@@ -56885,7 +59901,7 @@ var ChartCrossFilterService = class extends BeanStub94 {
         setFilter = filter;
       }
       if (!setFilter) {
-        _warn60(154, { colId });
+        _warn61(154, { colId });
         return;
       }
       const update = event.event.metaKey || event.event.ctrlKey;
@@ -56972,7 +59988,7 @@ function getSetFilterModel(update, key, availableKeySet, existingValues) {
 }
 
 // packages/ag-grid-enterprise/src/charts/chartComp/services/chartMenuService.ts
-import { BeanStub as BeanStub95, _warn as _warn61 } from "ag-grid-community";
+import { BeanStub as BeanStub103, _warn as _warn62 } from "ag-grid-community";
 var CHART_TOOLBAR_ALLOW_LIST = [
   "chartUnlink",
   "chartLink",
@@ -56984,7 +60000,7 @@ var CHART_TOOL_PANEL_MENU_OPTIONS = {
   data: "chartData",
   format: "chartFormat"
 };
-var ChartMenuService = class extends BeanStub95 {
+var ChartMenuService = class extends BeanStub103 {
   constructor() {
     super(...arguments);
     this.beanName = "chartMenuSvc";
@@ -57012,7 +60028,7 @@ var ChartMenuService = class extends BeanStub95 {
     };
     return toolbarItemsFunc ? toolbarItemsFunc(params).filter((option) => {
       if (!CHART_TOOLBAR_ALLOW_LIST.includes(option)) {
-        _warn61(155, { option });
+        _warn62(155, { option });
         return false;
       }
       return true;
@@ -57023,7 +60039,7 @@ var ChartMenuService = class extends BeanStub95 {
     const panelsOverride = chartToolPanelsDef?.panels?.map((panel) => {
       const menuOption = CHART_TOOL_PANEL_MENU_OPTIONS[panel];
       if (!menuOption) {
-        _warn61(156, { panel });
+        _warn62(156, { panel });
       }
       return menuOption;
     }).filter((panel) => Boolean(panel));
@@ -57049,7 +60065,7 @@ var ChartMenuService = class extends BeanStub95 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/services/chartTranslationService.ts
-import { BeanStub as BeanStub96 } from "ag-grid-community";
+import { BeanStub as BeanStub104 } from "ag-grid-community";
 var DEFAULT_CHART_TRANSLATIONS = {
   pivotChartTitle: "Pivot Chart",
   rangeChartTitle: "Range Chart",
@@ -57335,7 +60351,7 @@ var DEFAULT_CHART_TRANSLATIONS = {
   count: "Count",
   avg: "Average"
 };
-var ChartTranslationService = class extends BeanStub96 {
+var ChartTranslationService = class extends BeanStub104 {
   constructor() {
     super(...arguments);
     this.beanName = "chartTranslation";
@@ -57348,27 +60364,27 @@ var ChartTranslationService = class extends BeanStub96 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartService.ts
-import { BeanStub as BeanStub101, _focusInto as _focusInto12, _warn as _warn68 } from "ag-grid-community";
+import { BeanStub as BeanStub109, _focusInto as _focusInto13, _warn as _warn69 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/gridChartComp.ts
 import {
-  Component as Component97,
-  RefPlaceholder as RefPlaceholder67,
-  _addGridCommonParams as _addGridCommonParams29,
-  _clearElement as _clearElement23,
+  Component as Component105,
+  RefPlaceholder as RefPlaceholder70,
+  _addGridCommonParams as _addGridCommonParams32,
+  _clearElement as _clearElement25,
   _errMsg as _errMsg2,
   _focusGridInnerElement,
-  _focusInto as _focusInto11,
+  _focusInto as _focusInto12,
   _getAbsoluteHeight as _getAbsoluteHeight2,
   _getAbsoluteWidth as _getAbsoluteWidth3,
   _mergeDeep as _mergeDeep5,
-  _removeFromParent as _removeFromParent18,
-  _setDisplayed as _setDisplayed27,
-  _warn as _warn67
+  _removeFromParent as _removeFromParent19,
+  _setDisplayed as _setDisplayed30,
+  _warn as _warn68
 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/chartController.ts
-import { BeanStub as BeanStub97, _warn as _warn62 } from "ag-grid-community";
+import { BeanStub as BeanStub105, _warn as _warn63 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/utils/chartParamsValidator.ts
 import { _warnOnce } from "ag-grid-community";
@@ -57587,7 +60603,7 @@ function validateProperties(params, validations, validPropertyNames, paramsType)
 
 // packages/ag-grid-enterprise/src/charts/chartComp/chartController.ts
 var DEFAULT_THEMES = ["ag-default", "ag-material", "ag-sheets", "ag-polychroma", "ag-vivid"];
-var ChartController = class extends BeanStub97 {
+var ChartController = class extends BeanStub105 {
   constructor(model) {
     super();
     this.model = model;
@@ -58008,7 +61024,7 @@ var ChartController = class extends BeanStub97 {
   }
   validUpdateType(params) {
     if (!params.type) {
-      _warn62(136);
+      _warn63(136);
       return false;
     }
     const chartTypeMap = {
@@ -58019,7 +61035,7 @@ var ChartController = class extends BeanStub97 {
     const currentChartType = Object.keys(chartTypeMap).find((type) => chartTypeMap[type]()) ?? "Range Chart";
     const valid = params.type === `${currentChartType[0].toLowerCase()}${currentChartType.slice(1).replace(/ /g, "")}Update`;
     if (!valid) {
-      _warn62(137, { currentChartType, type: params.type });
+      _warn63(137, { currentChartType, type: params.type });
     }
     return valid;
   }
@@ -58400,7 +61416,7 @@ var ComboChartProxy = class extends CartesianChartProxy {
     if (secondaryYKeys.length > 0) {
       secondaryYKeys.forEach((secondaryYKey) => {
         const field = fieldsMap.get(secondaryYKey);
-        const secondaryAxisIsVisible = field && field.colId === secondaryYKey;
+        const secondaryAxisIsVisible = field?.colId === secondaryYKey;
         if (!secondaryAxisIsVisible) {
           return;
         }
@@ -58566,17 +61582,17 @@ var PieChartProxy = class extends ChartProxy {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/chartMenu.ts
-import { AgPromise as AgPromise14, Component as Component96, _warn as _warn66 } from "ag-grid-community";
+import { AgPromise as AgPromise14, Component as Component104, _warn as _warn67 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/chartToolbar.ts
-import { Component as Component63, RefPlaceholder as RefPlaceholder51, _clearElement as _clearElement20, _createElement as _createElement18, _createIconNoSpan as _createIconNoSpan26 } from "ag-grid-community";
-var ChartToolbar = class extends Component63 {
+import { Component as Component71, RefPlaceholder as RefPlaceholder54, _clearElement as _clearElement22, _createElement as _createElement22, _createIconNoSpan as _createIconNoSpan28 } from "ag-grid-community";
+var ChartToolbar = class extends Component71 {
   constructor() {
     super(
       /* html */
       `<div class="ag-chart-menu" data-ref="eMenu"></div>`
     );
-    this.eMenu = RefPlaceholder51;
+    this.eMenu = RefPlaceholder54;
     this.buttonListenersDestroyFuncs = [];
   }
   wireBeans(beans) {
@@ -58592,7 +61608,7 @@ var ChartToolbar = class extends Component63 {
     }
     this.buttonListenersDestroyFuncs = [];
     const menuEl = this.eMenu;
-    _clearElement20(menuEl);
+    _clearElement22(menuEl);
     for (const buttonConfig of buttons) {
       const { buttonName, iconName, callback } = buttonConfig;
       const buttonEl = this.createButton(iconName);
@@ -58611,9 +61627,9 @@ var ChartToolbar = class extends Component63 {
     }
   }
   createButton(iconName) {
-    const buttonEl = _createIconNoSpan26(iconName, this.beans);
+    const buttonEl = _createIconNoSpan28(iconName, this.beans);
     buttonEl.classList.add("ag-chart-menu-icon");
-    const wrapperEl = _createElement18({
+    const wrapperEl = _createElement22({
       tag: "button",
       attrs: { type: "button" },
       cls: "ag-chart-menu-toolbar-button"
@@ -58628,32 +61644,32 @@ var ChartToolbar = class extends Component63 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/tabbedChartMenu.ts
-import { AgPromise as AgPromise13, Component as Component95, _createElement as _createElement19 } from "ag-grid-community";
+import { AgPromise as AgPromise13, Component as Component103, _createElement as _createElement23 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/data/chartDataPanel.ts
-import { AgToggleButton as AgToggleButton5, Component as Component68, _getDocument as _getDocument7, _setDisplayed as _setDisplayed24, _warn as _warn63 } from "ag-grid-community";
+import { AgToggleButton as AgToggleButton5, Component as Component76, _getDocument as _getDocument7, _setDisplayed as _setDisplayed27, _warn as _warn64 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/data/categoriesDataPanel.ts
 import { AgSelect as AgSelect4, AgToggleButton as AgToggleButton2 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/data/dragDataPanel.ts
-import { AgSelect as AgSelect3, Component as Component65 } from "ag-grid-community";
+import { AgSelect as AgSelect3, Component as Component73 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/widgets/agPillSelect.ts
 import {
   AgSelect as AgSelect2,
-  Component as Component64,
+  Component as Component72,
   DragSourceType as DragSourceType8,
-  _escapeString as _escapeString8,
-  _getActiveDomElement as _getActiveDomElement15,
-  _removeFromParent as _removeFromParent12
+  _escapeString as _escapeString9,
+  _getActiveDomElement as _getActiveDomElement17,
+  _removeFromParent as _removeFromParent13
 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/widgets/agPillSelect.css
 var agPillSelect_default = ".ag-pill-select{display:flex;flex-direction:column}.ag-pill-select .ag-column-drop-list{padding:0}:where(.ag-pill-select){.ag-select{padding-top:var(--ag-spacing)}.ag-picker-field-wrapper{background-color:transparent;border:0}.ag-picker-field-display{cursor:pointer;font-weight:500}.ag-picker-field-display,.ag-picker-field-icon{color:var(--ag-chart-menu-label-color)}}";
 
 // packages/ag-grid-enterprise/src/charts/widgets/agPillSelect.ts
-var AgPillSelect = class extends Component64 {
+var AgPillSelect = class extends Component72 {
   constructor(config) {
     super(
       /* html */
@@ -58663,7 +61679,7 @@ var AgPillSelect = class extends Component64 {
     const { selectedValueList, valueFormatter, valueList } = this.config;
     this.selectedValues = selectedValueList ?? [];
     this.valueList = valueList ?? [];
-    this.valueFormatter = valueFormatter ?? ((value) => _escapeString8(value));
+    this.valueFormatter = valueFormatter ?? ((value) => _escapeString9(value));
     this.registerCSS(agPillSelect_default);
   }
   postConstruct() {
@@ -58739,7 +61755,7 @@ var AgPillSelect = class extends Component64 {
     this.selectedValues = values;
     const changes = this.getChanges(previousSelectedValues, values);
     const refreshSelect = forceRefreshSelect || changes.added.length || changes.removed.length;
-    const activeElement = _getActiveDomElement15(this.beans);
+    const activeElement = _getActiveDomElement17(this.beans);
     const selectHasFocus = this.eSelect?.getGui().contains(activeElement);
     const dropZoneHasFocus = this.dropZonePanel?.getGui().contains(activeElement);
     if (!silent) {
@@ -58770,7 +61786,7 @@ var AgPillSelect = class extends Component64 {
     }
     const options = this.createSelectOptions();
     if (!options.length) {
-      _removeFromParent12(this.eSelect.getGui());
+      _removeFromParent13(this.eSelect.getGui());
       this.eSelect = this.destroyBean(this.eSelect);
       return false;
     }
@@ -58865,7 +61881,7 @@ var PillSelectDropZonePanel = class extends PillDropZonePanel {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/data/dragDataPanel.ts
-var DragDataPanel = class extends Component65 {
+var DragDataPanel = class extends Component73 {
   constructor(chartController, allowMultipleSelection, maxSelection, template) {
     super(template);
     this.chartController = chartController;
@@ -59069,11 +62085,11 @@ var CategoriesDataPanel = class extends DragDataPanel {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/data/chartSpecificDataPanel.ts
-import { AgSelect as AgSelect5, AgToggleButton as AgToggleButton3, Component as Component66, RefPlaceholder as RefPlaceholder52 } from "ag-grid-community";
+import { AgSelect as AgSelect5, AgToggleButton as AgToggleButton3, Component as Component74, RefPlaceholder as RefPlaceholder55 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/chartMenuParamsFactory.ts
-import { BeanStub as BeanStub98 } from "ag-grid-community";
-var ChartMenuParamsFactory = class extends BeanStub98 {
+import { BeanStub as BeanStub106 } from "ag-grid-community";
+var ChartMenuParamsFactory = class extends BeanStub106 {
   constructor(chartOptionsProxy) {
     super();
     this.chartOptionsProxy = chartOptionsProxy;
@@ -59214,12 +62230,12 @@ var ChartMenuParamsFactory = class extends BeanStub98 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/data/chartSpecificDataPanel.ts
-var ChartSpecificDataPanel = class extends Component66 {
+var ChartSpecificDataPanel = class extends Component74 {
   constructor(chartMenuContext, isOpen) {
     super();
     this.chartMenuContext = chartMenuContext;
     this.isOpen = isOpen;
-    this.chartSpecificGroup = RefPlaceholder52;
+    this.chartSpecificGroup = RefPlaceholder55;
     this.hasContent = false;
   }
   wireBeans(beans) {
@@ -59335,8 +62351,8 @@ var ChartSpecificDataPanel = class extends Component66 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/data/seriesChartTypePanel.ts
-import { AgCheckbox, AgSelect as AgSelect6, Component as Component67, _areEqual as _areEqual7, _clearElement as _clearElement21 } from "ag-grid-community";
-var SeriesChartTypePanel = class extends Component67 {
+import { AgCheckbox, AgSelect as AgSelect6, Component as Component75, _areEqual as _areEqual8, _clearElement as _clearElement23 } from "ag-grid-community";
+var SeriesChartTypePanel = class extends Component75 {
   constructor(chartController, columns, isOpen) {
     super(
       /* html */
@@ -59356,7 +62372,7 @@ var SeriesChartTypePanel = class extends Component67 {
     this.createSeriesChartTypeGroup(this.columns);
   }
   refresh(columns) {
-    if (!_areEqual7(this.getValidColIds(columns), this.selectedColIds)) {
+    if (!_areEqual8(this.getValidColIds(columns), this.selectedColIds)) {
       this.recreate(columns);
     } else {
       this.refreshComps();
@@ -59364,7 +62380,7 @@ var SeriesChartTypePanel = class extends Component67 {
   }
   recreate(columns) {
     this.isOpen = this.seriesChartTypeGroupComp.isExpanded();
-    _clearElement21(this.getGui());
+    _clearElement23(this.getGui());
     this.destroyBean(this.seriesChartTypeGroupComp);
     this.columns = columns;
     this.selectedColIds = [];
@@ -59564,7 +62580,7 @@ var DefaultDataPanelDef = {
     { type: "chartSpecific", isOpen: true }
   ]
 };
-var ChartDataPanel = class extends Component68 {
+var ChartDataPanel = class extends Component76 {
   constructor(chartMenuContext) {
     super(
       /* html */
@@ -59610,7 +62626,7 @@ var ChartDataPanel = class extends Component68 {
       this.recreatePanels(dimensionCols, valueCols);
     }
     const isSwitchCategorySeriesDisplayed = supportsInvertedCategorySeries(this.chartType) && this.chartSvc.isEnterprise() && !this.chartController.isGrouping();
-    _setDisplayed24(this.switchCategorySeriesToggle.getGui(), isSwitchCategorySeriesDisplayed);
+    _setDisplayed27(this.switchCategorySeriesToggle.getGui(), isSwitchCategorySeriesDisplayed);
     if (hasChangedSwitchCategorySeries) {
       this.switchCategorySeriesToggle?.setValue(this.chartController.isCategorySeriesSwitched());
     }
@@ -59677,7 +62693,7 @@ var ChartDataPanel = class extends Component68 {
         this.chartSpecificPanel = this.createBean(new ChartSpecificDataPanel(this.chartMenuContext, isOpen));
         this.panels.push(this.chartSpecificPanel);
       } else {
-        _warn63(144, { type });
+        _warn64(144, { type });
       }
     });
     (isCategorySeriesSwitched ? this.categoriesDataPanel : this.seriesDataPanel)?.addItem(
@@ -59752,25 +62768,25 @@ var ChartDataPanel = class extends Component68 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/formatPanel.ts
-import { Component as Component91, _warn as _warn64 } from "ag-grid-community";
+import { Component as Component99, _warn as _warn65 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/axis/cartesianAxisPanel.ts
 import {
   AgCheckbox as AgCheckbox2,
   AgSelectSelector as AgSelectSelector3,
-  Component as Component72,
-  RefPlaceholder as RefPlaceholder56,
-  _removeFromParent as _removeFromParent14,
-  _setDisplayed as _setDisplayed25
+  Component as Component80,
+  RefPlaceholder as RefPlaceholder59,
+  _removeFromParent as _removeFromParent15,
+  _setDisplayed as _setDisplayed28
 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/widgets/agAngleSelect.ts
 import {
   AgAbstractLabel as AgAbstractLabel2,
   AgInputNumberFieldSelector as AgInputNumberFieldSelector3,
-  RefPlaceholder as RefPlaceholder53,
+  RefPlaceholder as RefPlaceholder56,
   _exists as _exists28,
-  _getActiveDomElement as _getActiveDomElement16,
+  _getActiveDomElement as _getActiveDomElement18,
   _setFixedWidth
 } from "ag-grid-community";
 var AgAngleSelect = class extends AgAbstractLabel2 {
@@ -59791,10 +62807,10 @@ var AgAngleSelect = class extends AgAbstractLabel2 {
         </div>`,
       [AgInputNumberFieldSelector3]
     );
-    this.eLabel = RefPlaceholder53;
-    this.eParentCircle = RefPlaceholder53;
-    this.eChildCircle = RefPlaceholder53;
-    this.eAngleValue = RefPlaceholder53;
+    this.eLabel = RefPlaceholder56;
+    this.eParentCircle = RefPlaceholder56;
+    this.eChildCircle = RefPlaceholder56;
+    this.eAngleValue = RefPlaceholder56;
     this.radius = 0;
     this.offsetX = 0;
     this.offsetY = 0;
@@ -59839,7 +62855,7 @@ var AgAngleSelect = class extends AgAbstractLabel2 {
     }
     this.addManagedListeners(this, {
       fieldValueChanged: () => {
-        if (this.eAngleValue.getInputElement().contains(_getActiveDomElement16(this.beans))) {
+        if (this.eAngleValue.getInputElement().contains(_getActiveDomElement18(this.beans))) {
           return;
         }
         this.updateNumberInput();
@@ -59970,15 +62986,15 @@ var AgAngleSelect = class extends AgAbstractLabel2 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/fontPanel.ts
-import { AgSelectSelector as AgSelectSelector2, Component as Component69, RefPlaceholder as RefPlaceholder54, _removeFromParent as _removeFromParent13 } from "ag-grid-community";
+import { AgSelectSelector as AgSelectSelector2, Component as Component77, RefPlaceholder as RefPlaceholder57, _removeFromParent as _removeFromParent14 } from "ag-grid-community";
 function _capitalise(str) {
   return str[0].toUpperCase() + str.substring(1).toLowerCase();
 }
-var FontPanel = class extends Component69 {
+var FontPanel = class extends Component77 {
   constructor(params) {
     super();
     this.params = params;
-    this.fontGroup = RefPlaceholder54;
+    this.fontGroup = RefPlaceholder57;
     this.activeComps = [];
     this.chartOptions = params.chartMenuParamsFactory.getChartOptions();
   }
@@ -60131,7 +63147,7 @@ var FontPanel = class extends Component69 {
   }
   destroyActiveComps() {
     for (const comp of this.activeComps) {
-      _removeFromParent13(comp.getGui());
+      _removeFromParent14(comp.getGui());
       this.destroyBean(comp);
     }
   }
@@ -60155,12 +63171,12 @@ var FontPanel = class extends Component69 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/axis/axisTicksPanel.ts
-import { Component as Component70, RefPlaceholder as RefPlaceholder55 } from "ag-grid-community";
-var AxisTicksPanel = class extends Component70 {
+import { Component as Component78, RefPlaceholder as RefPlaceholder58 } from "ag-grid-community";
+var AxisTicksPanel = class extends Component78 {
   constructor(chartMenuUtils) {
     super();
     this.chartMenuUtils = chartMenuUtils;
-    this.axisTicksSizeSlider = RefPlaceholder55;
+    this.axisTicksSizeSlider = RefPlaceholder58;
   }
   wireBeans(beans) {
     this.chartTranslation = beans.chartTranslation;
@@ -60202,8 +63218,8 @@ var AxisTicksPanel = class extends Component70 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/axis/gridLinePanel.ts
-import { Component as Component71 } from "ag-grid-community";
-var GridLinePanel = class extends Component71 {
+import { Component as Component79 } from "ag-grid-community";
+var GridLinePanel = class extends Component79 {
   constructor(chartMenuUtils) {
     super();
     this.chartMenuUtils = chartMenuUtils;
@@ -60275,15 +63291,15 @@ var GridLinePanel = class extends Component71 {
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/axis/cartesianAxisPanel.ts
 var DEFAULT_TIME_AXIS_FORMAT = "%d %B %Y";
-var CartesianAxisPanel = class extends Component72 {
+var CartesianAxisPanel = class extends Component80 {
   constructor(axisType, options) {
     super();
     this.axisType = axisType;
     this.options = options;
-    this.axisGroup = RefPlaceholder56;
-    this.axisTypeSelect = RefPlaceholder56;
-    this.axisPositionSelect = RefPlaceholder56;
-    this.axisTimeFormatSelect = RefPlaceholder56;
+    this.axisGroup = RefPlaceholder59;
+    this.axisTypeSelect = RefPlaceholder59;
+    this.axisPositionSelect = RefPlaceholder59;
+    this.axisTimeFormatSelect = RefPlaceholder59;
     this.activePanels = [];
     this.updateFuncs = [];
     const { chartOptionsService, seriesType, chartController } = options;
@@ -60345,7 +63361,7 @@ var CartesianAxisPanel = class extends Component72 {
     }
     const updateTimeFormatVisibility = () => {
       const isTimeAxis = chartAxisOptionsProxy.getValue("type") === "time";
-      _setDisplayed25(this.axisTimeFormatSelect.getGui(), isTimeAxis);
+      _setDisplayed28(this.axisTimeFormatSelect.getGui(), isTimeAxis);
     };
     if (!axisTimeFormatSelectParams) {
       this.removeTemplateComponent(this.axisTimeFormatSelect);
@@ -60625,12 +63641,12 @@ var CartesianAxisPanel = class extends Component72 {
     return this.chartTranslation.translate(key);
   }
   removeTemplateComponent(component) {
-    _removeFromParent14(component.getGui());
+    _removeFromParent15(component.getGui());
     this.destroyBean(component);
   }
   destroyActivePanels() {
     for (const panel of this.activePanels) {
-      _removeFromParent14(panel.getGui());
+      _removeFromParent15(panel.getGui());
       this.destroyBean(panel);
     }
   }
@@ -60641,18 +63657,18 @@ var CartesianAxisPanel = class extends Component72 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/axis/polarAxisPanel.ts
-import { AgSelect as AgSelect7, Component as Component73, RefPlaceholder as RefPlaceholder57 } from "ag-grid-community";
-var PolarAxisPanel = class extends Component73 {
+import { AgSelect as AgSelect7, Component as Component81, RefPlaceholder as RefPlaceholder60 } from "ag-grid-community";
+var PolarAxisPanel = class extends Component81 {
   constructor(options) {
     super();
     this.options = options;
-    this.axisGroup = RefPlaceholder57;
+    this.axisGroup = RefPlaceholder60;
   }
   wireBeans(beans) {
     this.chartTranslation = beans.chartTranslation;
   }
   postConstruct() {
-    const { isExpandedOnInit: expanded, chartAxisMenuParamsFactory, registerGroupComponent } = this.options;
+    const { isExpandedOnInit: expanded, chartOptionsService, registerGroupComponent } = this.options;
     const axisGroupParams = {
       cssIdentifier: "charts-format-top-level",
       direction: "vertical",
@@ -60660,12 +63676,11 @@ var PolarAxisPanel = class extends Component73 {
       expanded,
       suppressEnabledCheckbox: true
     };
-    const axisColorInputParams = chartAxisMenuParamsFactory.getDefaultColorPickerParams("line.stroke");
-    const axisLineWidthSliderParams = chartAxisMenuParamsFactory.getDefaultSliderParams(
-      "line.width",
-      "thickness",
-      10
+    const chartAxisThemeOverrides = this.createManagedBean(
+      new ChartMenuParamsFactory(chartOptionsService.getPolarAxisThemeOverridesProxy("angle"))
     );
+    const axisColorInputParams = chartAxisThemeOverrides.getDefaultColorPickerParams("line.stroke");
+    const axisLineWidthSliderParams = chartAxisThemeOverrides.getDefaultSliderParams("line.width", "thickness", 10);
     this.setTemplate(
       /* html */
       `<div>
@@ -60682,11 +63697,11 @@ var PolarAxisPanel = class extends Component73 {
       }
     );
     registerGroupComponent(this.axisGroup);
-    this.initAxis();
-    this.initAxisLabels();
-    this.initRadiusAxis();
+    this.initAxis(chartAxisThemeOverrides);
+    this.initAxisLabels(chartAxisThemeOverrides);
+    this.initRadiusAxis(chartAxisThemeOverrides);
   }
-  initAxis() {
+  initAxis(chartAxisThemeOverrides) {
     const chartType = this.options.chartController.getChartType();
     const hasConfigurableAxisShape = ["radarLine", "radarArea"].includes(chartType);
     if (hasConfigurableAxisShape) {
@@ -60696,6 +63711,7 @@ var PolarAxisPanel = class extends Component73 {
       ];
       this.axisGroup.addItem(
         this.createSelect({
+          chartAxisThemeOverrides,
           labelKey: "shape",
           options,
           property: "shape"
@@ -60705,6 +63721,7 @@ var PolarAxisPanel = class extends Component73 {
     if (chartType !== "pie") {
       this.axisGroup.addItem(
         this.createSlider({
+          chartAxisThemeOverrides,
           labelKey: "innerRadius",
           defaultMaxValue: 1,
           property: "innerRadiusRatio"
@@ -60712,43 +63729,46 @@ var PolarAxisPanel = class extends Component73 {
       );
     }
   }
-  initAxisLabels() {
+  initAxisLabels(chartAxisThemeOverrides) {
     const params = {
       name: this.translate("labels"),
       enabled: true,
       suppressEnabledCheckbox: true,
-      chartMenuParamsFactory: this.options.chartAxisMenuParamsFactory,
+      chartMenuParamsFactory: chartAxisThemeOverrides,
       keyMapper: (key) => `label.${key}`
     };
     const labelPanelComp = this.createManagedBean(new FontPanel(params));
-    const labelOrientationComp = this.createOrientationWidget();
+    const labelOrientationComp = this.createOrientationWidget(chartAxisThemeOverrides);
     labelPanelComp.addItem(labelOrientationComp);
     this.axisGroup.addItem(labelPanelComp);
   }
-  createOrientationWidget() {
+  createOrientationWidget(chartAxisThemeOverrides) {
     const options = [
       { value: "fixed", text: this.translate("fixed") },
       { value: "parallel", text: this.translate("parallel") },
       { value: "perpendicular", text: this.translate("perpendicular") }
     ];
     return this.createSelect({
+      chartAxisThemeOverrides,
       labelKey: "orientation",
       options,
       property: "label.orientation"
     });
   }
-  initRadiusAxis() {
+  initRadiusAxis(chartAxisThemeOverrides) {
     const chartSeriesType = getSeriesType(this.options.chartController.getChartType());
     if (!isRadial(chartSeriesType)) {
       return;
     }
     const items = [
       this.createSlider({
+        chartAxisThemeOverrides,
         labelKey: "groupPadding",
         defaultMaxValue: 1,
         property: "paddingInner"
       }),
       this.createSlider({
+        chartAxisThemeOverrides,
         labelKey: "seriesPadding",
         defaultMaxValue: 1,
         property: "groupPaddingInner"
@@ -60768,19 +63788,15 @@ var PolarAxisPanel = class extends Component73 {
     this.axisGroup.addItem(paddingPanelComp);
   }
   createSlider(config) {
-    const { labelKey, defaultMaxValue, step = 0.05, property } = config;
-    const params = this.options.chartAxisMenuParamsFactory.getDefaultSliderParams(
-      property,
-      labelKey,
-      defaultMaxValue
-    );
+    const { labelKey, defaultMaxValue, step = 0.05, property, chartAxisThemeOverrides } = config;
+    const params = chartAxisThemeOverrides.getDefaultSliderParams(property, labelKey, defaultMaxValue);
     params.step = step;
     return this.createManagedBean(new AgSlider(params));
   }
   createSelect(config) {
-    const { labelKey, options, property } = config;
+    const { labelKey, options, property, chartAxisThemeOverrides } = config;
     return this.createManagedBean(
-      new AgSelect7(this.options.chartAxisMenuParamsFactory.getDefaultSelectParams(property, labelKey, options))
+      new AgSelect7(chartAxisThemeOverrides.getDefaultSelectParams(property, labelKey, options))
     );
   }
   translate(key) {
@@ -60789,11 +63805,11 @@ var PolarAxisPanel = class extends Component73 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/chart/chartPanel.ts
-import { Component as Component76, RefPlaceholder as RefPlaceholder59 } from "ag-grid-community";
+import { Component as Component84, RefPlaceholder as RefPlaceholder62 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/chart/backgroundPanel.ts
-import { Component as Component74 } from "ag-grid-community";
-var BackgroundPanel = class extends Component74 {
+import { Component as Component82 } from "ag-grid-community";
+var BackgroundPanel = class extends Component82 {
   constructor(chartMenuUtils) {
     super();
     this.chartMenuUtils = chartMenuUtils;
@@ -60831,13 +63847,13 @@ var BackgroundPanel = class extends Component74 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/chart/paddingPanel.ts
-import { Component as Component75, RefPlaceholder as RefPlaceholder58 } from "ag-grid-community";
-var PaddingPanel = class extends Component75 {
+import { Component as Component83, RefPlaceholder as RefPlaceholder61 } from "ag-grid-community";
+var PaddingPanel = class extends Component83 {
   constructor(chartMenuUtils, chartController) {
     super();
     this.chartMenuUtils = chartMenuUtils;
     this.chartController = chartController;
-    this.paddingTopSlider = RefPlaceholder58;
+    this.paddingTopSlider = RefPlaceholder61;
   }
   wireBeans(beans) {
     this.chartTranslation = beans.chartTranslation;
@@ -60885,11 +63901,11 @@ var PaddingPanel = class extends Component75 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/chart/chartPanel.ts
-var ChartPanel = class extends Component76 {
+var ChartPanel = class extends Component84 {
   constructor(options) {
     super();
     this.options = options;
-    this.chartGroup = RefPlaceholder59;
+    this.chartGroup = RefPlaceholder62;
   }
   wireBeans(beans) {
     this.chartTranslation = beans.chartTranslation;
@@ -60925,8 +63941,8 @@ var ChartPanel = class extends Component76 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/groupExpansionFeature.ts
-import { BeanStub as BeanStub99 } from "ag-grid-community";
-var GroupExpansionFeature = class extends BeanStub99 {
+import { BeanStub as BeanStub107 } from "ag-grid-community";
+var GroupExpansionFeature = class extends BeanStub107 {
   constructor(groupContainer) {
     super();
     this.groupContainer = groupContainer;
@@ -60967,13 +63983,13 @@ var GroupExpansionFeature = class extends BeanStub99 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/legend/legendPanel.ts
-import { AgCheckbox as AgCheckbox3, AgSelect as AgSelect8, Component as Component77, RefPlaceholder as RefPlaceholder60 } from "ag-grid-community";
-var LegendPanel = class extends Component77 {
+import { AgCheckbox as AgCheckbox3, AgSelect as AgSelect8, Component as Component85, RefPlaceholder as RefPlaceholder63 } from "ag-grid-community";
+var LegendPanel = class extends Component85 {
   constructor(options, chartMenuContext) {
     super();
     this.options = options;
-    this.legendGroup = RefPlaceholder60;
-    this.enabledGroup = RefPlaceholder60;
+    this.legendGroup = RefPlaceholder63;
+    this.enabledGroup = RefPlaceholder63;
     this.isGradient = ["treemap", "sunburst", "heatmap"].includes(options.seriesType);
     this.key = this.isGradient ? "gradientLegend" : "legend";
     this.chartController = chartMenuContext.chartController;
@@ -61090,15 +64106,15 @@ var LegendPanel = class extends Component77 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/series/seriesPanel.ts
-import { AgSelect as AgSelect9, Component as Component88, RefPlaceholder as RefPlaceholder64, _error as _error9, _removeFromParent as _removeFromParent17 } from "ag-grid-community";
+import { AgSelect as AgSelect9, Component as Component96, RefPlaceholder as RefPlaceholder67, _error as _error14, _removeFromParent as _removeFromParent18 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/toggleablePanel.ts
-import { Component as Component78, RefPlaceholder as RefPlaceholder61, _removeFromParent as _removeFromParent15 } from "ag-grid-community";
-var ToggleablePanel = class extends Component78 {
+import { Component as Component86, RefPlaceholder as RefPlaceholder64, _removeFromParent as _removeFromParent16 } from "ag-grid-community";
+var ToggleablePanel = class extends Component86 {
   constructor(params) {
     super();
     this.params = params;
-    this.toggleableGroup = RefPlaceholder61;
+    this.toggleableGroup = RefPlaceholder64;
     this.activeComps = [];
     this.chartOptions = params.chartMenuParamsFactory.getChartOptions();
   }
@@ -61138,7 +64154,7 @@ var ToggleablePanel = class extends Component78 {
   }
   destroyActiveComps() {
     for (const comp of this.activeComps) {
-      _removeFromParent15(comp.getGui());
+      _removeFromParent16(comp.getGui());
       this.destroyBean(comp);
     }
   }
@@ -61149,8 +64165,8 @@ var ToggleablePanel = class extends Component78 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/series/calloutPanel.ts
-import { Component as Component79 } from "ag-grid-community";
-var CalloutPanel = class extends Component79 {
+import { Component as Component87 } from "ag-grid-community";
+var CalloutPanel = class extends Component87 {
   constructor(chartMenuUtils) {
     super();
     this.chartMenuUtils = chartMenuUtils;
@@ -61192,8 +64208,8 @@ var CalloutPanel = class extends Component79 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/series/capsPanel.ts
-import { Component as Component80 } from "ag-grid-community";
-var CapsPanel = class extends Component80 {
+import { Component as Component88 } from "ag-grid-community";
+var CapsPanel = class extends Component88 {
   constructor(chartMenuUtils) {
     super();
     this.chartMenuUtils = chartMenuUtils;
@@ -61233,8 +64249,8 @@ var CapsPanel = class extends Component80 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/series/connectorLinePanel.ts
-import { Component as Component81 } from "ag-grid-community";
-var ConnectorLinePanel = class extends Component81 {
+import { Component as Component89 } from "ag-grid-community";
+var ConnectorLinePanel = class extends Component89 {
   constructor(chartMenuUtils) {
     super();
     this.chartMenuUtils = chartMenuUtils;
@@ -61279,7 +64295,7 @@ var ConnectorLinePanel = class extends Component81 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/series/markersPanel.ts
-import { AgSelectSelector as AgSelectSelector4, Component as Component82 } from "ag-grid-community";
+import { AgSelectSelector as AgSelectSelector4, Component as Component90 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/series/seriesUtils.ts
 function getShapeSelectOptions(chartTranslation) {
@@ -61290,7 +64306,7 @@ function getShapeSelectOptions(chartTranslation) {
 }
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/series/markersPanel.ts
-var MarkersPanel = class extends Component82 {
+var MarkersPanel = class extends Component90 {
   constructor(chartMenuUtils) {
     super();
     this.chartMenuUtils = chartMenuUtils;
@@ -61336,12 +64352,12 @@ var MarkersPanel = class extends Component82 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/series/seriesItemsPanel.ts
-import { AgSelectSelector as AgSelectSelector5, Component as Component83, RefPlaceholder as RefPlaceholder62, _removeFromParent as _removeFromParent16 } from "ag-grid-community";
-var SeriesItemsPanel = class extends Component83 {
+import { AgSelectSelector as AgSelectSelector5, Component as Component91, RefPlaceholder as RefPlaceholder65, _removeFromParent as _removeFromParent17 } from "ag-grid-community";
+var SeriesItemsPanel = class extends Component91 {
   constructor(chartMenuUtils) {
     super();
     this.chartMenuUtils = chartMenuUtils;
-    this.seriesItemsGroup = RefPlaceholder62;
+    this.seriesItemsGroup = RefPlaceholder65;
     this.activePanels = [];
   }
   wireBeans(beans) {
@@ -61412,7 +64428,7 @@ var SeriesItemsPanel = class extends Component83 {
   }
   destroyActivePanels() {
     for (const panel of this.activePanels) {
-      _removeFromParent16(panel.getGui());
+      _removeFromParent17(panel.getGui());
       this.destroyBean(panel);
     }
   }
@@ -61423,8 +64439,8 @@ var SeriesItemsPanel = class extends Component83 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/series/shadowPanel.ts
-import { Component as Component84 } from "ag-grid-community";
-var ShadowPanel = class extends Component84 {
+import { Component as Component92 } from "ag-grid-community";
+var ShadowPanel = class extends Component92 {
   constructor(chartMenuUtils, propertyKey = "shadow") {
     super();
     this.chartMenuUtils = chartMenuUtils;
@@ -61476,8 +64492,8 @@ var ShadowPanel = class extends Component84 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/series/tileSpacingPanel.ts
-import { Component as Component85 } from "ag-grid-community";
-var TileSpacingPanel = class extends Component85 {
+import { Component as Component93 } from "ag-grid-community";
+var TileSpacingPanel = class extends Component93 {
   constructor(chartMenuUtils) {
     super();
     this.chartMenuUtils = chartMenuUtils;
@@ -61522,15 +64538,15 @@ var TileSpacingPanel = class extends Component85 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/series/tooltipPanel.ts
-import { AgSelectSelector as AgSelectSelector6, Component as Component86, RefPlaceholder as RefPlaceholder63 } from "ag-grid-community";
+import { AgSelectSelector as AgSelectSelector6, Component as Component94, RefPlaceholder as RefPlaceholder66 } from "ag-grid-community";
 function _capitalise2(str) {
   return str[0].toUpperCase() + str.substring(1);
 }
-var TooltipPanel = class extends Component86 {
+var TooltipPanel = class extends Component94 {
   constructor(chartMenuUtils) {
     super();
     this.chartMenuUtils = chartMenuUtils;
-    this.tooltipMode = RefPlaceholder63;
+    this.tooltipMode = RefPlaceholder66;
   }
   postConstruct() {
     const { chartMenuUtils, beans } = this;
@@ -61578,8 +64594,8 @@ var TooltipPanel = class extends Component86 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/series/whiskersPanel.ts
-import { Component as Component87 } from "ag-grid-community";
-var WhiskersPanel = class extends Component87 {
+import { Component as Component95 } from "ag-grid-community";
+var WhiskersPanel = class extends Component95 {
   constructor(chartMenuUtils) {
     super();
     this.chartMenuUtils = chartMenuUtils;
@@ -61648,11 +64664,11 @@ var labels = "labels";
 var shadow = "shadow";
 var stageLabels = "stageLabels";
 var markers = "markers";
-var SeriesPanel = class extends Component88 {
+var SeriesPanel = class extends Component96 {
   constructor(options) {
     super();
     this.options = options;
-    this.seriesGroup = RefPlaceholder64;
+    this.seriesGroup = RefPlaceholder67;
     this.activePanels = [];
     this.widgetFuncs = {
       lineWidth: () => this.initStrokeWidth(lineWidth),
@@ -61765,7 +64781,7 @@ var SeriesPanel = class extends Component88 {
         this.seriesGroup.addItem(widget);
         this.activePanels.push(widget);
       }
-    }).catch((e) => _error9(105, { e }));
+    }).catch((e) => _error14(105, { e }));
   }
   initSeriesSelect() {
     const seriesSelect = this.createBean(
@@ -61919,7 +64935,7 @@ var SeriesPanel = class extends Component88 {
   }
   destroyActivePanels() {
     for (const panel of this.activePanels) {
-      _removeFromParent17(panel.getGui());
+      _removeFromParent18(panel.getGui());
       this.destroyBean(panel);
     }
   }
@@ -61930,11 +64946,11 @@ var SeriesPanel = class extends Component88 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/titles/titlesPanel.ts
-import { Component as Component90, RefPlaceholder as RefPlaceholder65 } from "ag-grid-community";
+import { Component as Component98, RefPlaceholder as RefPlaceholder68 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/titles/titlePanel.ts
-import { AgInputTextField as AgInputTextField4, Component as Component89 } from "ag-grid-community";
-var TitlePanel = class extends Component89 {
+import { AgInputTextField as AgInputTextField4, Component as Component97 } from "ag-grid-community";
+var TitlePanel = class extends Component97 {
   constructor(chartMenuUtils, name, key) {
     super(
       /* html */
@@ -62028,11 +65044,11 @@ var ChartTitlePanel = class extends TitlePanel {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/format/titles/titlesPanel.ts
-var TitlesPanel = class extends Component90 {
+var TitlesPanel = class extends Component98 {
   constructor(options) {
     super();
     this.options = options;
-    this.titleGroup = RefPlaceholder65;
+    this.titleGroup = RefPlaceholder68;
   }
   wireBeans(beans) {
     this.chartTranslation = beans.chartTranslation;
@@ -62091,7 +65107,7 @@ var DefaultFormatPanelDef = {
   groups: [{ type: "chart" }, { type: "titles" }, { type: "legend" }, { type: "series" }, { type: "axis" }]
 };
 var AXIS_KEYS = ["axis", "horizontalAxis", "verticalAxis"];
-var FormatPanel = class extends Component91 {
+var FormatPanel = class extends Component99 {
   constructor(chartMenuContext) {
     super(
       /* html */
@@ -62119,7 +65135,7 @@ var FormatPanel = class extends Component91 {
       }
       if (isExpandedOnInit) {
         if (panelExpandedOnInit) {
-          _warn64(145, { group });
+          _warn65(145, { group });
         }
         panelExpandedOnInit = true;
       }
@@ -62158,7 +65174,7 @@ var FormatPanel = class extends Component91 {
           this.chartPanelFeature.addComponent(new SeriesPanel(opts));
           break;
         default:
-          _warn64(147, { group });
+          _warn65(147, { group });
       }
     });
   }
@@ -62175,23 +65191,23 @@ var FormatPanel = class extends Component91 {
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/settings/chartSettingsPanel.ts
 import {
-  Component as Component94,
-  RefPlaceholder as RefPlaceholder66,
-  _areEqual as _areEqual8,
-  _clearElement as _clearElement22,
-  _createIconNoSpan as _createIconNoSpan27,
+  Component as Component102,
+  RefPlaceholder as RefPlaceholder69,
+  _areEqual as _areEqual9,
+  _clearElement as _clearElement24,
+  _createIconNoSpan as _createIconNoSpan29,
   _getAbsoluteWidth as _getAbsoluteWidth2,
   _radioCssClass as _radioCssClass2,
-  _setDisplayed as _setDisplayed26
+  _setDisplayed as _setDisplayed29
 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/settings/miniChartsContainer.ts
-import { Component as Component93, KeyCode as KeyCode34, _setAriaLabel as _setAriaLabel21, _warn as _warn65 } from "ag-grid-community";
+import { Component as Component101, KeyCode as KeyCode36, _setAriaLabel as _setAriaLabel22, _warn as _warn66 } from "ag-grid-community";
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/settings/miniCharts/miniChart.ts
-import { Component as Component92, _error as _error10 } from "ag-grid-community";
+import { Component as Component100, _error as _error15 } from "ag-grid-community";
 var CANVAS_CLASS = "ag-chart-mini-thumbnail-canvas";
-var MiniChart = class extends Component92 {
+var MiniChart = class extends Component100 {
   constructor(container, agChartsExports, tooltipName) {
     super();
     this.agChartsExports = agChartsExports;
@@ -62221,7 +65237,7 @@ var MiniChart = class extends Component92 {
     try {
       this.scene.render();
     } catch (e) {
-      _error10(108, { e });
+      _error15(108, { e });
     }
   }
 };
@@ -64368,7 +67384,7 @@ var DEFAULT_CHART_GROUPS = {
   funnelGroup: ["funnel", "coneFunnel", "pyramid"],
   combinationGroup: ["columnLineCombo", "areaColumnCombo", "customCombo"]
 };
-var MiniChartsContainer = class extends Component93 {
+var MiniChartsContainer = class extends Component101 {
   constructor(chartController, fills, strokes, isCustomTheme, chartGroups = DEFAULT_CHART_GROUPS) {
     super(
       /* html */
@@ -64397,14 +67413,14 @@ var MiniChartsContainer = class extends Component93 {
     const displayedMenuGroups = Object.keys(this.chartGroups).map((group) => {
       const menuGroup = group in miniChartMapping ? miniChartMapping[group] : void 0;
       if (!menuGroup) {
-        _warn65(148, { group });
+        _warn66(148, { group });
         return null;
       }
       const chartGroupValues = this.chartGroups[group] ?? [];
       const menuItems = chartGroupValues.map((chartType) => {
         const menuItem = chartType in menuGroup ? menuGroup[chartType] : void 0;
         if (!menuItem) {
-          _warn65(149, { group, chartType });
+          _warn66(149, { group, chartType });
           return null;
         }
         if (!isEnterprise && menuItem.enterprise) {
@@ -64452,7 +67468,7 @@ var MiniChartsContainer = class extends Component93 {
         this.addManagedListeners(miniWrapper, {
           click: listener,
           keydown: (event) => {
-            if (event.key == KeyCode34.ENTER || event.key === KeyCode34.SPACE) {
+            if (event.key == KeyCode36.ENTER || event.key === KeyCode36.SPACE) {
               event.preventDefault();
               listener();
             }
@@ -64475,7 +67491,7 @@ var MiniChartsContainer = class extends Component93 {
       miniChart.classList.toggle("ag-selected", selected);
       const chartName = this.chartTranslation.translate(getFullChartNameTranslationKey(miniChartType));
       const ariaLabel = selected ? `${chartName}. ${this.chartTranslation.translate("ariaChartSelected")}` : chartName;
-      _setAriaLabel21(miniChart, ariaLabel);
+      _setAriaLabel22(miniChart, ariaLabel);
     });
   }
   destroy() {
@@ -64485,7 +67501,7 @@ var MiniChartsContainer = class extends Component93 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/settings/chartSettingsPanel.ts
-var ChartSettingsPanel = class extends Component94 {
+var ChartSettingsPanel = class extends Component102 {
   constructor(chartController) {
     super(
       /* html */
@@ -64503,11 +67519,11 @@ var ChartSettingsPanel = class extends Component94 {
         </div>`
     );
     this.chartController = chartController;
-    this.eMiniChartsContainer = RefPlaceholder66;
-    this.eNavBar = RefPlaceholder66;
-    this.eCardSelector = RefPlaceholder66;
-    this.ePrevBtn = RefPlaceholder66;
-    this.eNextBtn = RefPlaceholder66;
+    this.eMiniChartsContainer = RefPlaceholder69;
+    this.eNavBar = RefPlaceholder69;
+    this.eCardSelector = RefPlaceholder69;
+    this.ePrevBtn = RefPlaceholder69;
+    this.eNextBtn = RefPlaceholder69;
     this.miniChartsContainers = [];
     this.cardItems = [];
     this.activePaletteIndex = 0;
@@ -64519,11 +67535,11 @@ var ChartSettingsPanel = class extends Component94 {
     const isRtl = this.gos.get("enableRtl");
     this.ePrevBtn.insertAdjacentElement(
       "afterbegin",
-      _createIconNoSpan27(isRtl ? "chartsThemeNext" : "chartsThemePrevious", this.beans)
+      _createIconNoSpan29(isRtl ? "chartsThemeNext" : "chartsThemePrevious", this.beans)
     );
     this.eNextBtn.insertAdjacentElement(
       "afterbegin",
-      _createIconNoSpan27(isRtl ? "chartsThemePrevious" : "chartsThemeNext", this.beans)
+      _createIconNoSpan29(isRtl ? "chartsThemePrevious" : "chartsThemeNext", this.beans)
     );
     this.addManagedElementListeners(this.ePrevBtn, { click: () => this.setActivePalette(this.getPrev(), "left") });
     this.addManagedElementListeners(this.eNextBtn, { click: () => this.setActivePalette(this.getNext(), "right") });
@@ -64552,14 +67568,14 @@ var ChartSettingsPanel = class extends Component94 {
   resetPalettes(forceReset) {
     const palettes = this.chartController.getPalettes();
     const chartGroups = this.gos.get("chartToolPanelsDef")?.settingsPanel?.chartGroupsDef;
-    if (_areEqual8(palettes, this.palettes) && !forceReset || this.isAnimating) {
+    if (_areEqual9(palettes, this.palettes) && !forceReset || this.isAnimating) {
       return;
     }
     this.palettes = palettes;
     this.themes = this.chartController.getThemeNames();
     this.activePaletteIndex = this.themes.findIndex((name) => name === this.chartController.getChartThemeName());
     this.cardItems = [];
-    _clearElement22(this.eCardSelector);
+    _clearElement24(this.eCardSelector);
     this.destroyMiniCharts();
     const { themes } = this;
     this.palettes.forEach((palette, index) => {
@@ -64579,7 +67595,7 @@ var ChartSettingsPanel = class extends Component94 {
         miniChartsContainer.setDisplayed(false);
       }
     });
-    _setDisplayed26(this.eNavBar, this.palettes.length > 1);
+    _setDisplayed29(this.eNavBar, this.palettes.length > 1);
     _radioCssClass2(this.cardItems[this.activePaletteIndex], "ag-selected", "ag-not-selected");
   }
   addCardLink(index) {
@@ -64639,7 +67655,7 @@ var ChartSettingsPanel = class extends Component94 {
     }, 300);
   }
   destroyMiniCharts() {
-    _clearElement22(this.eMiniChartsContainer);
+    _clearElement24(this.eMiniChartsContainer);
     this.miniChartsContainers = this.destroyBeans(this.miniChartsContainers);
   }
   destroy() {
@@ -64651,7 +67667,7 @@ var ChartSettingsPanel = class extends Component94 {
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/tabbedChartMenu.ts
 var TAB_DATA = "data";
 var TAB_FORMAT = "format";
-var TabbedChartMenu = class extends Component95 {
+var TabbedChartMenu = class extends Component103 {
   constructor(panels, chartMenuContext) {
     super();
     this.panels = panels;
@@ -64685,11 +67701,11 @@ var TabbedChartMenu = class extends Component95 {
     this.createBean(this.tabbedLayout);
   }
   createTab(name, title, panelComp) {
-    const eWrapperDiv = _createElement19({ tag: "div", cls: `ag-chart-tab ag-chart-${title}` });
+    const eWrapperDiv = _createElement23({ tag: "div", cls: `ag-chart-tab ag-chart-${title}` });
     this.createBean(panelComp);
     eWrapperDiv.appendChild(panelComp.getGui());
     const translatedTitle = this.chartTranslation.translate(title);
-    const titleEl = _createElement19({ tag: "div", children: translatedTitle });
+    const titleEl = _createElement23({ tag: "div", children: translatedTitle });
     return {
       title: titleEl,
       titleLabel: translatedTitle,
@@ -64733,7 +67749,7 @@ var TabbedChartMenu = class extends Component95 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/menu/chartMenu.ts
-var ChartMenu = class extends Component96 {
+var ChartMenu = class extends Component104 {
   constructor(eChartContainer, eMenuPanelContainer, chartMenuContext) {
     super(
       /* html */
@@ -64853,7 +67869,7 @@ var ChartMenu = class extends Component96 {
       const menuPanel = panel || this.defaultPanel;
       let tab = this.panels.indexOf(menuPanel);
       if (tab < 0) {
-        _warn66(143, { panel });
+        _warn67(143, { panel });
         tab = this.panels.indexOf(this.defaultPanel);
       }
       if (this.menuPanel) {
@@ -64892,11 +67908,11 @@ var ChartMenu = class extends Component96 {
 };
 
 // packages/ag-grid-enterprise/src/charts/chartComp/services/chartOptionsService.ts
-import { BeanStub as BeanStub100, _error as _error11 } from "ag-grid-community";
+import { BeanStub as BeanStub108, _error as _error16 } from "ag-grid-community";
 var CARTESIAN_AXIS_TYPES = ["number", "category", "time", "grouped-category"];
 var POLAR_AXIS_TYPES = ["angle-category", "angle-number", "radius-category", "radius-number"];
 var VALID_AXIS_TYPES = [...CARTESIAN_AXIS_TYPES, ...POLAR_AXIS_TYPES];
-var ChartOptionsService = class extends BeanStub100 {
+var ChartOptionsService = class extends BeanStub108 {
   constructor(chartController) {
     super();
     this.chartController = chartController;
@@ -64943,6 +67959,13 @@ var ChartOptionsService = class extends BeanStub100 {
         [{ expression: expression === "*" ? null : expression, value }]
       ),
       setValues: (properties) => this.setCartesianAxisThemeOverrides(axisType, properties)
+    };
+  }
+  getPolarAxisThemeOverridesProxy(axisType) {
+    return {
+      getValue: (expression) => this.getPolarAxisProperty(axisType, expression),
+      setValue: (expression, value) => this.setAxisThemeOverrides([{ expression, value }]),
+      setValues: (properties) => this.setAxisThemeOverrides(properties)
     };
   }
   getSeriesOptionsProxy(getSelectedSeries) {
@@ -65041,7 +68064,34 @@ var ChartOptionsService = class extends BeanStub100 {
     return expressions;
   }
   getChartOption(expression) {
-    return get(this.getChart(), expression, void 0);
+    return this.readProcessed({ kind: "chart" }, expression);
+  }
+  // Reads route through `chart.chartOptions.processedOptions` rather than the live runtime
+  // objects, which no longer expose module-provided config (e.g. crosshair) as plain properties.
+  readProcessed(scope, expression) {
+    const processed = this.getChart().chartOptions?.processedOptions;
+    if (!processed) {
+      return void 0;
+    }
+    let source;
+    switch (scope.kind) {
+      case "chart":
+        source = processed;
+        break;
+      case "axis":
+        source = this.pickProcessedAxis(processed.axes, scope.direction);
+        break;
+      case "series":
+        source = Array.isArray(processed.series) ? processed.series.find((s2) => isMatchingSeries(scope.seriesType, s2)) : void 0;
+        break;
+    }
+    return get(source, expression, void 0);
+  }
+  pickProcessedAxis(axes, direction) {
+    if (!axes || typeof axes !== "object") {
+      return void 0;
+    }
+    return axes[direction];
   }
   setChartThemeOverrides(properties) {
     const chartType = this.getChartType();
@@ -65063,31 +68113,17 @@ var ChartOptionsService = class extends BeanStub100 {
   }
   awaitChartOptionUpdate(func) {
     const chart = this.chartController.getChartProxy().getChart();
-    chart.waitForUpdate().then(() => func()).catch((e) => _error11(108, { e }));
+    chart.waitForUpdate().then(() => func()).catch((e) => _error16(108, { e }));
   }
   getAxisProperty(expression) {
-    return get(this.getChart().axes?.x, expression, void 0);
+    return this.readProcessed({ kind: "axis", direction: "x" }, expression);
   }
   setAxisThemeOverrides(properties) {
     const chart = this.getChart();
     const chartType = this.getChartType();
     const chartOptions = this.createChartOptions();
     for (const { expression, value } of properties) {
-      const relevantAxes = Object.values(chart.axes ?? {}).filter((axis) => {
-        const parts = expression.split(".");
-        let current = axis;
-        for (const part of parts) {
-          if (!(part in current)) {
-            return false;
-          }
-          current = current[part];
-        }
-        return true;
-      });
-      if (!relevantAxes) {
-        continue;
-      }
-      for (const axis of relevantAxes) {
+      for (const axis of Object.values(chart.axes ?? {})) {
         if (!this.isValidAxisType(axis)) {
           continue;
         }
@@ -65097,9 +68133,10 @@ var ChartOptionsService = class extends BeanStub100 {
     this.applyChartOptions(chartOptions);
   }
   getCartesianAxisProperty(axisType, expression) {
-    const axes = this.getChartAxes();
-    const axis = this.getCartesianAxis(axes, axisType);
-    return get(axis, expression, void 0);
+    return this.readProcessed({ kind: "axis", direction: axisType === "xAxis" ? "x" : "y" }, expression);
+  }
+  getPolarAxisProperty(axisType, expression) {
+    return this.readProcessed({ kind: "axis", direction: axisType }, expression);
   }
   getCartesianAxisThemeOverride(axisType, expression) {
     const axes = this.getChartAxes();
@@ -65198,8 +68235,11 @@ var ChartOptionsService = class extends BeanStub100 {
     }
   }
   getSeriesOption(seriesType, expression, calculated) {
-    const series = this.getChart().series.find((s2) => isMatchingSeries(seriesType, s2));
-    return get(calculated ? series : series?.properties.toJson(), expression, void 0);
+    if (calculated) {
+      const series = this.getChart().series.find((s2) => isMatchingSeries(seriesType, s2));
+      return get(series, expression, void 0);
+    }
+    return this.readProcessed({ kind: "series", seriesType }, expression);
   }
   setSeriesOptions(seriesType, properties) {
     const chartOptions = this.createChartOptions();
@@ -65345,7 +68385,7 @@ function isMatchingSeries(seriesType, series) {
 }
 
 // packages/ag-grid-enterprise/src/charts/chartComp/gridChartComp.ts
-var GridChartComp = class extends Component97 {
+var GridChartComp = class extends Component105 {
   constructor(params) {
     super(
       /* html */
@@ -65361,11 +68401,11 @@ var GridChartComp = class extends Component97 {
             </div>
             `
     );
-    this.eChart = RefPlaceholder67;
-    this.eWrapper = RefPlaceholder67;
-    this.eChartContainer = RefPlaceholder67;
-    this.eMenuContainer = RefPlaceholder67;
-    this.eEmpty = RefPlaceholder67;
+    this.eChart = RefPlaceholder70;
+    this.eWrapper = RefPlaceholder70;
+    this.eChartContainer = RefPlaceholder70;
+    this.eMenuContainer = RefPlaceholder70;
+    this.eEmpty = RefPlaceholder70;
     this.params = params;
   }
   wireBeans(beans) {
@@ -65445,13 +68485,13 @@ var GridChartComp = class extends Component97 {
       chartPaletteToRestore: this.params.chartPaletteToRestore,
       seriesChartTypes: this.chartController.getSeriesChartTypes(),
       translate: (toTranslate) => this.chartTranslation.translate(toTranslate),
-      context: _addGridCommonParams29(this.gos, {})
+      context: _addGridCommonParams32(this.gos, {})
     };
     this.params.chartOptionsToRestore = void 0;
     this.chartType = chartType;
     this.chartProxy = this.createChartProxy(chartProxyParams);
     if (!this.chartProxy) {
-      _warn67(138, { chartType: chartProxyParams.chartType });
+      _warn68(138, { chartType: chartProxyParams.chartType });
       return;
     }
     this.chartController.setChartProxy(this.chartProxy);
@@ -65524,7 +68564,7 @@ var GridChartComp = class extends Component97 {
   addDialog() {
     const title = this.chartTranslation.translate(this.params.pivotChart ? "pivotChartTitle" : "rangeChartTitle");
     const { width, height } = this.getBestDialogSize();
-    const afterGuiAttached = this.params.focusDialogOnOpen ? () => setTimeout(() => _focusInto11(this.getGui())) : void 0;
+    const afterGuiAttached = this.params.focusDialogOnOpen ? () => setTimeout(() => _focusInto12(this.getGui())) : void 0;
     this.chartDialog = new Dialog({
       resizable: true,
       movable: true,
@@ -65664,8 +68704,8 @@ var GridChartComp = class extends Component97 {
     const isEmptyChart = numFields < minFieldsRequired || data.length === 0;
     if (this.eChart) {
       const isEmpty = pivotModeDisabled || isEmptyChart;
-      _setDisplayed27(this.eChart, !isEmpty);
-      _setDisplayed27(this.eEmpty, isEmpty);
+      _setDisplayed30(this.eChart, !isEmpty);
+      _setDisplayed30(this.eEmpty, isEmpty);
     }
     if (pivotModeDisabled) {
       this.eEmpty.textContent = this.chartTranslation.translate("pivotChartRequiresPivotMode");
@@ -65728,7 +68768,7 @@ var GridChartComp = class extends Component97 {
     if (customChartThemes) {
       for (const customThemeName of this.getAllKeysInObjects([customChartThemes])) {
         if (!suppliedThemes.includes(customThemeName)) {
-          _warn67(139, { customThemeName });
+          _warn68(139, { customThemeName });
         }
       }
     }
@@ -65769,8 +68809,8 @@ var GridChartComp = class extends Component97 {
     }
     this.onDestroyColorSchemeChangeListener?.();
     const eGui = this.getGui();
-    _clearElement23(eGui);
-    _removeFromParent18(eGui);
+    _clearElement25(eGui);
+    _removeFromParent19(eGui);
     this.raiseChartDestroyedEvent();
   }
 };
@@ -66250,7 +69290,7 @@ function jsonRenameEnumValues(path, json, values) {
 var merge = (r, n) => ({ ...r, ...n });
 
 // packages/ag-grid-enterprise/src/charts/chartService.ts
-var ChartService = class extends BeanStub101 {
+var ChartService = class extends BeanStub109 {
   constructor() {
     super(...arguments);
     this.beanName = "chartSvc";
@@ -66271,12 +69311,12 @@ var ChartService = class extends BeanStub101 {
   }
   updateChart(params) {
     if (this.activeChartComps.size === 0) {
-      _warn68(124);
+      _warn69(124);
       return;
     }
     const chartComp = [...this.activeChartComps].find((chartComp2) => chartComp2.getChartId() === params.chartId);
     if (!chartComp) {
-      _warn68(125, { chartId: params.chartId });
+      _warn69(125, { chartId: params.chartId });
       return;
     }
     chartComp.update(params);
@@ -66336,7 +69376,7 @@ var ChartService = class extends BeanStub101 {
   }
   restoreChart(model, chartContainer) {
     if (!model) {
-      _warn68(126);
+      _warn69(126);
       return;
     }
     if (model.version !== VERSION) {
@@ -66455,7 +69495,7 @@ var ChartService = class extends BeanStub101 {
         }
       },
       focusChart: () => {
-        _focusInto12(chartComp.getGui());
+        _focusInto13(chartComp.getGui());
       },
       chartElement: chartComp.getGui(),
       chart: chartComp.getUnderlyingChart(),
@@ -66530,11 +69570,11 @@ var ChartService = class extends BeanStub101 {
       rowStartPinned: void 0,
       rowEndIndex: null,
       rowEndPinned: void 0,
-      columns: this.visibleCols.allCols.map((col) => col.getColId())
+      columns: this.visibleCols.allCols.map((col) => col.colId)
     } : cellRangeParams;
     const cellRange = rangeParams && this.rangeSvc?.createPartialCellRangeFromRangeParams(rangeParams, true);
     if (!cellRange) {
-      _warn68(127, { allRange });
+      _warn69(127, { allRange });
     }
     return cellRange;
   }
@@ -66582,7 +69622,7 @@ function restoreChart(beans, chartModel, chartContainer) {
 }
 
 // packages/ag-grid-enterprise/src/charts/integratedChartsModule.css
-var integratedChartsModule_default = `.ag-chart{display:flex;height:100%;position:relative;width:100%}.ag-chart-components-wrapper{display:flex}.ag-chart-canvas-wrapper,.ag-chart-components-wrapper{flex:1 1 auto;position:relative}.ag-chart-menu{background:var(--ag-background-color);background-color:color-mix(in srgb,transparent,var(--ag-background-color) 30%);border-radius:var(--ag-border-radius);display:flex;flex-direction:row;gap:20px;padding:4px 2px;position:absolute;top:8px;width:auto;--ag-icon-size:20px}:where(.ag-ltr) .ag-chart-menu{justify-content:right;right:calc(var(--ag-cell-horizontal-padding) + var(--ag-spacing) - 4px)}:where(.ag-rtl) .ag-chart-menu{justify-content:left;left:calc(var(--ag-cell-horizontal-padding) + var(--ag-spacing) - 4px)}.ag-chart-docked-container{min-width:var(--ag-chart-menu-panel-width);position:relative}:where(.ag-chart-menu-hidden)~.ag-chart-docked-container{display:none}.ag-chart-tabbed-menu{display:flex;flex-direction:column;height:100%;overflow:hidden;width:100%}.ag-chart-tabbed-menu-header{cursor:default;flex:none;-webkit-user-select:none;-moz-user-select:none;user-select:none}.ag-chart-tabbed-menu-body{align-items:stretch;display:flex;flex:1 1 auto;overflow:hidden;position:relative}.ag-chart-tabbed-menu-body:after{background:linear-gradient(var(--ag-background-color),transparent);content:"";display:block;height:16px;left:0;position:absolute;right:0;top:0}.ag-chart-tab{overflow:hidden;overflow-y:auto;width:100%}.ag-chart-settings{overflow-x:hidden}.ag-chart-settings-wrapper{display:flex;flex-direction:column;height:100%;overflow:hidden;position:relative;width:100%}.ag-chart-settings-nav-bar{align-items:center;border-top:solid var(--ag-border-width) var(--ag-border-color);display:flex;height:30px;padding:0 10px;-webkit-user-select:none;-moz-user-select:none;user-select:none;width:100%}.ag-chart-settings-card-selector{align-items:center;display:flex;flex:1 1 auto;height:100%;justify-content:space-around;padding:0 10px}.ag-chart-settings-card-item{background-color:var(--ag-foreground-color);border-radius:4px;cursor:pointer;height:8px;position:relative;width:8px;&.ag-not-selected{opacity:.2}&.ag-selected{background-color:var(--ag-accent-color)}}.ag-chart-settings-card-item:before{background-color:transparent;content:" ";display:block;height:20px;left:50%;margin-left:-10px;margin-top:-10px;position:absolute;top:50%;width:20px}.ag-chart-settings-next,.ag-chart-settings-prev{flex:none;position:relative}.ag-chart-settings-next:focus-within,.ag-chart-settings-prev:focus-within{border-radius:1px;box-shadow:var(--ag-focus-shadow)}.ag-chart-settings-next-button,.ag-chart-settings-prev-button{cursor:pointer;height:100%;left:0;opacity:0;position:absolute;top:0;width:100%}.ag-chart-settings-mini-charts-container{flex:1 1 auto;overflow:hidden auto;position:relative}.ag-chart-settings-mini-wrapper{display:flex;flex-direction:column;left:0;min-height:100%;overflow:hidden;padding-bottom:var(--ag-widget-container-vertical-padding);position:absolute;top:0;width:100%;&.ag-animating{transition:left .3s;transition-timing-function:ease-in-out}}.ag-chart-mini-thumbnail{border:solid var(--ag-border-width) var(--ag-border-color);border-radius:5px;cursor:pointer;padding:1px;&.ag-selected{border-color:var(--ag-accent-color);border-width:calc(var(--ag-border-width) + 1px);padding:unset}&:focus-visible{border-color:var(--ag-accent-color);box-shadow:var(--ag-focus-shadow)}}.ag-chart-mini-thumbnail-canvas{display:block}.ag-chart-advanced-settings-wrapper,.ag-chart-data-wrapper,.ag-chart-format-wrapper{display:flex;flex-direction:column;padding-bottom:16px;position:relative;-webkit-user-select:none;-moz-user-select:none;user-select:none}.ag-chart-advanced-settings-wrapper,.ag-chart-data-wrapper{height:100%;overflow-y:auto}.ag-chart-advanced-settings{background-color:var(--ag-chrome-background-color)}.ag-chart-advanced-settings,.ag-chart-advanced-settings-wrapper{width:100%}.ag-chart-advanced-settings-wrapper{padding-bottom:0}.ag-chart-advanced-settings-section{border-bottom:solid var(--ag-border-width) var(--ag-border-color);display:flex;margin:0;padding-bottom:var(--ag-widget-container-vertical-padding);padding-top:var(--ag-widget-container-vertical-padding)}.ag-chart-empty-text{align-items:center;background-color:var(--ag-background-color);display:flex;height:100%;justify-content:center;top:0;width:100%}.ag-charts-font-size-color{align-self:stretch;display:flex;justify-content:space-between}.ag-chart-menu-icon{border-radius:var(--ag-border-radius);cursor:pointer;margin:2px 0;opacity:.8}.ag-chart-menu-icon:hover{opacity:1}.ag-chart-menu-toolbar-button{background-color:unset;border:0;border-radius:1px;padding:0 2px}.ag-chart-data-column-drag-handle{margin-left:var(--ag-spacing)}.ag-chart-data-section,.ag-chart-format-section{display:flex;margin:0;:where(.ag-label:not(.ag-group-title-bar)){color:var(--ag-chart-menu-label-color)}:where(.ag-label-align-top .ag-label){margin-bottom:var(--ag-widget-vertical-spacing);margin-top:calc(var(--ag-widget-vertical-spacing)*.5)}:where(.ag-slider.ag-label-align-top .ag-label){margin-bottom:0}.ag-label{display:inline-block}}.ag-chart-menu-panel{--ag-panel-background-color:var(--ag-chrome-background-color)}:where(.ag-ltr) .ag-chart-menu-panel{border-left:solid var(--ag-border-width) var(--ag-border-color)}:where(.ag-rtl) .ag-chart-menu-panel{border-right:solid var(--ag-border-width) var(--ag-border-color)}.ag-chart-data-wrapper,.ag-chart-format-wrapper{margin:0;padding:0}.ag-group{.ag-charts-data-group-item{padding-bottom:var(--ag-widget-container-vertical-padding);position:relative}.ag-charts-data-group-item:where(:not(:last-child)){margin-bottom:var(--ag-spacing)}.ag-charts-advanced-settings-top-level-group-title-bar{background-color:unset;position:relative}.ag-charts-data-group-item:where(:not(.ag-charts-format-sub-level-group,.ag-pill-select,.ag-select)){height:var(--ag-list-item-height)}.ag-charts-data-group-item:where(.ag-picker-field){margin-top:var(--ag-spacing)}.ag-charts-advanced-settings-top-level-group-item,.ag-charts-format-top-level-group-item{margin:var(--ag-spacing) 0}.ag-charts-format-sub-level-group-container{display:flex;flex-direction:column;padding:var(--ag-widget-vertical-spacing) 0}.ag-charts-settings-group-container{border-top:none;display:grid;font-weight:500;grid-template-columns:60px 1fr 60px 1fr 60px;row-gap:8px;:where(.ag-chart-mini-thumbnail:nth-child(3n+1)){grid-column:1}:where(.ag-chart-mini-thumbnail:nth-child(3n+2)){grid-column:3}:where(.ag-chart-mini-thumbnail:nth-child(3n+3)){grid-column:5}}.ag-charts-data-group-title-bar,.ag-charts-format-top-level-group-title-bar,.ag-charts-settings-group-title-bar{border-top:none;font-weight:500;margin:0;padding:var(--ag-widget-container-vertical-padding) var(--ag-widget-container-horizontal-padding);position:relative}.ag-charts-format-sub-level-group-title-bar{background:none;font-weight:500;padding:var(--ag-widget-vertical-spacing) 0}&.ag-charts-data-group,&.ag-charts-format-top-level-group{border-top:solid var(--ag-border-width) var(--ag-border-color)}.ag-charts-data-group-container,.ag-charts-format-top-level-group-container,.ag-charts-settings-group-container{margin:0;padding:0 var(--ag-widget-container-horizontal-padding)}.ag-charts-format-sub-level-group-item,.ag-charts-format-sub-level-no-header-group-item,.ag-charts-format-top-level-group-item{margin-bottom:var(--ag-widget-vertical-spacing)}&.ag-charts-format-sub-level-group,&.ag-charts-format-top-level-group,.ag-charts-format-sub-level-group-item:last-child,.ag-charts-format-top-level-group-item{margin:0;padding:0}.ag-charts-advanced-settings-top-level-group-container{margin:0}.ag-charts-advanced-settings-top-level-group-container,.ag-charts-advanced-settings-top-level-group-title-bar{padding:0 var(--ag-widget-container-horizontal-padding)}.ag-charts-advanced-settings-top-level-group-item{margin-bottom:0;margin-top:calc(var(--ag-widget-vertical-spacing)*2)}}.ag-chart-settings-card-item.ag-not-selected:hover{opacity:.35}.ag-angle-select{align-items:center;display:flex}.ag-angle-select-wrapper{display:flex}.ag-angle-select-parent-circle{background-color:var(--ag-background-color);border:solid var(--ag-border-width) var(--ag-border-color);border-radius:12px;display:block;height:24px;position:relative;width:24px}.ag-angle-select-child-circle{background-color:var(--ag-foreground-color);border-radius:3px;height:6px;left:12px;margin-left:-3px;margin-top:-4px;position:absolute;top:4px;width:6px}.ag-slider-wrapper{display:flex;:where(.ag-input-field){flex:1 1 auto}}.ag-color-panel{display:flex;flex-direction:column;padding:var(--ag-spacing);text-align:center;width:100%}.ag-spectrum-color{cursor:default;flex:1 1 auto;overflow:visible;position:relative}.ag-spectrum-color,.ag-spectrum-fill{border-radius:var(--ag-border-radius)}.ag-spectrum-fill{inset:0;position:absolute}.ag-spectrum-val{background-image:linear-gradient(0deg,#000,hsla(20,42%,65%,0));cursor:pointer}.ag-spectrum-dragger{background:#000;border:var(--ag-color-picker-thumb-border-width) solid #fff;border-radius:var(--ag-color-picker-thumb-size);box-shadow:0 0 2px 0 rgba(0,0,0,.24);cursor:pointer;height:var(--ag-color-picker-thumb-size);pointer-events:none;position:absolute;width:var(--ag-color-picker-thumb-size)}.ag-spectrum-alpha,.ag-spectrum-hue{cursor:default}.ag-spectrum-hue-background{background:linear-gradient(270deg,red 3%,#ff0 17%,#0f0 33%,#0ff 50%,#00f 67%,#f0f 83%,red);height:100%;width:100%}.ag-spectrum-alpha-background{background:linear-gradient(to right,var(--ag-internal-spectrum-alpha-color-from),var(--ag-internal-spectrum-alpha-color-to)),url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"><rect x="0" y="0" width="4" height="4" fill="%23fff"/><path d="M0 0H2V4H4V2H0Z" fill="%23b2b2b2"/></svg>') 0 0 /4px 4px;height:100%;width:100%}.ag-spectrum-tool{cursor:pointer;height:var(--ag-color-picker-track-size);margin-bottom:10px;position:relative}.ag-spectrum-slider,.ag-spectrum-tool{border-radius:var(--ag-color-picker-thumb-size)}.ag-spectrum-slider{border:var(--ag-color-picker-thumb-border-width) solid #fff;box-shadow:0 1px 4px 0 rgba(0,0,0,.37);height:var(--ag-color-picker-thumb-size);margin-top:calc(var(--ag-color-picker-track-size)/2*-1 + var(--ag-color-picker-thumb-size)/2*-1);pointer-events:none;position:absolute;width:var(--ag-color-picker-thumb-size)}:where(.ag-spectrum-alpha) .ag-spectrum-slider{background:linear-gradient(to bottom,var(--ag-internal-spectrum-alpha-color),var(--ag-internal-spectrum-alpha-color)) var(--ag-background-color)}.ag-recent-colors{display:flex;gap:6px;margin:10px var(--ag-spacing) 2px}.ag-recent-color{border:solid var(--ag-border-width) var(--ag-border-color);cursor:pointer}.ag-angle-select[disabled]{opacity:.5;pointer-events:none}:where(.ag-ltr) .ag-angle-select-field,:where(.ag-ltr) .ag-slider-field{margin-right:calc(var(--ag-spacing)*2)}:where(.ag-rtl) .ag-angle-select-field,:where(.ag-rtl) .ag-slider-field{margin-left:calc(var(--ag-spacing)*2)}.ag-color-dialog{border-radius:5px}:where(.ag-color-picker){.ag-picker-field-wrapper{padding-left:var(--ag-spacing);padding-right:var(--ag-spacing)}.ag-picker-field-display{align-items:center;display:flex;flex-direction:row;min-height:var(--ag-list-item-height)}}:where(.ag-ltr) .ag-color-picker-color,:where(.ag-ltr) .ag-color-picker-value{margin-right:var(--ag-spacing)}:where(.ag-rtl) .ag-color-picker-color,:where(.ag-rtl) .ag-color-picker-value{margin-left:var(--ag-spacing)}.ag-spectrum-tools{padding:10px 0 0}.ag-spectrum-alpha-background,.ag-spectrum-hue-background{border-radius:var(--ag-color-picker-track-border-radius)}.ag-color-input-color,.ag-color-picker-color,.ag-recent-color{border-radius:var(--ag-color-picker-color-border-radius)}.ag-spectrum-sat{background-image:linear-gradient(90deg,#fff,hsla(20,42%,65%,0))}.ag-recent-color,.ag-spectrum-color,.ag-spectrum-slider{&:where(:not(:disabled,[readonly])):focus-visible{box-shadow:var(--ag-focus-shadow)}}.ag-color-input-color,.ag-color-picker-color{border:solid var(--ag-border-width) var(--ag-border-color);height:var(--ag-icon-size);width:var(--ag-icon-size)}:where(.ag-ltr) .ag-color-input .ag-input-field-input{padding-left:calc(var(--ag-icon-size) + var(--ag-spacing)*2)}:where(.ag-rtl) .ag-color-input .ag-input-field-input{padding-right:calc(var(--ag-icon-size) + var(--ag-spacing)*2)}:where(.ag-color-input) .ag-color-input-color{position:absolute}:where(.ag-ltr) :where(.ag-color-input) .ag-color-input-color{margin-left:var(--ag-spacing)}:where(.ag-rtl) :where(.ag-color-input) .ag-color-input-color{margin-right:var(--ag-spacing)}.ag-range-field{align-items:center;display:flex;:where(.ag-input-wrapper){height:100%}}.ag-range-field-input{-webkit-appearance:none;-moz-appearance:none;appearance:none;background:none;height:100%;overflow:visible;padding:0;width:100%;&:disabled{opacity:.5}}.ag-range-field-input{&::-webkit-slider-runnable-track{background-color:var(--ag-border-color);border-radius:1.5px;height:3px;margin:0;padding:0;width:100%}&::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;background-color:var(--ag-background-color);border:solid var(--ag-border-width) var(--ag-border-color);border-radius:100%;height:var(--ag-icon-size);margin:0;padding:0;transform:translateY(calc(var(--ag-icon-size)*-.5 + 1.5px));width:var(--ag-icon-size)}&:focus::-webkit-slider-thumb{border-color:var(--ag-accent-color);box-shadow:var(--ag-focus-shadow)}&:active::-webkit-slider-runnable-track{background-color:var(--ag-accent-color)}}.ag-range-field-input{&::-moz-range-track{background-color:var(--ag-border-color);border-radius:1.5px;height:3px;margin:0;padding:0;width:100%}&::-moz-ag-range-thumb{-moz-appearance:none;appearance:none;background-color:var(--ag-background-color);border:solid var(--ag-border-width) var(--ag-border-color);border-radius:100%;height:var(--ag-icon-size);margin:0;padding:0;transform:translateY(calc(var(--ag-icon-size)*-.5 + 1.5px));width:var(--ag-icon-size)}&:focus::-moz-ag-range-thumb{border-color:var(--ag-accent-color);box-shadow:var(--ag-focus-shadow)}&:active::-moz-ag-range-track{background-color:var(--ag-accent-color)}}`;
+var integratedChartsModule_default = `.ag-chart{display:flex;height:100%;position:relative;width:100%}.ag-chart-components-wrapper{display:flex}.ag-chart-canvas-wrapper,.ag-chart-components-wrapper{flex:1 1 auto;position:relative}.ag-chart-menu{background:var(--ag-background-color);background-color:color-mix(in srgb,transparent,var(--ag-background-color) 30%);border-radius:var(--ag-border-radius);display:flex;flex-direction:row;gap:20px;padding:4px 2px;position:absolute;top:8px;width:auto;--ag-icon-size:20px}:where(.ag-ltr) .ag-chart-menu{justify-content:right;right:calc(var(--ag-cell-horizontal-padding) + var(--ag-spacing) - 4px)}:where(.ag-rtl) .ag-chart-menu{justify-content:left;left:calc(var(--ag-cell-horizontal-padding) + var(--ag-spacing) - 4px)}.ag-chart-docked-container{min-width:var(--ag-chart-menu-panel-width);position:relative}:where(.ag-chart-menu-hidden)~.ag-chart-docked-container{display:none}.ag-chart-tabbed-menu{display:flex;flex-direction:column;height:100%;overflow:hidden;width:100%}.ag-chart-tabbed-menu-header{cursor:default;flex:none;-webkit-user-select:none;-moz-user-select:none;user-select:none}.ag-chart-tabbed-menu-body{align-items:stretch;display:flex;flex:1 1 auto;overflow:hidden;position:relative}.ag-chart-tabbed-menu-body:after{background:linear-gradient(var(--ag-background-color),transparent);content:"";display:block;height:16px;left:0;position:absolute;right:0;top:0}.ag-chart-tab{overflow:hidden;overflow-y:auto;width:100%}.ag-chart-settings{overflow-x:hidden}.ag-chart-settings-wrapper{display:flex;flex-direction:column;height:100%;overflow:hidden;position:relative;width:100%}.ag-chart-settings-nav-bar{align-items:center;border-top:solid var(--ag-border-width) var(--ag-border-color);display:flex;height:30px;padding:0 10px;-webkit-user-select:none;-moz-user-select:none;user-select:none;width:100%}.ag-chart-settings-card-selector{align-items:center;display:flex;flex:1 1 auto;height:100%;justify-content:space-around;padding:0 10px}.ag-chart-settings-card-item{background-color:var(--ag-foreground-color);border-radius:4px;cursor:pointer;height:8px;position:relative;width:8px;&.ag-not-selected{opacity:.2}&.ag-selected{background-color:var(--ag-accent-color)}}.ag-chart-settings-card-item:before{background-color:transparent;content:" ";display:block;height:20px;left:50%;margin-left:-10px;margin-top:-10px;position:absolute;top:50%;width:20px}.ag-chart-settings-next,.ag-chart-settings-prev{flex:none;position:relative}.ag-chart-settings-next:focus-within,.ag-chart-settings-prev:focus-within{border-radius:1px;box-shadow:var(--ag-focus-shadow)}.ag-chart-settings-next-button,.ag-chart-settings-prev-button{cursor:pointer;height:100%;left:0;opacity:0;position:absolute;top:0;width:100%}.ag-chart-settings-mini-charts-container{flex:1 1 auto;overflow:hidden auto;position:relative}.ag-chart-settings-mini-wrapper{display:flex;flex-direction:column;left:0;min-height:100%;overflow:hidden;padding-bottom:var(--ag-widget-container-vertical-padding);position:absolute;top:0;width:100%;&.ag-animating{transition:left .3s;transition-timing-function:ease-in-out}}.ag-chart-mini-thumbnail{border:solid var(--ag-border-width) var(--ag-border-color);border-radius:5px;cursor:pointer;padding:1px;&.ag-selected{border-color:var(--ag-accent-color);border-width:calc(var(--ag-border-width) + 1px);padding:unset}&:focus-visible{border-color:var(--ag-accent-color);box-shadow:var(--ag-focus-shadow)}}.ag-chart-mini-thumbnail-canvas{display:block}.ag-chart-advanced-settings-wrapper,.ag-chart-data-wrapper,.ag-chart-format-wrapper{display:flex;flex-direction:column;padding-bottom:16px;position:relative;-webkit-user-select:none;-moz-user-select:none;user-select:none}.ag-chart-advanced-settings-wrapper,.ag-chart-data-wrapper{height:100%;overflow-y:auto}.ag-chart-advanced-settings{background-color:var(--ag-chrome-background-color)}.ag-chart-advanced-settings,.ag-chart-advanced-settings-wrapper{width:100%}.ag-chart-advanced-settings-wrapper{padding-bottom:0}.ag-chart-advanced-settings-section{border-bottom:solid var(--ag-border-width) var(--ag-border-color);display:flex;margin:0;padding-bottom:var(--ag-widget-container-vertical-padding);padding-top:var(--ag-widget-container-vertical-padding)}.ag-chart-empty-text{align-items:center;background-color:var(--ag-background-color);display:flex;height:100%;justify-content:center;top:0;width:100%}.ag-charts-font-size-color{align-self:stretch;display:flex;justify-content:space-between}.ag-chart-menu-icon{border-radius:var(--ag-border-radius);cursor:pointer;margin:2px 0;opacity:.8}.ag-chart-menu-icon:hover{opacity:1}.ag-chart-menu-toolbar-button{background-color:unset;border:0;border-radius:1px;padding:0 2px}.ag-chart-data-column-drag-handle{margin-left:var(--ag-spacing)}.ag-chart-data-section,.ag-chart-format-section{display:flex;margin:0;:where(.ag-label:not(.ag-group-title-bar)){color:var(--ag-chart-menu-label-color)}:where(.ag-label-align-top .ag-label){margin-bottom:var(--ag-widget-vertical-spacing);margin-top:calc(var(--ag-widget-vertical-spacing)*.5)}:where(.ag-slider.ag-label-align-top .ag-label){margin-bottom:0}.ag-label{display:inline-block}}.ag-chart-menu-panel{--ag-panel-background-color:var(--ag-chrome-background-color)}:where(.ag-ltr) .ag-chart-menu-panel{border-left:solid var(--ag-border-width) var(--ag-border-color)}:where(.ag-rtl) .ag-chart-menu-panel{border-right:solid var(--ag-border-width) var(--ag-border-color)}.ag-chart-data-wrapper,.ag-chart-format-wrapper{margin:0;padding:0}.ag-group{.ag-charts-data-group-item{padding-bottom:var(--ag-widget-container-vertical-padding);position:relative}.ag-charts-data-group-item:where(:not(:last-child)){margin-bottom:var(--ag-spacing)}.ag-charts-advanced-settings-top-level-group-title-bar{background-color:unset;position:relative}.ag-charts-data-group-item:where(:not(.ag-charts-format-sub-level-group,.ag-pill-select,.ag-select)){height:var(--ag-list-item-height)}.ag-charts-data-group-item:where(.ag-picker-field){margin-top:var(--ag-spacing)}.ag-charts-advanced-settings-top-level-group-item,.ag-charts-format-top-level-group-item{margin:var(--ag-spacing) 0}.ag-charts-format-sub-level-group-container{display:flex;flex-direction:column;padding:var(--ag-widget-vertical-spacing) 0}.ag-charts-settings-group-container{border-top:none;display:grid;font-weight:500;grid-template-columns:60px 1fr 60px 1fr 60px;row-gap:8px;:where(.ag-chart-mini-thumbnail:nth-child(3n+1)){grid-column:1}:where(.ag-chart-mini-thumbnail:nth-child(3n+2)){grid-column:3}:where(.ag-chart-mini-thumbnail:nth-child(3n+3)){grid-column:5}}.ag-charts-data-group-title-bar,.ag-charts-format-top-level-group-title-bar,.ag-charts-settings-group-title-bar{border-top:none;font-weight:500;margin:0;padding:var(--ag-widget-container-vertical-padding) var(--ag-widget-container-horizontal-padding);position:relative}.ag-charts-format-sub-level-group-title-bar{background:none;font-weight:500;padding:var(--ag-widget-vertical-spacing) 0}&.ag-charts-data-group,&.ag-charts-format-top-level-group{border-top:solid var(--ag-border-width) var(--ag-border-color)}.ag-charts-data-group-container,.ag-charts-format-top-level-group-container,.ag-charts-settings-group-container{margin:0;padding:0 var(--ag-widget-container-horizontal-padding)}.ag-charts-format-sub-level-group-item,.ag-charts-format-sub-level-no-header-group-item,.ag-charts-format-top-level-group-item{margin-bottom:var(--ag-widget-vertical-spacing)}&.ag-charts-format-sub-level-group,&.ag-charts-format-top-level-group,.ag-charts-format-sub-level-group-item:last-child,.ag-charts-format-top-level-group-item{margin:0;padding:0}.ag-charts-advanced-settings-top-level-group-container{margin:0}.ag-charts-advanced-settings-top-level-group-container,.ag-charts-advanced-settings-top-level-group-title-bar{padding:0 var(--ag-widget-container-horizontal-padding)}.ag-charts-advanced-settings-top-level-group-item{margin-bottom:0;margin-top:calc(var(--ag-widget-vertical-spacing)*2)}}.ag-chart-settings-card-item.ag-not-selected:hover{opacity:.35}.ag-angle-select{align-items:center;display:flex}.ag-angle-select-wrapper{display:flex}.ag-angle-select-parent-circle{background-color:var(--ag-background-color);border:solid var(--ag-border-width) var(--ag-border-color);border-radius:12px;display:block;height:24px;position:relative;width:24px}.ag-angle-select-child-circle{background-color:var(--ag-foreground-color);border-radius:3px;height:6px;left:12px;margin-left:-3px;margin-top:-4px;position:absolute;top:4px;width:6px}.ag-slider-wrapper{display:flex;:where(.ag-input-field){flex:1 1 auto}}.ag-color-panel{display:flex;flex-direction:column;padding:var(--ag-spacing);text-align:center;width:100%}.ag-spectrum-color{cursor:default;flex:1 1 auto;overflow:visible;position:relative}.ag-spectrum-color,.ag-spectrum-fill{border-radius:var(--ag-border-radius)}.ag-spectrum-fill{inset:0;position:absolute}.ag-spectrum-val{background-image:linear-gradient(0deg,#000,rgba(204,154,129,0));cursor:pointer}.ag-spectrum-dragger{background:#000;border:var(--ag-color-picker-thumb-border-width) solid #fff;border-radius:var(--ag-color-picker-thumb-size);box-shadow:0 0 2px 0 rgba(0,0,0,.24);cursor:pointer;height:var(--ag-color-picker-thumb-size);pointer-events:none;position:absolute;width:var(--ag-color-picker-thumb-size)}.ag-spectrum-alpha,.ag-spectrum-hue{cursor:default}.ag-spectrum-hue-background{background:linear-gradient(270deg,red 3%,#ff0 17%,#0f0 33%,#0ff 50%,#00f 67%,#f0f 83%,red);height:100%;width:100%}.ag-spectrum-alpha-background{background:linear-gradient(to right,var(--ag-internal-spectrum-alpha-color-from),var(--ag-internal-spectrum-alpha-color-to)),url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"><rect x="0" y="0" width="4" height="4" fill="%23fff"/><path d="M0 0H2V4H4V2H0Z" fill="%23b2b2b2"/></svg>') 0 0 /4px 4px;height:100%;width:100%}.ag-spectrum-tool{cursor:pointer;height:var(--ag-color-picker-track-size);margin-bottom:10px;position:relative}.ag-spectrum-slider,.ag-spectrum-tool{border-radius:var(--ag-color-picker-thumb-size)}.ag-spectrum-slider{border:var(--ag-color-picker-thumb-border-width) solid #fff;box-shadow:0 1px 4px 0 rgba(0,0,0,.37);height:var(--ag-color-picker-thumb-size);margin-top:calc(var(--ag-color-picker-track-size)/2*-1 + var(--ag-color-picker-thumb-size)/2*-1);pointer-events:none;position:absolute;width:var(--ag-color-picker-thumb-size)}:where(.ag-spectrum-alpha) .ag-spectrum-slider{background:linear-gradient(to bottom,var(--ag-internal-spectrum-alpha-color),var(--ag-internal-spectrum-alpha-color)) var(--ag-background-color)}.ag-recent-colors{display:flex;gap:6px;margin:10px var(--ag-spacing) 2px}.ag-recent-color{border:solid var(--ag-border-width) var(--ag-border-color);cursor:pointer}.ag-angle-select[disabled]{opacity:.5;pointer-events:none}:where(.ag-ltr) .ag-angle-select-field,:where(.ag-ltr) .ag-slider-field{margin-right:calc(var(--ag-spacing)*2)}:where(.ag-rtl) .ag-angle-select-field,:where(.ag-rtl) .ag-slider-field{margin-left:calc(var(--ag-spacing)*2)}.ag-color-dialog{border-radius:5px}:where(.ag-color-picker){.ag-picker-field-wrapper{padding-left:var(--ag-spacing);padding-right:var(--ag-spacing)}.ag-picker-field-display{align-items:center;display:flex;flex-direction:row;min-height:var(--ag-list-item-height)}}:where(.ag-ltr) .ag-color-picker-color,:where(.ag-ltr) .ag-color-picker-value{margin-right:var(--ag-spacing)}:where(.ag-rtl) .ag-color-picker-color,:where(.ag-rtl) .ag-color-picker-value{margin-left:var(--ag-spacing)}.ag-spectrum-tools{padding:10px 0 0}.ag-spectrum-alpha-background,.ag-spectrum-hue-background{border-radius:var(--ag-color-picker-track-border-radius)}.ag-color-input-color,.ag-color-picker-color,.ag-recent-color{border-radius:var(--ag-color-picker-color-border-radius)}.ag-spectrum-sat{background-image:linear-gradient(90deg,#fff,rgba(204,154,129,0))}.ag-recent-color,.ag-spectrum-color,.ag-spectrum-slider{&:where(:not(:disabled,[readonly])):focus-visible{box-shadow:var(--ag-focus-shadow)}}.ag-color-input-color,.ag-color-picker-color{border:solid var(--ag-border-width) var(--ag-border-color);height:var(--ag-icon-size);width:var(--ag-icon-size)}:where(.ag-ltr) .ag-color-input .ag-input-field-input{padding-left:calc(var(--ag-icon-size) + var(--ag-spacing)*2)}:where(.ag-rtl) .ag-color-input .ag-input-field-input{padding-right:calc(var(--ag-icon-size) + var(--ag-spacing)*2)}:where(.ag-color-input) .ag-color-input-color{position:absolute}:where(.ag-ltr) :where(.ag-color-input) .ag-color-input-color{margin-left:var(--ag-spacing)}:where(.ag-rtl) :where(.ag-color-input) .ag-color-input-color{margin-right:var(--ag-spacing)}.ag-range-field{align-items:center;display:flex;:where(.ag-input-wrapper){height:100%}}.ag-range-field-input{-webkit-appearance:none;-moz-appearance:none;appearance:none;background:none;height:100%;overflow:visible;padding:0;width:100%;&:disabled{opacity:.5}}.ag-range-field-input{&::-webkit-slider-runnable-track{background-color:var(--ag-border-color);border-radius:1.5px;height:3px;margin:0;padding:0;width:100%}&::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;background-color:var(--ag-background-color);border:solid var(--ag-border-width) var(--ag-border-color);border-radius:100%;height:var(--ag-icon-size);margin:0;padding:0;transform:translateY(calc(var(--ag-icon-size)*-.5 + 1.5px));width:var(--ag-icon-size)}&:focus::-webkit-slider-thumb{border-color:var(--ag-accent-color);box-shadow:var(--ag-focus-shadow)}&:active::-webkit-slider-runnable-track{background-color:var(--ag-accent-color)}}.ag-range-field-input{&::-moz-range-track{background-color:var(--ag-border-color);border-radius:1.5px;height:3px;margin:0;padding:0;width:100%}&::-moz-ag-range-thumb{-moz-appearance:none;appearance:none;background-color:var(--ag-background-color);border:solid var(--ag-border-width) var(--ag-border-color);border-radius:100%;height:var(--ag-icon-size);margin:0;padding:0;transform:translateY(calc(var(--ag-icon-size)*-.5 + 1.5px));width:var(--ag-icon-size)}&:focus::-moz-ag-range-thumb{border-color:var(--ag-accent-color);box-shadow:var(--ag-focus-shadow)}&:active::-moz-ag-range-track{background-color:var(--ag-accent-color)}}`;
 
 // packages/ag-grid-enterprise/src/charts/utils/validGridChartsVersion.ts
 var VERSION_CHECKING_FIRST_GRID_MAJOR_VERSION = 28;
@@ -66718,7 +69758,7 @@ var dependsOn = [
   CellSelectionModule,
   EnterpriseCoreModule,
   _SharedDragAndDropModule5,
-  _PopupModule5,
+  _PopupModule6,
   MenuItemModule
 ];
 var moduleName2 = "IntegratedCharts";
@@ -66805,11 +69845,13 @@ var dependsOn2 = [
   ServerSideRowModelModule,
   ServerSideRowModelApiModule,
   FormulaModule,
+  NotesModule,
   SetFilterModule,
   MultiFilterModule,
   AdvancedFilterModule,
   SideBarModule,
   StatusBarModule,
+  ToolbarModule,
   ViewportRowModelModule,
   PivotModule,
   TreeDataModule,
@@ -66855,6 +69897,7 @@ export {
   MenuModule,
   MultiFilterModule,
   NewFiltersToolPanelModule,
+  NotesModule,
   PivotModule,
   RangeSelectionModule,
   RichSelectModule,
@@ -66868,6 +69911,7 @@ export {
   SideBarModule,
   SparklinesModule,
   StatusBarModule,
+  ToolbarModule,
   TreeDataModule,
   ViewportRowModelModule,
   AgColorPicker as _AgColorPicker,
