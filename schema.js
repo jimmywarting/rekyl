@@ -12,7 +12,17 @@ const tables = {
       company: { type: 'reference', ref: 'company', label: 'Företag' },
       contactEmail: { type: 'string', label: 'Kontakt E-post' },
       contactPerson: { type: 'string', label: 'Kontaktperson' },
-      contactPhone: { type: 'string', label: 'Kontakttelefon' },
+      contactPhone: { type: 'string', label: 'Kontakttelefon', ag: {
+        // valueGetter(params) {
+        //   const contactPhone = params.data?.workorder?.contactPhone
+        //   if (contactPhone) {
+        //     console.log(contactPhone)
+        //     // remove all spaces, dashes and parentheses
+        //     return contactPhone.replace(/[\s\-()]/g, '')
+        //   }
+        //   return null
+        // }
+      }},
       created: { type: 'date', label: 'Datum Skapad' },
       custom1: { type: 'number', label: 'Custom 1' },
       custom3: { type: 'number', label: 'Custom 3' },

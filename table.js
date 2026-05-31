@@ -1,6 +1,9 @@
 import { createGrid, themeQuartz, iconSetMaterial, ModuleRegistry } from 'ag-grid-community';
-import { AllEnterpriseModule } from 'ag-grid-enterprise';
+// import { AllEnterpriseModule } from 'ag-grid-enterprise';
+import { AllEnterpriseModule } from './main.esm.js';
 import { AG_GRID_LOCALE_SE } from 'https://esm.sh/@ag-grid-community/locale@35.2.0/es2022/locale.mjs?exports=AG_GRID_LOCALE_SE'
+import { AgChartsEnterpriseModule } from 'ag-charts-enterprise';
+
 
 import state from './state.json' with { type: 'json' }
 import tables from './schema.js'
@@ -34,7 +37,8 @@ let projects = new Map();
 
 // Register the module
 ModuleRegistry.registerModules([
-  AllEnterpriseModule
+  AllEnterpriseModule,
+  // AgChartsEnterpriseModule,
 ]);
 
 // Helper to convert ISO strings to Date objects during JSON parsing
@@ -168,7 +172,7 @@ async function sync () {
   const tables = ['workorder', 'project', 'salesman']
 
   // return early if last sync was less than 30 minutes ago
-  if (Date.now() - lastSync.getTime() < 30 * 60 * 1000) {
+  if (Date.now() - lastSync.getTime() < 5 * 60 * 1000) {
     console.log('Last sync was less than 30 minutes ago, skipping sync')
     return
   }
@@ -343,11 +347,11 @@ async function initGrid (gridDiv) {
         ...(column.ag || {})
       }
 
-      if (column.required) {
-        colDef.filterParams = {
-          suppressAndEmptyHelpers: true, // Tar bort "Blanks" från listan
-        }
-      }
+      // if (column.required) {
+      //   colDef.filterParams = {
+      //     suppressAndEmptyHelpers: true, // Tar bort "Blanks" från listan
+      //   }
+      // }
 
       if (view && column.primary) {
         colDef.cellRenderer = (params) => {
@@ -492,6 +496,14 @@ async function initGrid (gridDiv) {
 
     const gridOptions = {
       localeText: AG_GRID_LOCALE_SE,
+      enableCharts: !true,
+      cellSelection: {
+        enableColumnSelection: true,
+        enableRowSelection: true,
+      },
+      hidePaddedHeaderRows: true,
+      rowNumbers: true,
+
       // show row grouping at the top
       // rowGroupPanelShow: "always",
       theme: myTheme,
@@ -533,6 +545,9 @@ async function initGrid (gridDiv) {
         resizable: true,
         enableRowGroup: true,
         enableValue: true,
+
+        // wrapText: true, // Wrap Text
+        // autoHeight: true, // Adjust Cell Height to Fit Wrapped Text
         // floatingFilter: true // Shows the filter input directly under the header
       },
 
@@ -541,10 +556,51 @@ async function initGrid (gridDiv) {
       paginationPageSize: 50,
       paginationPageSizeSelector: [25, 50, 100, 500, 1000],
 
+      // toolbar: {
+      //   items: [
+      //       'agQuickFilterToolbarItem',
+      //       'separator',
+      //       'agFindToolbarItem',
+      //       'separator',
+      //       {
+      //           label: 'Fit Columns To Grid',
+      //           icon: 'maximize',
+      //           alignment: 'right',
+      //           action: (params) => params.api.sizeColumnsToFit(),
+      //       },
+      //       {
+      //           toolbarItem: 'agMenuToolbarItem',
+      //           icon: 'save',
+      //           alignment: 'right',
+      //           label: 'Download',
+      //           tooltip: 'Download as CSV or Excel',
+      //           toolbarItemParams: {
+      //               menuItems: ['csvExport', 'excelExport'],
+      //           },
+      //       },
+      //   ],
+      // },
+
       // enableAdvancedFilter: true,
 
       // add column editor on the right
-      sideBar: true, // ['columns', 'filters'],
+      sideBar: {
+        toolPanels: [
+          'columns',
+          {
+            id: "filters-new",
+            labelDefault: "Filters",
+            labelKey: "filters",
+            iconKey: "filter",
+            toolPanel: "agNewFiltersToolPanel",
+            toolPanelParams: {
+              buttons: ["cancel", "apply"],
+            },
+          },
+        ],
+        defaultToolPanel: "filters-new",
+      },
+      enableFilterHandlers: true,
       // autoGroupColumnDef: {
       //   minWidth: 200,
       // },
