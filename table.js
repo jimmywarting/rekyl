@@ -32,6 +32,18 @@ function nn(value) {
   return /** @type {NonNullable<T>} */ (value);
 }
 
+/**
+ * Parse a free-form text input into unique numeric IDs.
+ * Any non-digit character is treated as a separator.
+ * @param {string | number | null | undefined} input
+ * @returns {number[]}
+ */
+function parseIdList(input) {
+  const text = String(input ?? '')
+  const matches = text.match(/\d+/g) || []
+  return [...new Set(matches.map(Number).filter(Number.isFinite))]
+}
+
 let salesman = new Map();
 let projects = new Map();
 
@@ -371,6 +383,38 @@ async function initGrid (gridDiv) {
 
       if (column.type === 'number') {
         colDef.filter = 'agNumberColumnFilter';
+
+        if (columnName === 'id') {
+          colDef.filterParams = {
+            filterOptions: [
+              'equals',
+              'notEqual',
+              'lessThan',
+              'lessThanOrEqual',
+              'greaterThan',
+              'greaterThanOrEqual',
+              'inRange',
+              {
+                displayKey: 'inIdList',
+                displayName: 'Finns i ID-lista',
+                numberOfInputs: 1,
+                predicate: ([filterText], cellValue) => {
+                  if (cellValue === null || cellValue === undefined || cellValue === '') {
+                    return false
+                  }
+
+                  const ids = parseIdList(filterText)
+                  if (!ids.length) return false
+
+                  const numericCellValue = Number(cellValue)
+                  if (!Number.isFinite(numericCellValue)) return false
+
+                  return ids.includes(numericCellValue)
+                }
+              },
+            ],
+          }
+        }
       } else if (column.type === 'enum') {
         colDef.filter = 'agSetColumnFilter';
         const valueFormatter = params => {
