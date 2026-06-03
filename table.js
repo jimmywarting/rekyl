@@ -44,6 +44,56 @@ function parseIdList(input) {
   return [...new Set(matches.map(Number).filter(Number.isFinite))]
 }
 
+const GRID_VIEWS_STORAGE_KEY = 'rekyl.gridViews'
+const ACTIVE_GRID_VIEW_STORAGE_KEY = 'rekyl.activeGridView'
+const LEGACY_GRID_STATE_STORAGE_KEY = 'gridState'
+
+/** @returns {Record<string, any>} */
+function getStoredGridViews() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(GRID_VIEWS_STORAGE_KEY) || '{}')
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+/** @param {Record<string, any>} views */
+function setStoredGridViews(views) {
+  localStorage.setItem(GRID_VIEWS_STORAGE_KEY, JSON.stringify(views))
+}
+
+/** @returns {string} */
+function getActiveGridViewName() {
+  return localStorage.getItem(ACTIVE_GRID_VIEW_STORAGE_KEY) || ''
+}
+
+/** @param {string} name */
+function setActiveGridViewName(name) {
+  if (name) {
+    localStorage.setItem(ACTIVE_GRID_VIEW_STORAGE_KEY, name)
+  } else {
+    localStorage.removeItem(ACTIVE_GRID_VIEW_STORAGE_KEY)
+  }
+}
+
+function migrateLegacyGridState() {
+  if (localStorage.getItem(GRID_VIEWS_STORAGE_KEY)) return
+
+  const legacyState = localStorage.getItem(LEGACY_GRID_STATE_STORAGE_KEY)
+  if (!legacyState) return
+
+  try {
+    const parsedState = JSON.parse(legacyState)
+    setStoredGridViews({ Default: parsedState })
+    if (!getActiveGridViewName()) {
+      setActiveGridViewName('Default')
+    }
+  } catch {
+    // Ignore invalid legacy state and fall back to the bundled default state.
+  }
+}
+
 let salesman = new Map();
 let projects = new Map();
 
@@ -385,6 +435,7 @@ async function initGrid (gridDiv) {
         colDef.filter = 'agNumberColumnFilter';
 
         if (columnName === 'id') {
+          colDef.filter = 'agTextColumnFilter';
           colDef.filterParams = {
             filterOptions: [
               'equals',
@@ -471,6 +522,8 @@ async function initGrid (gridDiv) {
   // nn(document.getElementById('loader')).hidden = true
     const columnDefs = table.get('workorder').columnDefs
   const notesStore = {}
+
+    migrateLegacyGridState()
     // const showThis = [
     //   'start',
     //   'project',
@@ -538,6 +591,114 @@ async function initGrid (gridDiv) {
       }
     }
 
+    let gridApi
+
+    const applyGridState = (nextState, viewName = '') => {
+      if (!nextState) return false
+
+      try {
+        gridApi.setState(nextState)
+        if (viewName) {
+          setActiveGridViewName(viewName)
+        }
+        return true
+      } catch (error) {
+        console.warn('Failed to apply grid state', error)
+        return false
+      }
+    }
+
+    const saveCurrentGridView = () => {
+      const suggestedName = getActiveGridViewName()
+      const input = window.prompt('Save grid view as:', suggestedName || '')
+      const viewName = input?.trim()
+
+      if (!viewName) return
+
+      const views = getStoredGridViews()
+      views[viewName] = gridApi.getState()
+      setStoredGridViews(views)
+      setActiveGridViewName(viewName)
+      refreshToolbar()
+    }
+
+    const restoreGridView = (viewName) => {
+      const nextState = getStoredGridViews()[viewName]
+      if (!nextState) return
+
+      if (applyGridState(nextState, viewName)) {
+        refreshToolbar()
+      }
+    }
+
+    const getGridViewMenuItems = () => {
+      const activeViewName = getActiveGridViewName()
+      const views = Object.entries(getStoredGridViews())
+        .sort(([left], [right]) => left.localeCompare(right, 'sv'))
+
+      const items = [{
+        name: 'Save Current View...',
+        action: () => saveCurrentGridView(),
+      }]
+
+      if (!views.length) {
+        items.push('separator', {
+          name: 'No saved views',
+          disabled: true,
+        })
+        return items
+      }
+
+      items.push('separator', ...views.map(([viewName]) => ({
+        name: viewName,
+        checked: viewName === activeViewName,
+        action: () => restoreGridView(viewName),
+      })))
+
+      return items
+    }
+
+    const buildToolbar = () => ({
+      items: [
+        'agQuickFilterToolbarItem',
+        'separator',
+        'agFindToolbarItem',
+        'separator',
+        {
+          label: 'Fit Columns To Grid',
+          icon: 'maximize',
+          alignment: 'right',
+          action: (params) => params.api.sizeColumnsToFit(),
+        },
+        {
+          key: 'grid-views-menu',
+          toolbarItem: 'agMenuToolbarItem',
+          icon: 'menu',
+          alignment: 'right',
+          label: 'Views',
+          tooltip: 'Save or restore grid views',
+          toolbarItemParams: {
+            menuItems: getGridViewMenuItems(),
+          },
+        },
+        {
+          toolbarItem: 'agMenuToolbarItem',
+          icon: 'save',
+          alignment: 'right',
+          label: 'Download',
+          tooltip: 'Download as CSV or Excel',
+          toolbarItemParams: {
+            menuItems: ['csvExport', 'excelExport'],
+          },
+        },
+      ],
+    })
+
+    const refreshToolbar = () => {
+      if (!gridApi) return
+      gridApi.setGridOption('toolbar', buildToolbar())
+    }
+
     const gridOptions = {
       localeText: AG_GRID_LOCALE_SE,
       enableCharts: !true,
@@ -599,31 +760,7 @@ async function initGrid (gridDiv) {
       pagination: true,
       paginationPageSize: 50,
       paginationPageSizeSelector: [25, 50, 100, 500, 1000],
-
-    toolbar: {
-        items: [
-            'agQuickFilterToolbarItem',
-            'separator',
-            'agFindToolbarItem',
-            'separator',
-            {
-                label: 'Fit Columns To Grid',
-                icon: 'maximize',
-                alignment: 'right',
-                action: (params) => params.api.sizeColumnsToFit(),
-            },
-            {
-                toolbarItem: 'agMenuToolbarItem',
-                icon: 'save',
-                alignment: 'right',
-                label: 'Download',
-                tooltip: 'Download as CSV or Excel',
-                toolbarItemParams: {
-                    menuItems: ['csvExport', 'excelExport'],
-                },
-            },
-        ],
-    },
+    toolbar: buildToolbar(),
 
       // enableAdvancedFilter: true,
 
@@ -676,7 +813,7 @@ async function initGrid (gridDiv) {
     },
     }
 
-    const gridApi = createGrid(gridDiv, gridOptions)
+    gridApi = createGrid(gridDiv, gridOptions)
 
     console.log(globalThis.gridApi = gridApi)
 
@@ -685,7 +822,14 @@ async function initGrid (gridDiv) {
     //   gridApi.setGridOption('quickFilterText', e.target.value);
     // })
 
-    gridApi.setState(state)
+    const activeViewName = getActiveGridViewName()
+    const savedViews = getStoredGridViews()
+
+    if (!applyGridState(savedViews[activeViewName], activeViewName)) {
+      applyGridState(state)
+    }
+
+    refreshToolbar()
 }
 
 
