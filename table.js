@@ -231,7 +231,7 @@ async function sync () {
   const db = await initDB()
 
   const lastSync = new Date(await kv(db, 'lastSync') || new Date(0))
-  const tables = ['workorder', 'project', 'salesman']
+  const requiredTables = ['workorder', 'project', 'salesman']
 
   // return early if last sync was less than 30 minutes ago
   if (Date.now() - lastSync.getTime() < 5 * 60 * 1000) {
@@ -239,59 +239,107 @@ async function sync () {
     return
   }
 
-  const query = queryBuilder({
-    rows: 1000,
+  const controller = new AbortController()
+  const rowsPerPage = 1000
+
+  progress.value = 0
+  progress.max = 0
+
+  const buildQuery = (page = 1) => queryBuilder({
+    page,
+    rows: rowsPerPage,
     // @ts-ignore
     filters: lastSync.getTime() ? [{
       field: 'modified',
       op: 'gt',
       value: lastSync.toISOString()
     }] : []
-  })
+  }).toString()
 
-  for (const table of tables) {
-    const res = await client.request(table + '?' + query)
-    const text = await res.text()
-    const data = JSON.parse(text, dateReviver)
-    const allRows = data.rows || data
+  /**
+   * @param {string} table
+   * @param {number} page
+   */
+  const fetchTablePage = async (table, page) => {
+    progress.max += 1
 
-    // insert or update rows in indexedDB
-    const tx = db.transaction(table, 'readwrite')
-    const store = tx.objectStore(table)
-    for (const row of allRows) {
-      await transaction(store.put(row))
-    }
-    console.log(`Synced ${allRows.length} rows for table ${table} (page 1/${data.pageCount || 1})`)
-    console.log(`Synced page 1/${data.pageCount || 1} for table ${table}`)
+    try {
+      const res = await client.request(`${table}?${buildQuery(page)}`, {
+        signal: controller.signal,
+      })
 
-    if (data.pageCount > 1) {
-      for (let i = 2; i <= data.pageCount; i++) {
-        console.log(`Fetching page ${i}/${data.pageCount} for table ${table}...`)
-        query.set('page', i)
-        const res = await client.request(table + '?' + query)
-        const text = await res.text()
-        const pageData = JSON.parse(text, dateReviver)
-
-        // insert or update rows in indexedDB
-        const tx = db.transaction(table, 'readwrite')
-        const store = tx.objectStore(table)
-        for (const row of pageData.rows) {
-          await transaction(store.put(row))
-        }
-        console.log(`Synced page ${i}/${data.pageCount} for table ${table}`)
+      if (!res.ok) {
+        throw new Error(`${table} page ${page} failed with HTTP ${res.status}`)
       }
-      query.delete('page')
-    }
 
-    console.log(`Synced ${allRows.length} rows for table ${table}`)
+      const text = await res.text()
+      const data = JSON.parse(text, dateReviver)
+      progress.value += 1
+      return data
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        controller.abort(error)
+      }
+      throw error
+    }
   }
 
-  // Update last sync time
-  const tx2 = db.transaction('localConfig', 'readwrite')
-  const store2 = tx2.objectStore('localConfig')
-  await transaction(store2.put({ key: 'lastSync', value: new Date() }))
+  try {
+    // First fetch page 1 for all required tables to discover total page counts.
+    const firstPages = await Promise.all(requiredTables.map(async table => {
+      const data = await fetchTablePage(table, 1)
+      const rows = Array.isArray(data?.rows) ? data.rows : (Array.isArray(data) ? data : [])
+      const pageCount = Math.max(1, Number(data?.pageCount) || 1)
+      return { table, rows, pageCount }
+    }))
 
-  console.log('Sync complete')
+    /** @type {Map<string, any[]>} */
+    const tableRows = new Map(firstPages.map(({ table, rows }) => [table, [...rows]]))
+
+    const remainingPageRequests = []
+
+    for (const { table, pageCount } of firstPages) {
+      for (let page = 2; page <= pageCount; page++) {
+        remainingPageRequests.push(
+          fetchTablePage(table, page).then(data => ({
+            table,
+            page,
+            rows: Array.isArray(data?.rows) ? data.rows : (Array.isArray(data) ? data : []),
+          }))
+        )
+      }
+    }
+
+    const remainingPages = await Promise.all(remainingPageRequests)
+
+    for (const { table, page, rows } of remainingPages) {
+      tableRows.get(table)?.push(...rows)
+      console.log(`Synced page ${page} for table ${table}`)
+    }
+
+    // Persist only after all required tables are fetched successfully.
+    await Promise.all(requiredTables.map(async table => {
+      const tx = db.transaction(table, 'readwrite')
+      const store = tx.objectStore(table)
+      const rows = tableRows.get(table) || []
+      await Promise.all(rows.map(row => transaction(store.put(row))))
+      console.log(`Synced ${rows.length} rows for table ${table}`)
+    }))
+
+    // Update last sync time
+    const tx2 = db.transaction('localConfig', 'readwrite')
+    const store2 = tx2.objectStore('localConfig')
+    await transaction(store2.put({ key: 'lastSync', value: new Date() }))
+
+    console.log('Sync complete')
+  } catch (error) {
+    console.error('Sync failed: required tables could not be loaded', error)
+    window.alert('Sync failed. Missing permission or network error while loading required data (workorder, project, salesman).')
+    throw error
+  } finally {
+    progress.max = 1
+    progress.value = 1
+  }
 }
 
 await sync()
@@ -637,7 +685,7 @@ async function initGrid (gridDiv) {
         .sort(([left], [right]) => left.localeCompare(right, 'sv'))
 
       const items = [{
-        name: 'Save Current View...',
+        name: 'Spara aktuell vy...',
         action: () => saveCurrentGridView(),
       }]
 
@@ -665,7 +713,7 @@ async function initGrid (gridDiv) {
         'agFindToolbarItem',
         'separator',
         {
-          label: 'Fit Columns To Grid',
+          label: 'Anpassa till fönsterstorlek',
           icon: 'maximize',
           alignment: 'right',
           action: (params) => params.api.sizeColumnsToFit(),
@@ -675,8 +723,8 @@ async function initGrid (gridDiv) {
           toolbarItem: 'agMenuToolbarItem',
           icon: 'menu',
           alignment: 'right',
-          label: 'Views',
-          tooltip: 'Save or restore grid views',
+          label: 'Vy',
+          tooltip: 'Spara eller återställ gridvyer',
           toolbarItemParams: {
             menuItems: getGridViewMenuItems(),
           },
@@ -699,9 +747,45 @@ async function initGrid (gridDiv) {
       gridApi.setGridOption('toolbar', buildToolbar())
     }
 
+    const getContextMenuItems = (params) => {
+      console.log(window.params = params)
+      const row = params.node?.data
+      console.log(row?.workorder, row?.project?.project)
+      const orderId = row?.workorder?.id
+      const projectId = row?.project?.id
+      const defaultItems = params.defaultItems || []
+
+      const items = []
+
+      items.push({
+        name: 'Open order',
+        disabled: !orderId,
+        action: () => {
+          if (!orderId) return
+          window.open(`https://app.rekyl.nu/v5/8399/details/workorder/${orderId}`, '_blank')
+        },
+      })
+
+      items.push({
+        name: 'Open project',
+        disabled: !projectId,
+        action: () => {
+          if (!projectId) return
+          window.open(`https://app.rekyl.nu/v5/8399/details/project/${projectId}`, '_blank')
+        },
+      })
+
+      if (defaultItems.length) {
+        items.push('separator', ...defaultItems)
+      }
+
+      return items
+    }
+
     const gridOptions = {
       localeText: AG_GRID_LOCALE_SE,
       enableCharts: !true,
+      getContextMenuItems,
       cellSelection: {
         enableColumnSelection: true,
         enableRowSelection: true,
