@@ -1,6 +1,6 @@
 import { createGrid, themeQuartz, iconSetMaterial, ModuleRegistry } from 'ag-grid-community';
 // import { AllEnterpriseModule } from 'ag-grid-enterprise';
-import { AllEnterpriseModule } from './main.esm.js';
+import { AllEnterpriseModule, _AgDialog } from './main.esm.js';
 import { AG_GRID_LOCALE_SE } from 'https://esm.sh/@ag-grid-community/locale@35.2.0/es2022/locale.mjs?exports=AG_GRID_LOCALE_SE'
 import { AgChartsEnterpriseModule } from 'ag-charts-enterprise';
 
@@ -91,6 +91,258 @@ function migrateLegacyGridState() {
     }
   } catch {
     // Ignore invalid legacy state and fall back to the bundled default state.
+  }
+}
+
+// ---- Google Maps ----
+
+const GOOGLE_MAPS_API_KEY = 'AIzaSyCrs1BUR-5Ih4gHd2-RyPWrSrDzf4q5PdE'
+let _mapsApiReady = null
+let _mapDialog = null
+let _mapDialogCleanup = null
+
+function loadGoogleMaps() {
+  if (_mapsApiReady) return _mapsApiReady
+  _mapsApiReady = new Promise(resolve => {
+    window.__rekylGoogleMapsReady = resolve
+    const script = document.createElement('script')
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=__rekylGoogleMapsReady`
+    script.async = true
+    document.head.appendChild(script)
+  })
+  return _mapsApiReady
+}
+
+async function showMapDialog(gridApi) {
+  if (_mapDialog) {
+    const eGui = _mapDialog.getGui?.()
+    if (eGui) {
+      eGui.style.display = 'block'
+    }
+    window.dispatchEvent(new CustomEvent('rekyl-map-update'))
+    return
+  }
+
+  await loadGoogleMaps()
+
+  const mapDiv = document.createElement('div')
+  Object.assign(mapDiv.style, {
+    width: '100%',
+    height: '100%',
+    minHeight: '380px',
+  })
+
+  const dialogConfig = {
+    title: 'Karta – valda med position',
+    movable: true,
+    resizable: true,
+    maximizable: true,
+    modal: false,
+    width: 840,
+    height: 560,
+    minWidth: 360,
+    minHeight: 280,
+    x: 60,
+    y: 60,
+    closedCallback: () => {
+      _mapDialogCleanup?.()
+      _mapDialogCleanup = null
+      _mapDialog = null
+    },
+  }
+
+  const beanCandidates = [
+    [gridApi, gridApi?.createBean],
+    [gridApi?.context, gridApi?.context?.createBean],
+    [gridApi?._context, gridApi?._context?.createBean],
+  ]
+
+  let dialog = null
+  for (const [owner, createBean] of beanCandidates) {
+    if (typeof createBean !== 'function') continue
+    try {
+      dialog = createBean.call(owner, new _AgDialog(dialogConfig))
+      break
+    } catch {
+      dialog = null
+    }
+  }
+
+  if (dialog) {
+    dialog.setBodyComponent({
+      getGui() {
+        return mapDiv
+      },
+      destroy() {},
+    })
+    dialog.renderComponent()
+    _mapDialog = dialog
+  } else {
+    // Fallback when AgDialog cannot be created outside grid bean context.
+    const fallback = document.createElement('div')
+    fallback.id = 'rekyl-map-dialog'
+    Object.assign(fallback.style, {
+      position: 'fixed',
+      top: '80px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      width: '840px',
+      height: '560px',
+      background: '#1f2836',
+      border: '1px solid #3a4a5c',
+      borderRadius: '6px',
+      boxShadow: '0 8px 40px rgba(0,0,0,.7)',
+      display: 'flex',
+      flexDirection: 'column',
+      zIndex: '9999',
+      resize: 'both',
+      overflow: 'hidden',
+      minWidth: '360px',
+      minHeight: '280px',
+    })
+    const header = document.createElement('div')
+    Object.assign(header.style, {
+      background: '#2d3f55',
+      color: '#fff',
+      padding: '8px 12px',
+      cursor: 'move',
+      userSelect: 'none',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      flexShrink: '0',
+      fontSize: '13px',
+      fontWeight: '600',
+    })
+    const title = document.createElement('span')
+    title.textContent = dialogConfig.title
+    const closeBtn = document.createElement('button')
+    closeBtn.textContent = 'x'
+    Object.assign(closeBtn.style, {
+      background: 'none',
+      border: 'none',
+      color: '#aaa',
+      cursor: 'pointer',
+      fontSize: '15px',
+      lineHeight: '1',
+    })
+    header.append(title, closeBtn)
+    fallback.append(header, mapDiv)
+    document.body.appendChild(fallback)
+
+    let dragging = false
+    let ox = 0
+    let oy = 0
+    header.addEventListener('mousedown', e => {
+      if (e.target === closeBtn) return
+      dragging = true
+      const rect = fallback.getBoundingClientRect()
+      fallback.style.left = rect.left + 'px'
+      fallback.style.top = rect.top + 'px'
+      fallback.style.transform = ''
+      ox = e.clientX - rect.left
+      oy = e.clientY - rect.top
+      e.preventDefault()
+    })
+    const onMouseMove = e => {
+      if (!dragging) return
+      fallback.style.left = (e.clientX - ox) + 'px'
+      fallback.style.top = (e.clientY - oy) + 'px'
+    }
+    const onMouseUp = () => { dragging = false }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+
+    closeBtn.addEventListener('click', () => {
+      _mapDialog?.destroy?.()
+      _mapDialogCleanup?.()
+      _mapDialogCleanup = null
+      _mapDialog = null
+    })
+
+    _mapDialog = {
+      setTitle(nextTitle) {
+        title.textContent = nextTitle
+      },
+      getGui() {
+        return fallback
+      },
+      close() {
+        fallback.remove()
+      },
+      destroy() {
+        document.removeEventListener('mousemove', onMouseMove)
+        document.removeEventListener('mouseup', onMouseUp)
+        fallback.remove()
+      },
+    }
+  }
+
+  // Init Google Map centred on Sweden
+  const map = new google.maps.Map(mapDiv, {
+    zoom: 6,
+    center: { lat: 62.0, lng: 15.0 },
+    mapTypeId: 'roadmap',
+  })
+
+  const infoWindow = new google.maps.InfoWindow()
+  const activeMarkers = []
+
+  const updateMap = () => {
+    const rows = gridApi.getSelectedRows()
+    const points = rows.flatMap(row => {
+      const wo = row.workorder
+      if (!wo.latitude || !wo.longitude) return []
+      return [{ lat: wo.latitude, lng: wo.longitude, id: wo.id, label: wo.workingsite || '' }]
+    })
+
+    const count = points.length
+    _mapDialog?.setTitle?.(`Karta – ${count} vald${count !== 1 ? 'a' : ''} med position`)
+
+    activeMarkers.forEach(m => m.setMap(null))
+    activeMarkers.length = 0
+    infoWindow.close()
+
+    if (!count) return
+
+    const bounds = new google.maps.LatLngBounds()
+    for (const p of points) {
+      const marker = new google.maps.Marker({
+        position: { lat: p.lat, lng: p.lng },
+        map,
+        title: [p.label, `#${p.id}`].filter(Boolean).join(' – '),
+      })
+      marker.addListener('click', () => {
+        infoWindow.setContent(
+          `<div style="font-family:sans-serif;font-size:13px;line-height:1.6">` +
+          `<strong>Order #${p.id}</strong>` +
+          (p.label ? `<br>${p.label}` : '') +
+          `<br><a href="https://app.rekyl.nu/v5/8399/details/workorder/${p.id}" target="_blank">Öppna order ↗</a>` +
+          `</div>`
+        )
+        infoWindow.open(map, marker)
+      })
+      activeMarkers.push(marker)
+      bounds.extend({ lat: p.lat, lng: p.lng })
+    }
+    if (count === 1) {
+      map.setCenter({ lat: points[0].lat, lng: points[0].lng })
+      map.setZoom(14)
+    } else {
+      map.fitBounds(bounds)
+    }
+  }
+
+  updateMap()
+  gridApi.addEventListener('selectionChanged', updateMap)
+  const onMapUpdate = () => updateMap()
+  window.addEventListener('rekyl-map-update', onMapUpdate)
+
+  _mapDialogCleanup = () => {
+    gridApi.removeEventListener('selectionChanged', updateMap)
+    window.removeEventListener('rekyl-map-update', onMapUpdate)
+    activeMarkers.forEach(m => m.setMap(null))
+    infoWindow.close()
   }
 }
 
@@ -738,6 +990,23 @@ async function initGrid (gridDiv) {
           toolbarItemParams: {
             menuItems: ['csvExport', 'excelExport'],
           },
+        },
+        {
+          label: 'Karta',
+          icon: () => {
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+            svg.setAttribute('viewBox', '0 0 24 24')
+            svg.setAttribute('width', '16')
+            svg.setAttribute('height', '16')
+            svg.setAttribute('fill', 'currentColor')
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+            path.setAttribute('d', 'M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z')
+            svg.appendChild(path)
+            return svg
+          },
+          alignment: 'right',
+          tooltip: 'Visa valda rader på karta',
+          action: (params) => showMapDialog(params.api),
         },
       ],
     })
